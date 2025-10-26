@@ -1,0 +1,212 @@
+[
+  {
+    "name": "type: bug",
+    "color": "d73a4a",
+    "description": "Something isn’t working as expected."
+  },
+  {
+    "name": "type: feature",
+    "color": "0e8a16",
+    "description": "New feature or capability."
+  },
+  {
+    "name": "type: enhancement",
+    "color": "84b6eb",
+    "description": "Improvement to an existing feature."
+  },
+  {
+    "name": "type: documentation",
+    "color": "6f42c1",
+    "description": "Changes or additions to documentation."
+  },
+  {
+    "name": "type: performance",
+    "color": "fbca04",
+    "description": "Performance or optimization related."
+  },
+  {
+    "name": "type: dependencies",
+    "color": "0366d6",
+    "description": "Dependency updates or issues."
+  },
+  {
+    "name": "type: test",
+    "color": "1d76db",
+    "description": "Adds or modifies automated tests."
+  },
+
+  {
+    "name": "status: todo",
+    "color": "d4c5f9",
+    "description": "Planned but not yet started."
+  },
+  {
+    "name": "status: in progress",
+    "color": "fbca04",
+    "description": "Currently being worked on."
+  },
+  {
+    "name": "status: needs review",
+    "color": "0e8a16",
+    "description": "Ready for code review."
+  },
+  {
+    "name": "status: under review",
+    "color": "f9d0c4",
+    "description": "Review in progress."
+  },
+  {
+    "name": "status: ready to merge",
+    "color": "0052cc",
+    "description": "Approved and ready to merge."
+  },
+  {
+    "name": "status: blocked",
+    "color": "b60205",
+    "description": "Blocked by another issue or dependency."
+  },
+  {
+    "name": "status: wontfix",
+    "color": "666666",
+    "description": "Decided not to address this issue."
+  },
+  {
+    "name": "status: duplicate",
+    "color": "cfd3d7",
+    "description": "This issue already exists."
+  },
+  {
+    "name": "status: invalid",
+    "color": "000000",
+    "description": "Not a valid issue (out of scope or incorrect)."
+  },
+
+  {
+    "name": "platform: android",
+    "color": "3ddc84",
+    "description": "Android-specific issue or change."
+  },
+  {
+    "name": "platform: ios",
+    "color": "007aff",
+    "description": "iOS-specific issue or change."
+  },
+  {
+    "name": "platform: web",
+    "color": "0366d6",
+    "description": "Web-specific behavior or support."
+  },
+  {
+    "name": "platform: expo",
+    "color": "8a63d2",
+    "description": "Related to Expo environment."
+  },
+  {
+    "name": "platform: cli",
+    "color": "6a737d",
+    "description": "CLI, tooling, or build process."
+  },
+  {
+    "name": "platform: typescript",
+    "color": "2b7489",
+    "description": "TypeScript types or definitions."
+  },
+
+  {
+    "name": "priority: high",
+    "color": "b60205",
+    "description": "Requires immediate attention."
+  },
+  {
+    "name": "priority: medium",
+    "color": "fbca04",
+    "description": "Should be addressed soon."
+  },
+  {
+    "name": "priority: low",
+    "color": "0e8a16",
+    "description": "Nice to have, not urgent."
+  },
+  {
+    "name": "severity: critical",
+    "color": "86181d",
+    "description": "Breaks core functionality."
+  },
+  {
+    "name": "severity: minor",
+    "color": "bfdadc",
+    "description": "Low impact, cosmetic or minor."
+  },
+
+  {
+    "name": "good first issue",
+    "color": "7057ff",
+    "description": "Great entry point for first-time contributors."
+  },
+  {
+    "name": "help wanted",
+    "color": "008672",
+    "description": "Contributions are welcome."
+  },
+  {
+    "name": "discussion",
+    "color": "d4c5f9",
+    "description": "Open discussion or idea."
+  },
+  {
+    "name": "question",
+    "color": "84b6eb",
+    "description": "General question or clarification."
+  },
+  {
+    "name": "needs reproduction",
+    "color": "e4e669",
+    "description": "Needs a reproducible example or steps."
+  },
+
+  {
+    "name": "area: core",
+    "color": "1d76db",
+    "description": "Core logic or architecture."
+  },
+  {
+    "name": "area: hooks",
+    "color": "bfdadc",
+    "description": "React hooks implementation."
+  },
+  {
+    "name": "area: ui",
+    "color": "0e8a16",
+    "description": "UI components or styling."
+  },
+  {
+    "name": "area: native",
+    "color": "6f42c1",
+    "description": "Native module or bridge layer."
+  },
+  {
+    "name": "area: docs",
+    "color": "6a737d",
+    "description": "Documentation site or content."
+  },
+  {
+    "name": "area: example",
+    "color": "8a63d2",
+    "description": "Example app or demo project."
+  },
+  {
+    "name": "docs: typo",
+    "color": "c5def5",
+    "description": "Fixing typos or grammar in documentation."
+  },
+  {
+    "name": "docs: improvement",
+    "color": "bfe5bf",
+    "description": "Improving clarity, structure, or examples in documentation."
+  },
+  {
+    "name": "docs: missing",
+    "color": "e99695",
+    "description": "Missing documentation that needs to be added."
+  }
+]

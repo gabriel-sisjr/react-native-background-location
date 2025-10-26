@@ -105,8 +105,7 @@
       "<rootDir>/lib/"
     ],
     "testMatch": [
-      "<rootDir>/src/__tests__/**/*-simple.test.{js,ts,tsx}",
-      "<rootDir>/src/__tests__/**/*-basic.test.{js,ts,tsx}"
+      "<rootDir>/src/__tests__/**/*.test.{js,ts,tsx}"
     ],
     "collectCoverageFrom": [
       "src/**/*.{js,ts,tsx}",
