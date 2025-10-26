@@ -46,7 +46,7 @@ yarn add react-native-background-location
 </manifest>
 ```
 
-2. **Request permissions at runtime:**
+2. **Request permissions at runtime:** _(not recommended, should use hook instead)_
 
 ```typescript
 import { PermissionsAndroid, Platform } from 'react-native';
@@ -74,6 +74,56 @@ const requestLocationPermissions = async () => {
 iOS support is coming in a future release.
 
 ## Usage
+
+### Using React Hooks (Recommended)
+
+The easiest way to use the library is with React Hooks:
+
+```typescript
+import {
+  useLocationPermissions,
+  useBackgroundLocation,
+} from 'react-native-background-location';
+
+function TrackingScreen() {
+  // Manage permissions
+  const { permissionStatus, requestPermissions } = useLocationPermissions();
+
+  // Manage tracking
+  const {
+    isTracking,
+    tripId,
+    locations,
+    startTracking,
+    stopTracking,
+    error,
+  } = useBackgroundLocation({
+    onError: (err) => console.error(err),
+  });
+
+  // Request permissions first
+  if (!permissionStatus.hasPermission) {
+    return <Button title="Grant Permissions" onPress={requestPermissions} />;
+  }
+
+  return (
+    <View>
+      <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
+      <Text>Locations: {locations.length}</Text>
+      <Button
+        title={isTracking ? 'Stop' : 'Start'}
+        onPress={isTracking ? stopTracking : () => startTracking()}
+      />
+    </View>
+  );
+}
+```
+
+See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation.
+
+### Using Direct API
+
+You can also use the module API directly:
 
 ```typescript
 import BackgroundLocation, { type Coords } from 'react-native-background-location';
@@ -225,11 +275,68 @@ When the native module is not available (e.g., running in simulator without prop
 
 This allows development without constant native setup.
 
+## React Hooks
+
+The library provides three React Hooks for easier integration:
+
+### `useLocationPermissions()`
+
+Manages location permissions including background permissions.
+
+```typescript
+const {
+  permissionStatus,     // Current permission state
+  requestPermissions,   // Request all permissions
+  checkPermissions,     // Check without requesting
+  isRequesting,         // Loading state
+} = useLocationPermissions();
+```
+
+### `useBackgroundLocation(options?)`
+
+Complete hook for managing tracking, locations, and state.
+
+```typescript
+const {
+  isTracking,           // Whether tracking is active
+  tripId,               // Current trip ID
+  locations,            // Array of locations
+  isLoading,            // Loading state
+  error,                // Last error
+  startTracking,        // Start tracking
+  stopTracking,         // Stop tracking
+  refreshLocations,     // Refresh locations
+  clearCurrentTrip,     // Clear trip data
+  clearError,           // Clear error
+} = useBackgroundLocation({
+  autoStart: false,                      // Auto-start on mount
+  onTrackingStart: (id) => {},           // Callback
+  onTrackingStop: () => {},              // Callback
+  onError: (err) => {},                  // Callback
+});
+```
+
+### `useLocationTracking(autoRefresh?)`
+
+Lightweight hook for monitoring tracking status.
+
+```typescript
+const {
+  isTracking,           // Whether tracking is active
+  tripId,               // Current trip ID
+  refresh,              // Refresh status
+  isLoading,            // Loading state
+} = useLocationTracking(true);
+```
+
+See the **[Hooks Guide](docs/getting-started/hooks.md)** for complete documentation and examples.
+
 ## Documentation
 
 ### Getting Started
 - **[Quick Start Guide](docs/getting-started/QUICKSTART.md)** - Get up and running in 5 minutes
 - **[Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md)** - Detailed integration steps for existing apps
+- **[Hooks Guide](docs/getting-started/hooks.md)** - Complete hooks documentation
 
 ### Development
 - **[Publishing Guide](docs/development/PUBLISHING.md)** - How to publish updates to npm

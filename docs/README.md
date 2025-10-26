@@ -12,6 +12,9 @@ Start here if you're new to the library:
 - **[Integration Guide](getting-started/INTEGRATION_GUIDE.md)**  
   Step-by-step guide to integrate into your existing React Native app.
 
+- **[React Hooks Guide](getting-started/hooks.md)**  
+  Complete guide to using React Hooks for easier integration and better DX.
+
 ## 🛠 Development
 
 For maintainers and contributors:
