@@ -225,6 +225,16 @@ When the native module is not available (e.g., running in simulator without prop
 
 This allows development without constant native setup.
 
+## Documentation
+
+### Getting Started
+- **[Quick Start Guide](docs/getting-started/QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md)** - Detailed integration steps for existing apps
+
+### Development
+- **[Publishing Guide](docs/development/PUBLISHING.md)** - How to publish updates to npm
+- **[Implementation Summary](docs/development/IMPLEMENTATION_SUMMARY.md)** - Technical overview of the implementation
+
 ## Example App
 
 The library includes a complete example app demonstrating all features:
