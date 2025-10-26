@@ -1,37 +1,288 @@
 # react-native-background-location
 
-react-native-background-location
+A React Native library for tracking location in the background using TurboModules (New Architecture). Track user location even when the app is minimized or in the background.
+
+## Features
+
+- ✅ **Background location tracking** - Continues tracking when app is in background
+- ✅ **TurboModule** - Built with React Native's New Architecture for better performance
+- ✅ **Session-based tracking** - Organize location data by trip/session IDs
+- ✅ **TypeScript support** - Fully typed API
+- ✅ **Android support** - Native Kotlin implementation (iOS coming soon)
+- ✅ **Persistent storage** - Locations are stored and survive app restarts
+- ✅ **Foreground service** - Uses Android foreground service for reliable tracking
 
 ## Installation
 
-
 ```sh
 npm install react-native-background-location
+# or
+yarn add react-native-background-location
 ```
 
+## Platform Configuration
+
+### Android
+
+1. **Add permissions to your `android/app/src/main/AndroidManifest.xml`:**
+
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  
+  <!-- Location permissions -->
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+  
+  <!-- Background location for Android 10+ -->
+  <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+  
+  <!-- Foreground service permissions -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+  <application>
+    <!-- Your app configuration -->
+  </application>
+</manifest>
+```
+
+2. **Request permissions at runtime:**
+
+```typescript
+import { PermissionsAndroid, Platform } from 'react-native';
+
+const requestLocationPermissions = async () => {
+  if (Platform.OS === 'android') {
+    const granted = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+    ]);
+
+    return (
+      granted['android.permission.ACCESS_FINE_LOCATION'] === 'granted' &&
+      granted['android.permission.ACCESS_COARSE_LOCATION'] === 'granted' &&
+      granted['android.permission.ACCESS_BACKGROUND_LOCATION'] === 'granted'
+    );
+  }
+  return true;
+};
+```
+
+### iOS
+
+iOS support is coming in a future release.
 
 ## Usage
 
+```typescript
+import BackgroundLocation, { type Coords } from 'react-native-background-location';
 
-```js
-import { multiply } from 'react-native-background-location';
+// Start tracking with a custom trip ID
+const tripId = await BackgroundLocation.startTracking('my-trip-123');
 
-// ...
+// Or let the library generate a trip ID
+const autoTripId = await BackgroundLocation.startTracking();
 
-const result = multiply(3, 7);
+// Check if tracking is active
+const status = await BackgroundLocation.isTracking();
+console.log(status.active); // true/false
+console.log(status.tripId); // current trip ID if active
+
+// Get all locations for a trip
+const locations: Coords[] = await BackgroundLocation.getLocations(tripId);
+locations.forEach(location => {
+  console.log(location.latitude);  // string
+  console.log(location.longitude); // string
+  console.log(location.timestamp); // number (Unix timestamp in ms)
+});
+
+// Stop tracking
+await BackgroundLocation.stopTracking();
+
+// Clear stored data for a trip
+await BackgroundLocation.clearTrip(tripId);
 ```
 
+## API Reference
+
+### `startTracking(tripId?: string): Promise<string>`
+
+Starts location tracking in background for a specific trip.
+
+- **Parameters:**
+  - `tripId` (optional): Custom trip identifier. If omitted, a UUID will be generated.
+  
+- **Returns:** Promise resolving to the effective trip ID being used.
+
+- **Behavior:** 
+  - If tracking is already active, returns the current trip ID (idempotent).
+  - Starts a foreground service on Android with a persistent notification.
+  - Requires location permissions to be granted.
+
+- **Throws:** 
+  - `PERMISSION_DENIED` if location permissions are not granted.
+  - `START_TRACKING_ERROR` if unable to start the service.
+
+### `stopTracking(): Promise<void>`
+
+Stops all location tracking and terminates the background service.
+
+- **Returns:** Promise that resolves when tracking is stopped.
+
+- **Behavior:**
+  - Removes the foreground service and notification.
+  - Does not clear stored location data (use `clearTrip()` for that).
+
+### `isTracking(): Promise<TrackingStatus>`
+
+Checks if location tracking is currently active.
+
+- **Returns:** Promise resolving to an object:
+  ```typescript
+  {
+    active: boolean;      // Whether tracking is active
+    tripId?: string;      // Current trip ID if tracking
+  }
+  ```
+
+### `getLocations(tripId: string): Promise<Coords[]>`
+
+Retrieves all stored location points for a specific trip.
+
+- **Parameters:**
+  - `tripId`: The trip identifier.
+
+- **Returns:** Promise resolving to array of location coordinates:
+  ```typescript
+  {
+    latitude: string;     // Latitude as string
+    longitude: string;    // Longitude as string
+    timestamp: number;    // Unix timestamp in milliseconds
+  }[]
+  ```
+
+- **Throws:** 
+  - `INVALID_TRIP_ID` if trip ID is empty.
+  - `GET_LOCATIONS_ERROR` if unable to retrieve data.
+
+### `clearTrip(tripId: string): Promise<void>`
+
+Clears all stored location data for a specific trip.
+
+- **Parameters:**
+  - `tripId`: The trip identifier to clear.
+
+- **Returns:** Promise that resolves when data is cleared.
+
+- **Throws:**
+  - `INVALID_TRIP_ID` if trip ID is empty.
+  - `CLEAR_TRIP_ERROR` if unable to clear data.
+
+## Types
+
+```typescript
+interface Coords {
+  latitude: string;
+  longitude: string;
+  timestamp: number;
+}
+
+interface TrackingStatus {
+  active: boolean;
+  tripId?: string;
+}
+```
+
+## Configuration
+
+The library uses the following default location update intervals on Android:
+
+- **Update interval:** 5 seconds
+- **Fastest interval:** 3 seconds
+- **Max wait time:** 10 seconds
+- **Priority:** High accuracy
+
+These settings are optimized for real-time tracking. Future versions may allow customization.
+
+## Battery Optimization
+
+⚠️ **Important:** Background location tracking can significantly impact battery life. Consider:
+
+- Only tracking when necessary
+- Stopping tracking when done
+- Informing users about battery usage
+- Testing on real devices (not emulators)
+
+On Android, some manufacturers (Xiaomi, Huawei, etc.) have aggressive battery optimization that may kill background services. Users may need to whitelist your app in battery settings.
+
+## Simulator/Emulator Support
+
+When the native module is not available (e.g., running in simulator without proper setup), all methods will:
+- Log a warning to the console
+- Return safe fallback values
+- Not crash the app
+
+This allows development without constant native setup.
+
+## Example App
+
+The library includes a complete example app demonstrating all features:
+
+```bash
+# Run the example app
+cd example
+yarn install
+
+# Android
+yarn android
+
+# iOS (coming soon)
+yarn ios
+```
+
+## Troubleshooting
+
+### Android: Location not updating in background
+
+1. Ensure all permissions are granted, including `ACCESS_BACKGROUND_LOCATION`
+2. Check that the foreground service is running (you should see a notification)
+3. Test on a real device (emulator GPS simulation is unreliable)
+4. Check device battery optimization settings
+5. Verify Google Play Services is installed and up to date
+
+### Build errors
+
+1. Make sure you're using React Native 0.70+
+2. Clean build: `cd android && ./gradlew clean`
+3. Clear Metro cache: `yarn start --reset-cache`
+4. Rebuild: `yarn android`
+
+### TypeScript errors
+
+Make sure your `tsconfig.json` includes:
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "node"
+  }
+}
+```
+
+## Roadmap
+
+- [ ] iOS implementation with Swift
+- [ ] Customizable update intervals
+- [ ] React hooks (`useLocation`, `useTracking`)
+- [ ] Event emitters for real-time updates
+- [ ] Geofencing support
+- [ ] Distance filtering
+- [ ] SQLite storage for large datasets
 
 ## Contributing
 
-- [Development workflow](CONTRIBUTING.md#development-workflow)
-- [Sending a pull request](CONTRIBUTING.md#sending-a-pull-request)
-- [Code of conduct](CODE_OF_CONDUCT.md)
+See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
 
 ## License
 
 MIT
-
----
-
-Made with [create-react-native-library](https://github.com/callstack/react-native-builder-bob)
