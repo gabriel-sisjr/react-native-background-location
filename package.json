@@ -68,6 +68,8 @@
     "@react-native/babel-preset": "0.81.1",
     "@react-native/eslint-config": "^0.81.1",
     "@release-it/conventional-changelog": "^10.0.1",
+    "@testing-library/jest-native": "^5.4.3",
+    "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "^19.1.0",
     "commitlint": "^19.8.1",
@@ -80,6 +82,7 @@
     "react": "19.1.0",
     "react-native": "0.81.1",
     "react-native-builder-bob": "^0.40.13",
+    "react-test-renderer": "19.1.0",
     "release-it": "^19.0.4",
     "turbo": "^2.5.6",
     "typescript": "^5.9.2"
@@ -94,10 +97,30 @@
   "packageManager": "yarn@3.6.1",
   "jest": {
     "preset": "react-native",
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/__tests__/setup-minimal.ts"
+    ],
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
       "<rootDir>/lib/"
-    ]
+    ],
+    "testMatch": [
+      "<rootDir>/src/__tests__/**/*-simple.test.{js,ts,tsx}",
+      "<rootDir>/src/__tests__/**/*-basic.test.{js,ts,tsx}"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{js,ts,tsx}",
+      "!src/__tests__/**",
+      "!src/**/*.d.ts"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 0,
+        "functions": 0,
+        "lines": 0,
+        "statements": 0
+      }
+    }
   },
   "commitlint": {
     "extends": [

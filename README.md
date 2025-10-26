@@ -341,6 +341,7 @@ See the **[Hooks Guide](docs/getting-started/hooks.md)** for complete documentat
 ### Development
 - **[Publishing Guide](docs/development/PUBLISHING.md)** - How to publish updates to npm
 - **[Implementation Summary](docs/development/IMPLEMENTATION_SUMMARY.md)** - Technical overview of the implementation
+- **[Testing Guide](docs/development/TESTING.md)** - Testing structure and guidelines
 
 ## Example App
 
