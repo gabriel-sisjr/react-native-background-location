@@ -55,11 +55,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- 🧪 **Comprehensive Test Suite**: Achieved 98.91% code coverage
+  - Complete tests for `useBackgroundLocation` hook (62 tests)
+  - Complete tests for `useLocationTracking` hook (25 tests)
+  - Complete tests for `useLocationPermissions` hook (9 tests)
+  - Integration tests for main module exports
+  - Total: 96 passing tests across 4 test suites
+- 📝 **Testing Documentation**: Added comprehensive testing guide in `docs/development/TESTING.md`
+- ⚛️ **React Hooks**: Production-ready hooks for location tracking
+  - `useBackgroundLocation`: Full-featured hook for managing background tracking
+  - `useLocationTracking`: Lightweight hook for monitoring tracking status
+  - `useLocationPermissions`: Hook for Android location permission management
+
+### Changed
+
+- 🔧 **Test Infrastructure**: 
+  - Fixed TypeScript errors with `Platform.Version` mocks using `Object.defineProperty`
+  - Improved test setup with minimal mocks for better reliability
+  - Enhanced error handling tests for all hooks
+- 📚 **Documentation**: Moved test README to `docs/development/` following project structure
+
+### Fixed
+
+- 🐛 TypeScript read-only property errors in test files
+- 🐛 ESLint warnings in test configurations
+- 🐛 Test coverage configuration for proper threshold handling
+
 ### Planned
 
 - iOS implementation with Swift
 - Customizable location update intervals
-- React hooks (useLocation, useTracking)
 - Event emitters for real-time updates
 - Geofencing support
 - Distance filtering
@@ -70,6 +97,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## Release Notes
+
+### Next Release - React Hooks & Testing
+
+**Major Additions:**
+
+The library now includes production-ready React hooks and comprehensive test coverage:
+
+**🎣 React Hooks:**
+- `useBackgroundLocation`: Complete hook for location tracking with auto-start, callbacks, and error handling
+- `useLocationTracking`: Lightweight hook for monitoring tracking status
+- `useLocationPermissions`: Full permission management for Android (including Android 10+ background permissions)
+
+**🧪 Test Coverage:**
+- 98.91% overall code coverage
+- 96 comprehensive tests covering all hooks and core functionality
+- Extensive edge case and error handling tests
+- Platform-specific behavior tests (Android/iOS)
+
+**📚 Developer Experience:**
+- Complete testing documentation
+- Better error messages and warnings
+- TypeScript improvements for better type safety
+
+This update significantly improves the developer experience with hooks that follow React best practices and comprehensive tests ensuring reliability.
+
+---
 
 ### v0.1.0 - Initial Release
 
