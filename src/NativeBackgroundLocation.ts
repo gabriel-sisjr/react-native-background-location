@@ -1,15 +1,7 @@
 import { TurboModuleRegistry, type TurboModule } from 'react-native';
+import type { Coords, TrackingStatus } from './types';
 
-export interface Coords {
-  latitude: string;
-  longitude: string;
-  timestamp: number;
-}
-
-export interface TrackingStatus {
-  active: boolean;
-  tripId?: string;
-}
+export type { Coords, TrackingStatus };
 
 export interface Spec extends TurboModule {
   /**
