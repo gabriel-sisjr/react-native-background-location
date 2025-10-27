@@ -56,18 +56,14 @@ jest.mock('react-native/Libraries/TurboModule/TurboModuleRegistry', () => ({
   get: jest.fn(),
 }));
 
-// Mock console methods to reduce noise in tests
-const originalConsoleError = console.error;
-const originalConsoleWarn = console.warn;
-
 beforeEach(() => {
   console.error = jest.fn();
   console.warn = jest.fn();
 });
 
 afterEach(() => {
-  console.error = originalConsoleError;
-  console.warn = originalConsoleWarn;
+  (console.error as any) = console.error;
+  (console.warn as any) = console.warn;
   jest.clearAllMocks();
 });
 
