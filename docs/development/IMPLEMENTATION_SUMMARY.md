@@ -177,13 +177,13 @@ react-native-background-location/
 ### Installation
 
 ```bash
-npm install react-native-background-location
+npm install @gabriel-sisjr/react-native-background-location
 ```
 
 ### Basic Usage
 
 ```typescript
-import BackgroundLocation from 'react-native-background-location';
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
 
 // Start tracking
 const tripId = await BackgroundLocation.startTracking();
@@ -264,7 +264,7 @@ import LocationService from './native/Location';
 // Simple npm install
 // Auto-linking
 // Versioned releases
-import BackgroundLocation from 'react-native-background-location';
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
 ```
 
 ## Acknowledgments
@@ -278,7 +278,7 @@ import BackgroundLocation from 'react-native-background-location';
 
 - GitHub: https://github.com/gabriel-sisjr/react-native-background-location
 - Issues: https://github.com/gabriel-sisjr/react-native-background-location/issues
-- NPM: react-native-background-location
+- NPM: @gabriel-sisjr/react-native-background-location
 
 ---
 

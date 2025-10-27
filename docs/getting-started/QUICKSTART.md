@@ -1,13 +1,13 @@
 # Quick Start Guide
 
-Get started with `react-native-background-location` in 5 minutes.
+Get started with `@gabriel-sisjr/react-native-background-location` in 5 minutes.
 
 ## Installation
 
 ```bash
-npm install react-native-background-location
+npm install @gabriel-sisjr/react-native-background-location
 # or
-yarn add react-native-background-location
+yarn add @gabriel-sisjr/react-native-background-location
 ```
 
 ## Android Setup
@@ -51,7 +51,7 @@ const requestPermissions = async () => {
 ### 3. Start Tracking
 
 ```typescript
-import BackgroundLocation from 'react-native-background-location';
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
 
 // Request permissions first
 const hasPermission = await requestPermissions();
@@ -88,7 +88,7 @@ await BackgroundLocation.stopTracking();
 ```typescript
 import React, { useState } from 'react';
 import { View, Button, Text, Alert, PermissionsAndroid } from 'react-native';
-import BackgroundLocation from 'react-native-background-location';
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
 
 export default function App() {
   const [tracking, setTracking] = useState(false);

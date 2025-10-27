@@ -1,152 +1,111 @@
-import { useState, useEffect } from 'react';
 import {
   Text,
   View,
   StyleSheet,
   Button,
   ScrollView,
-  PermissionsAndroid,
-  Platform,
   Alert,
   SafeAreaView,
+  ActivityIndicator,
+  Linking,
+  Platform,
 } from 'react-native';
-import BackgroundLocation, {
-  type Coords,
-} from 'react-native-background-location';
+import {
+  useLocationPermissions,
+  useBackgroundLocation,
+  LocationPermissionStatus,
+} from '@gabriel-sisjr/react-native-background-location';
 
 export default function App() {
-  const [isTracking, setIsTracking] = useState(false);
-  const [currentTripId, setCurrentTripId] = useState<string | null>(null);
-  const [locations, setLocations] = useState<Coords[]>([]);
-  const [permissionGranted, setPermissionGranted] = useState(false);
+  // Manage permissions with hook
+  const { permissionStatus, requestPermissions, isRequesting } =
+    useLocationPermissions();
 
-  useEffect(() => {
-    checkTrackingStatus();
-  }, []);
-
-  const checkTrackingStatus = async () => {
-    try {
-      const status = await BackgroundLocation.isTracking();
-      setIsTracking(status.active);
-      setCurrentTripId(status.tripId || null);
-    } catch (error) {
-      console.error('Error checking tracking status:', error);
-    }
-  };
-
-  const requestLocationPermissions = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-          PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
-        ]);
-
-        const allGranted =
-          granted['android.permission.ACCESS_FINE_LOCATION'] === 'granted' &&
-          granted['android.permission.ACCESS_COARSE_LOCATION'] === 'granted' &&
-          granted['android.permission.ACCESS_BACKGROUND_LOCATION'] ===
-            'granted';
-
-        setPermissionGranted(allGranted);
-
-        if (!allGranted) {
-          Alert.alert(
-            'Permissions Required',
-            'This app needs location permissions (including background) to track your location.',
-            [{ text: 'OK' }]
-          );
-        }
-
-        return allGranted;
-      } catch (error) {
-        console.error('Error requesting permissions:', error);
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const handleStartTracking = async () => {
-    const hasPermission =
-      permissionGranted || (await requestLocationPermissions());
-
-    if (!hasPermission) {
-      Alert.alert(
-        'Error',
-        'Location permissions are required to start tracking'
-      );
-      return;
-    }
-
-    try {
-      const tripId = await BackgroundLocation.startTracking();
-      setCurrentTripId(tripId);
-      setIsTracking(true);
-      Alert.alert('Success', `Tracking started with trip ID: ${tripId}`);
-    } catch (error: any) {
-      console.error('Error starting tracking:', error);
-      Alert.alert('Error', `Failed to start tracking: ${error.message}`);
-    }
-  };
-
-  const handleStopTracking = async () => {
-    try {
-      await BackgroundLocation.stopTracking();
-      setIsTracking(false);
+  // Manage tracking with hook
+  const {
+    isTracking,
+    tripId,
+    locations,
+    isLoading,
+    error,
+    startTracking,
+    stopTracking,
+    refreshLocations,
+    clearCurrentTrip,
+    clearError,
+  } = useBackgroundLocation({
+    onTrackingStart: (id) => {
+      Alert.alert('Success', `Tracking started with trip ID: ${id}`);
+    },
+    onTrackingStop: () => {
       Alert.alert('Success', 'Tracking stopped');
-    } catch (error: any) {
-      console.error('Error stopping tracking:', error);
-      Alert.alert('Error', `Failed to stop tracking: ${error.message}`);
-    }
-  };
+    },
+    onError: (err) => {
+      console.error('Tracking error:', err);
+    },
+  });
 
-  const handleGetLocations = async () => {
-    if (!currentTripId) {
-      Alert.alert('Error', 'No active trip ID');
-      return;
-    }
+  // Handle permission-blocked state
+  if (permissionStatus.status === LocationPermissionStatus.BLOCKED) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Permissions Blocked</Text>
+          <Text style={styles.description}>
+            Location permissions are permanently denied. Please enable them in
+            your device settings.
+          </Text>
+          <Button
+            title="Open Settings"
+            onPress={() => Linking.openSettings()}
+            color="#4CAF50"
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-    try {
-      const locs = await BackgroundLocation.getLocations(currentTripId);
-      setLocations(locs);
-      Alert.alert('Success', `Retrieved ${locs.length} location(s)`);
-    } catch (error: any) {
-      console.error('Error getting locations:', error);
-      Alert.alert('Error', `Failed to get locations: ${error.message}`);
-    }
-  };
+  // Handle permission request
+  if (!permissionStatus.hasPermission) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.title}>Location Permissions Required</Text>
+          <Text style={styles.description}>
+            This app needs access to your location (including in the background)
+            to track your trips.
+          </Text>
+          {isRequesting ? (
+            <ActivityIndicator size="large" color="#2196F3" />
+          ) : (
+            <Button
+              title="Grant Permissions"
+              onPress={requestPermissions}
+              color="#4CAF50"
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-  const handleClearTrip = async () => {
-    if (!currentTripId) {
-      Alert.alert('Error', 'No active trip ID');
-      return;
-    }
-
+  // Handle errors
+  const handleClearTrip = () => {
     Alert.alert(
       'Clear Trip Data',
-      `Are you sure you want to clear all data for trip ${currentTripId}?`,
+      `Are you sure you want to clear all data for trip ${tripId}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              await BackgroundLocation.clearTrip(currentTripId);
-              setLocations([]);
-              Alert.alert('Success', 'Trip data cleared');
-            } catch (error: any) {
-              console.error('Error clearing trip:', error);
-              Alert.alert('Error', `Failed to clear trip: ${error.message}`);
-            }
-          },
+          onPress: clearCurrentTrip,
         },
       ]
     );
   };
 
+  // Main tracking UI
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -154,6 +113,7 @@ export default function App() {
         contentContainerStyle={styles.content}
       >
         <Text style={styles.title}>Background Location Example</Text>
+        <Text style={styles.subtitle}>Using React Hooks</Text>
 
         <View style={styles.statusContainer}>
           <Text style={styles.statusLabel}>Status:</Text>
@@ -167,49 +127,56 @@ export default function App() {
           </Text>
         </View>
 
-        {currentTripId && (
+        {tripId && (
           <View style={styles.tripIdContainer}>
             <Text style={styles.label}>Current Trip ID:</Text>
-            <Text style={styles.tripId}>{currentTripId}</Text>
+            <Text style={styles.tripId}>{tripId}</Text>
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Error: {error.message}</Text>
+            <Button title="Dismiss" onPress={clearError} color="#f44336" />
           </View>
         )}
 
         <View style={styles.buttonContainer}>
-          {!permissionGranted && (
-            <Button
-              title="Request Permissions"
-              onPress={requestLocationPermissions}
-              color="#4CAF50"
-            />
-          )}
-
-          {!isTracking ? (
-            <Button
-              title="Start Tracking"
-              onPress={handleStartTracking}
-              color="#2196F3"
-            />
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#2196F3" />
           ) : (
-            <Button
-              title="Stop Tracking"
-              onPress={handleStopTracking}
-              color="#f44336"
-            />
+            <>
+              {!isTracking ? (
+                <Button
+                  title="Start Tracking"
+                  onPress={() => startTracking()}
+                  color="#2196F3"
+                />
+              ) : (
+                <Button
+                  title="Stop Tracking"
+                  onPress={stopTracking}
+                  color="#f44336"
+                />
+              )}
+
+              {isTracking && (
+                <Button
+                  title="Refresh Locations"
+                  onPress={refreshLocations}
+                  color="#FF9800"
+                />
+              )}
+
+              {tripId && (
+                <Button
+                  title="Clear Trip Data"
+                  onPress={handleClearTrip}
+                  color="#9C27B0"
+                />
+              )}
+            </>
           )}
-
-          <Button
-            title="Get Locations"
-            onPress={handleGetLocations}
-            disabled={!currentTripId}
-            color="#FF9800"
-          />
-
-          <Button
-            title="Clear Trip Data"
-            onPress={handleClearTrip}
-            disabled={!currentTripId}
-            color="#9C27B0"
-          />
         </View>
 
         <View style={styles.locationsContainer}>
@@ -218,7 +185,11 @@ export default function App() {
           </Text>
 
           {locations.length === 0 ? (
-            <Text style={styles.emptyText}>No locations yet</Text>
+            <Text style={styles.emptyText}>
+              {isTracking
+                ? 'Collecting locations...'
+                : 'No locations yet. Start tracking to collect locations.'}
+            </Text>
           ) : (
             locations.map((location, index) => (
               <View key={index} style={styles.locationItem}>
@@ -252,9 +223,36 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 10,
     textAlign: 'center',
     color: '#333',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  description: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f44336',
+  },
+  errorText: {
+    color: '#c62828',
+    fontSize: 14,
+    marginBottom: 10,
   },
   statusContainer: {
     flexDirection: 'row',

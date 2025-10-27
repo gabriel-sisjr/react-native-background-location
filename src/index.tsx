@@ -1,7 +1,25 @@
 import { Platform, NativeModules } from 'react-native';
 import BackgroundLocationModule from './NativeBackgroundLocation';
 
+// Export types
 export type { Coords, TrackingStatus } from './NativeBackgroundLocation';
+export type {
+  PermissionState,
+  UseLocationPermissionsResult,
+  UseBackgroundLocationResult,
+  UseLocationTrackingOptions,
+} from './types';
+export type { UseLocationTrackingResult } from './hooks/useLocationTracking';
+
+// Export enums (as values)
+export { LocationPermissionStatus } from './types';
+
+// Export hooks
+export {
+  useLocationPermissions,
+  useBackgroundLocation,
+  useLocationTracking,
+} from './hooks';
 
 // Check if native module is available (won't be in simulator without proper setup)
 const isNativeModuleAvailable = () => {
