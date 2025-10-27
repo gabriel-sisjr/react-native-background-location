@@ -88,7 +88,7 @@ jobs:
               name: `Pre-release ${tagName}`,
               body: `🚀 Pre-release version ${version}\n\n` +
                     `This is a beta release from the develop branch.\n\n` +
-                    `Install with: \`npm install react-native-background-location@beta\`\n\n` +
+                    `Install with: \`npm install @gabriel-sisjr/react-native-background-location@beta\`\n\n` +
                     `Commit: ${context.sha}`,
               draft: false,
               prerelease: true
@@ -126,9 +126,9 @@ jobs:
                 body: `🚀 A pre-release version has been published: **v${version}**\n\n` +
                       `You can install it with:\n` +
                       `\`\`\`bash\n` +
-                      `npm install react-native-background-location@beta\n` +
+                      `npm install @gabriel-sisjr/react-native-background-location@beta\n` +
                       `# or\n` +
-                      `yarn add react-native-background-location@beta\n` +
+                      `yarn add @gabriel-sisjr/react-native-background-location@beta\n` +
                       `\`\`\`\n\n` +
                       `This version includes your changes and is available for testing!`
               });

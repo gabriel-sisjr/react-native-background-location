@@ -14,7 +14,7 @@ import {
   useLocationPermissions,
   useBackgroundLocation,
   LocationPermissionStatus,
-} from 'react-native-background-location';
+} from '@gabriel-sisjr/react-native-background-location';
 
 export default function App() {
   // Manage permissions with hook
