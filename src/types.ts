@@ -13,6 +13,13 @@ export interface TrackingStatus {
   tripId?: string;
 }
 
+export interface LocationUpdateEvent {
+  tripId: string;
+  latitude: string;
+  longitude: string;
+  timestamp: number;
+}
+
 export enum LocationPermissionStatus {
   GRANTED = 'granted',
   DENIED = 'denied',
@@ -127,4 +134,61 @@ export interface UseLocationTrackingOptions {
    * Callback when error occurs
    */
   onError?: (error: Error) => void;
+}
+
+export interface UseLocationUpdatesOptions {
+  /**
+   * Specific trip ID to watch
+   * If not provided, watches updates for any active trip
+   */
+  tripId?: string;
+
+  /**
+   * Callback when a new location is received
+   */
+  onLocationUpdate?: (location: Coords) => void;
+
+  /**
+   * Whether to automatically load existing locations on mount
+   * @default true
+   */
+  autoLoad?: boolean;
+}
+
+export interface UseLocationUpdatesResult {
+  /**
+   * Current trip ID being watched
+   */
+  tripId: string | null;
+
+  /**
+   * Whether location tracking is currently active
+   */
+  isTracking: boolean;
+
+  /**
+   * All locations received for the current trip
+   * Updates automatically as new locations arrive
+   */
+  locations: Coords[];
+
+  /**
+   * The most recent location received
+   */
+  lastLocation: Coords | null;
+
+  /**
+   * Whether data is being loaded
+   */
+  isLoading: boolean;
+
+  /**
+   * Last error that occurred
+   */
+  error: Error | null;
+
+  /**
+   * Clear error state
+   */
+  clearError: () => void;
 }

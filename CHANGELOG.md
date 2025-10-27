@@ -142,13 +142,126 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - **`main`**: Production-ready releases (stable versions)
 - **`develop`**: Latest development code (beta releases available via `npm install @gabriel-sisjr/react-native-background-location@beta`)
 
+## [0.3.0] - 2025-01-26
+
+### Added
+
+- 🎯 **Real-time Location Updates**: New `useLocationUpdates` hook for automatic location watching
+  - Real-time event-driven location updates via native events
+  - Automatic subscription to `onLocationUpdate` events from Android background service
+  - Access to last location received in real-time
+  - Optional filtering by specific tripId
+  - Callback support for each new location
+  - Automatic loading of existing locations on mount
+  - Complete TypeScript support with full type definitions
+  - Automatic cleanup of event listeners on unmount
+  - Graceful handling when native module unavailable
+
+- 📡 **Android Event System**: Native event emission infrastructure
+  - LocationService emits `onLocationUpdate` events via DeviceEventManagerModule
+  - Events sent whenever new GPS location is collected
+  - Non-blocking async event emission
+  - Context-aware event system with React Native bridge
+
+- 📚 **Enhanced Documentation**:
+  - Complete real-time updates guide in `docs/getting-started/REAL_TIME_UPDATES.md`
+  - Usage examples demonstrating manual vs automatic modes
+  - Best practices for combining hooks
+  - FAQ section with common questions
+  - Updated example app with toggle for manual/automatic modes
+
+- 🎨 **Improved Example App**:
+  - Added toggle switch to demonstrate manual vs automatic update modes
+  - Real-time visualization of last location
+  - Visual indicators for active mode
+  - Conditional UI elements based on update mode
+
+### API Additions
+
+**New Hook**: `useLocationUpdates`
+```typescript
+const {
+  locations,        // Real-time array of all locations
+  lastLocation,     // Most recent location received
+  isTracking,       // Tracking status
+  tripId,          // Current trip ID
+  isLoading,       // Loading state
+  error,           // Error state
+  clearError       // Clear error function
+} = useLocationUpdates({
+  tripId?: string,                    // Filter by tripId
+  onLocationUpdate?: (location) => void,  // Callback per location
+  autoLoad?: boolean                  // Load existing locations
+});
+```
+
+### Changed
+
+- 📦 **Version Bump**: Updated to 0.3.0 following semantic versioning (minor release for new features)
+- 🔄 **Event System**: Android LocationService now emits native events for real-time updates
+- 📱 **Module Integration**: BackgroundLocationModule now provides ReactContext to LocationService
+
+### Technical Details
+
+**File Changes:**
+- `android/src/main/java/com/backgroundlocation/LocationService.kt`: Added event emission
+- `android/src/main/java/com/backgroundlocation/BackgroundLocationModule.kt`: Added context setup
+- `src/hooks/useLocationUpdates.ts`: New hook for real-time updates
+- `src/types.ts`: Added `LocationUpdateEvent`, `UseLocationUpdatesOptions`, `UseLocationUpdatesResult`
+- `src/hooks/index.ts`: Exported new hook and types
+- `src/index.tsx`: Exported new hook and types
+- `example/src/App.tsx`: Enhanced with toggle demonstration
+
+**Architecture:**
+- Event-driven updates (no polling required)
+- Non-blocking event emission
+- Automatic subscription/unsubscription
+- Memory efficient with minimal overhead
+- Compatible with existing imperative API
+
+### Migration Guide
+
+If upgrading from 0.2.0:
+
+**No Breaking Changes** - All existing APIs remain fully supported.
+
+**New Feature - Real-time Updates:**
+
+```typescript
+// Option 1: Manual refresh (existing)
+import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
+const { locations, refreshLocations } = useBackgroundLocation();
+// ... call refreshLocations() periodically
+
+// Option 2: Automatic updates (NEW)
+import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
+const { locations } = useLocationUpdates();
+// ... locations update automatically in real-time
+
+// Option 3: Combine both (recommended)
+const control = useBackgroundLocation(); // For start/stop
+const updates = useLocationUpdates(); // For real-time data
+```
+
+### Requirements
+
+- React Native 0.70 or higher
+- Android API 21+ (Android 5.0 Lollipop)
+- Google Play Services Location 21.3.0
+
+### Known Limitations
+
+- iOS event emitters not yet implemented (iOS support planned)
+- Events only processed when app is in foreground
+- Real-time updates currently Android-only
+
 ## [Unreleased]
 
 ### Planned
 
 - iOS implementation with Swift
+- iOS event emitter support
 - Customizable location update intervals
-- Event emitters for real-time updates
 - Geofencing support
 - Distance filtering
 - SQLite storage option for large datasets

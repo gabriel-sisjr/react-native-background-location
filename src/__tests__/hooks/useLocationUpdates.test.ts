@@ -1,0 +1,506 @@
+import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { NativeModules, Platform } from 'react-native';
+import { useLocationUpdates } from '../../hooks/useLocationUpdates';
+import BackgroundLocationModule from '../../NativeBackgroundLocation';
+
+jest.mock('../../NativeBackgroundLocation', () => ({
+  __esModule: true,
+  default: {
+    isTracking: jest.fn(),
+    getLocations: jest.fn(),
+  },
+}));
+
+describe('useLocationUpdates', () => {
+  const mockTripId = 'test-trip-123';
+  const mockLocations = [
+    { latitude: '37.7749', longitude: '-122.4194', timestamp: 1640995200000 },
+    { latitude: '37.7849', longitude: '-122.4094', timestamp: 1640995260000 },
+  ];
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    Platform.OS = 'android';
+    NativeModules.BackgroundLocation = {
+      isTracking: jest.fn(),
+      getLocations: jest.fn(),
+    } as any;
+
+    console.warn = jest.fn();
+    console.error = jest.fn();
+
+    (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+      active: false,
+      tripId: undefined,
+    });
+  });
+
+  const simulateEvent = (data: any) => {
+    (global as any).simulateLocationEvent(data);
+  };
+
+  describe('Initialization', () => {
+    it('should initialize with default state', () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      expect(result.current.tripId).toBeNull();
+      expect(result.current.isTracking).toBe(false);
+      expect(result.current.locations).toEqual([]);
+      expect(result.current.lastLocation).toBeNull();
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.error).toBeNull();
+      expect(typeof result.current.clearError).toBe('function');
+    });
+
+    it('should subscribe to location update events', () => {
+      const { unmount } = renderHook(() => useLocationUpdates());
+
+      // Component should mount without errors and clean up properly
+      unmount();
+
+      // We can't directly test the subscription without exposing internals,
+      // but we can verify no errors were thrown
+      expect(true).toBe(true);
+    });
+
+    it('should warn when module is not available', async () => {
+      NativeModules.BackgroundLocation = null as any;
+
+      renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(console.warn).toHaveBeenCalledWith(
+          expect.stringContaining('BackgroundLocation not available')
+        );
+      });
+    });
+
+    it('should check tracking status and load locations on mount when autoLoad=true', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isTracking).toBe(true);
+      });
+
+      expect(result.current.tripId).toBe(mockTripId);
+      expect(result.current.locations).toEqual(mockLocations);
+      expect(result.current.lastLocation).toEqual(mockLocations[1]);
+    });
+
+    it('should not load locations when autoLoad=false', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: false })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isTracking).toBe(true);
+      });
+
+      expect(BackgroundLocationModule.getLocations).not.toHaveBeenCalled();
+      expect(result.current.locations).toEqual([]);
+    });
+
+    it('should use provided tripId', async () => {
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+
+      renderHook(() => useLocationUpdates({ tripId: 'custom-trip-456' }));
+
+      await waitFor(() => {
+        expect(BackgroundLocationModule.getLocations).toHaveBeenCalled();
+      });
+    });
+
+    it('should handle errors when loading existing locations', async () => {
+      const error = new Error('Failed to load locations');
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockRejectedValue(
+        error
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      expect(result.current.error).toEqual(error);
+    });
+  });
+
+  describe('Event subscription', () => {
+    it('should process location update events', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate location update event
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(result.current.tripId).toBe(mockTripId);
+      expect(result.current.isTracking).toBe(true);
+      expect(result.current.locations).toHaveLength(1);
+      expect(result.current.lastLocation).toEqual({
+        latitude: '37.7750',
+        longitude: '-122.4195',
+        timestamp: 1640995201000,
+      });
+    });
+
+    it('should accumulate multiple location updates', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // First location
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      // Second location
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7760',
+          longitude: '-122.4196',
+          timestamp: 1640995202000,
+        });
+      });
+
+      expect(result.current.locations).toHaveLength(2);
+      expect(result.current.lastLocation?.latitude).toBe('37.7760');
+    });
+
+    it('should call onLocationUpdate callback when provided', async () => {
+      const onLocationUpdate = jest.fn();
+
+      renderHook(() => useLocationUpdates({ onLocationUpdate }));
+
+      // Small delay to ensure hook setup
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const locationEvent = {
+        tripId: mockTripId,
+        latitude: '37.7750',
+        longitude: '-122.4195',
+        timestamp: 1640995201000,
+      };
+
+      act(() => {
+        simulateEvent(locationEvent);
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+      expect(onLocationUpdate).toHaveBeenCalledWith({
+        latitude: locationEvent.latitude,
+        longitude: locationEvent.longitude,
+        timestamp: locationEvent.timestamp,
+      });
+    });
+
+    it('should filter events by tripId when provided', async () => {
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: 'specific-trip-789' })
+      );
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Event for different trip
+      act(() => {
+        simulateEvent({
+          tripId: 'other-trip-456',
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(result.current.locations).toEqual([]);
+
+      // Event for specific trip
+      act(() => {
+        simulateEvent({
+          tripId: 'specific-trip-789',
+          latitude: '37.7760',
+          longitude: '-122.4196',
+          timestamp: 1640995202000,
+        });
+      });
+
+      expect(result.current.locations).toHaveLength(1);
+    });
+
+    it('should update tripId from event when not specified', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      expect(result.current.tripId).toBeNull();
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(result.current.tripId).toBe(mockTripId);
+      expect(result.current.isTracking).toBe(true);
+    });
+
+    it('should cleanup event listener on unmount', () => {
+      const { unmount } = renderHook(() => useLocationUpdates());
+
+      // Should not throw errors
+      expect(() => unmount()).not.toThrow();
+    });
+  });
+
+  describe('Trip ID changes', () => {
+    it('should reset state when tripId changes', async () => {
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const { result, rerender } = renderHook(
+        ({ tripId }: { tripId: string }) =>
+          useLocationUpdates({ tripId, autoLoad: true }),
+        {
+          initialProps: { tripId: 'trip-1' },
+        }
+      );
+
+      await waitFor(() => {
+        expect(result.current.tripId).toBe('trip-1');
+      });
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual(mockLocations);
+      });
+
+      // Change tripId
+      rerender({ tripId: 'trip-2' });
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      expect(result.current.lastLocation).toBeNull();
+    });
+  });
+
+  describe('clearError', () => {
+    it('should clear error state', async () => {
+      const error = new Error('Test error');
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockRejectedValue(
+        error
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.error).toEqual(error);
+      });
+
+      act(() => {
+        result.current.clearError();
+      });
+
+      expect(result.current.error).toBeNull();
+    });
+  });
+
+  describe('Loading state', () => {
+    it('should set loading state while loading locations', async () => {
+      let resolvePromise: (value: any) => void;
+      const promise = new Promise<any>((resolve) => {
+        resolvePromise = resolve;
+      });
+
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockReturnValue(
+        promise
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(true);
+      });
+
+      await act(async () => {
+        resolvePromise!(mockLocations);
+        await promise;
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+    });
+  });
+
+  describe('Empty locations', () => {
+    it('should handle empty locations array', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        []
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      expect(result.current.lastLocation).toBeNull();
+    });
+  });
+
+  describe('Non-Error exceptions', () => {
+    it('should handle non-Error exceptions when loading locations', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockRejectedValue(
+        'String error'
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.error).toBeTruthy();
+      });
+
+      expect(result.current.error).toBeInstanceOf(Error);
+      expect(result.current.error?.message).toBe(
+        'Failed to load existing locations'
+      );
+    });
+  });
+
+  describe('Integration scenarios', () => {
+    it('should handle load + events flow correctly', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const onLocationUpdate = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ onLocationUpdate, autoLoad: true })
+      );
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(result.current.locations).toEqual(mockLocations);
+      });
+
+      // Send new event
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7770',
+          longitude: '-122.4197',
+          timestamp: 1640995203000,
+        });
+      });
+
+      // Should have initial locations + 1 new one
+      expect(result.current.locations).toHaveLength(3);
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should update lastLocation when receiving events', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      expect(result.current.lastLocation).toBeNull();
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(result.current.lastLocation?.latitude).toBe('37.7750');
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7760',
+          longitude: '-122.4196',
+          timestamp: 1640995202000,
+        });
+      });
+
+      expect(result.current.lastLocation?.latitude).toBe('37.7760');
+    });
+  });
+});

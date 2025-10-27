@@ -2,6 +2,9 @@
  * Minimal Jest setup for react-native-background-location tests
  */
 
+// Track event listeners for testing
+const mockEventCallbacks: Record<string, (data: any) => void> = {};
+
 // Mock react-native modules
 jest.mock('react-native', () => ({
   Platform: {
@@ -34,6 +37,13 @@ jest.mock('react-native', () => ({
       clearTrip: jest.fn(),
     },
   },
+  NativeEventEmitter: jest.fn().mockImplementation(() => ({
+    addListener: jest.fn((event: string, callback: (data: any) => void) => {
+      mockEventCallbacks[event] = callback;
+      return { remove: jest.fn() };
+    }),
+    removeAllListeners: jest.fn(),
+  })),
   Linking: {
     openSettings: jest.fn(),
     openURL: jest.fn(),
@@ -43,6 +53,14 @@ jest.mock('react-native', () => ({
     removeEventListener: jest.fn(),
   },
 }));
+
+// Helper function for tests to simulate events
+(global as any).simulateLocationEvent = (data: any) => {
+  const callback = mockEventCallbacks.onLocationUpdate;
+  if (callback) {
+    callback(data);
+  }
+};
 
 // Mock TurboModuleRegistry
 jest.mock('react-native/Libraries/TurboModule/TurboModuleRegistry', () => ({
@@ -56,18 +74,18 @@ jest.mock('react-native/Libraries/TurboModule/TurboModuleRegistry', () => ({
   get: jest.fn(),
 }));
 
-// Mock console methods to reduce noise in tests
-const originalConsoleError = console.error;
-const originalConsoleWarn = console.warn;
-
 beforeEach(() => {
   console.error = jest.fn();
   console.warn = jest.fn();
+  // Clear event callbacks
+  Object.keys(mockEventCallbacks).forEach((key) => {
+    delete mockEventCallbacks[key];
+  });
 });
 
 afterEach(() => {
-  console.error = originalConsoleError;
-  console.warn = originalConsoleWarn;
+  (console.error as any) = console.error;
+  (console.warn as any) = console.warn;
   jest.clearAllMocks();
 });
 
