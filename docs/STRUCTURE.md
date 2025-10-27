@@ -16,14 +16,26 @@ react-native-background-location/
 │
 ├── docs/                               # All documentation
 │   ├── README.md                       # Documentation index
+│   ├── STRUCTURE.md                    # This file
 │   │
 │   ├── getting-started/                # 🚀 New users start here
 │   │   ├── QUICKSTART.md               # 5-minute quick start guide
-│   │   └── INTEGRATION_GUIDE.md        # Detailed integration steps
+│   │   ├── INTEGRATION_GUIDE.md        # Detailed integration steps
+│   │   └── hooks.md                    # React Hooks API guide
 │   │
 │   └── development/                    # 🛠 For maintainers/contributors
+│       ├── CICD.md                     # CI/CD workflows
 │       ├── PUBLISHING.md               # Publishing to npm
-│       └── IMPLEMENTATION_SUMMARY.md   # Technical implementation details
+│       ├── TESTING.md                  # Testing procedures
+│       └── IMPLEMENTATION_SUMMARY.md   # Technical implementation
+│
+├── .github/                            # GitHub configuration
+│   ├── workflows/                      # GitHub Actions workflows
+│   │   ├── ci.yml                      # CI workflow
+│   │   ├── publish.yml                 # Production publish
+│   │   └── prerelease.yml              # Beta publish
+│   └── actions/                        # Reusable actions
+│       └── setup/                      # Setup action
 │
 ├── src/                                # Library source code
 ├── android/                            # Android native code
@@ -48,13 +60,16 @@ Documentation for **new users** and **integration**:
 |------|---------|----------|
 | **QUICKSTART.md** | Get running in 5 minutes | New users |
 | **INTEGRATION_GUIDE.md** | Step-by-step integration | Developers adding to existing app |
+| **hooks.md** | React Hooks API guide | Developers using React Hooks |
 
 ### docs/development/
 Documentation for **maintainers** and **contributors**:
 
 | File | Purpose | Audience |
 |------|---------|----------|
+| **CICD.md** | CI/CD workflows and automation | Maintainers, DevOps |
 | **PUBLISHING.md** | How to publish to npm | Maintainers |
+| **TESTING.md** | Testing procedures | Contributors |
 | **IMPLEMENTATION_SUMMARY.md** | Technical details | Contributors, advanced users |
 
 ## 🔗 Navigation Flow
@@ -81,11 +96,13 @@ docs/development/PUBLISHING.md
 
 ### For Maintainers
 ```
+docs/development/CICD.md (setup)
+   ↓
 docs/development/PUBLISHING.md
    ↓
 CHANGELOG.md (update)
    ↓
-Release
+Automated Release (GitHub Actions)
 ```
 
 ## 📝 Documentation Guidelines
@@ -177,13 +194,14 @@ When adding new documentation:
 
 ## 📊 Current Documentation Stats
 
-- **Total docs:** 9 files
-- **Getting Started:** 2 guides
-- **Development:** 2 guides
+- **Total docs:** 12 files
+- **Getting Started:** 3 guides (Quick Start, Integration, Hooks)
+- **Development:** 4 guides (CI/CD, Publishing, Testing, Implementation)
 - **Root level:** 5 files (README, CHANGELOG, CONTRIBUTING, etc.)
+- **Workflows:** 3 automated workflows (CI, Publish, Pre-release)
 
 ---
 
 **Last Updated:** October 26, 2025  
-**Version:** 0.1.0
+**Version:** 0.2.0
 
