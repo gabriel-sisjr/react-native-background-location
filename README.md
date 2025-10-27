@@ -338,7 +338,7 @@ This allows development without constant native setup.
 
 ## React Hooks
 
-The library provides three React Hooks for easier integration:
+The library provides four React Hooks for easier integration:
 
 ### `useLocationPermissions()`
 
@@ -390,6 +390,26 @@ const {
 } = useLocationTracking(true);
 ```
 
+### `useLocationUpdates(options?)`
+
+Real-time location updates with automatic event-driven updates.
+
+```typescript
+const {
+  locations,            // Array of locations (updates automatically)
+  lastLocation,         // Most recent location
+  isTracking,           // Tracking status
+  tripId,               // Current trip ID
+  isLoading,            // Loading state
+  error,                // Error state
+  clearError,           // Clear error
+} = useLocationUpdates({
+  tripId?: string,                          // Filter by tripId
+  onLocationUpdate?: (location) => void,    // Callback per update
+  autoLoad?: boolean                         // Auto-load existing data
+});
+```
+
 See the **[Hooks Guide](docs/getting-started/hooks.md)** for complete documentation and examples.
 
 ## Documentation
@@ -398,6 +418,7 @@ See the **[Hooks Guide](docs/getting-started/hooks.md)** for complete documentat
 - **[Quick Start Guide](docs/getting-started/QUICKSTART.md)** - Get up and running in 5 minutes
 - **[Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md)** - Detailed integration steps for existing apps
 - **[Hooks Guide](docs/getting-started/hooks.md)** - Complete hooks documentation
+- **[Real-Time Updates Guide](docs/getting-started/REAL_TIME_UPDATES.md)** - Automatic location watching with useLocationUpdates
 
 ### Development
 - **[Publishing Guide](docs/development/PUBLISHING.md)** - How to publish updates to npm
@@ -451,12 +472,13 @@ Make sure your `tsconfig.json` includes:
 ## Roadmap
 
 - [ ] iOS implementation with Swift
-- [ ] Customizable update intervals
-- [ ] React hooks (`useLocation`, `useTracking`)
-- [ ] Event emitters for real-time updates
+- [ ] Customizable location update intervals
 - [ ] Geofencing support
-- [ ] Distance filtering
-- [ ] SQLite storage for large datasets
+- [ ] Distance filtering for GPS coordinates
+- [ ] SQLite storage option for large datasets
+- [ ] Configurable notification appearance
+- [ ] Battery optimization modes
+- [ ] Web support (Geolocation API)
 
 ## Contributing
 
