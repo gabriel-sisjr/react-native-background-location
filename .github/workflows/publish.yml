@@ -1,0 +1,125 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      id-token: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Setup NPM Authentication
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Check if version changed
+        id: version-check
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          
+          # Get the last published version from npm
+          PUBLISHED_VERSION=$(npm view react-native-background-location version 2>/dev/null || echo "0.0.0")
+          
+          echo "Current version: $CURRENT_VERSION"
+          echo "Published version: $PUBLISHED_VERSION"
+          
+          if [ "$CURRENT_VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "version_changed=false" >> $GITHUB_OUTPUT
+            echo "Version has not changed. Skipping publish."
+          else
+            echo "version_changed=true" >> $GITHUB_OUTPUT
+            echo "New version detected. Proceeding with publish."
+          fi
+
+      - name: Build package
+        if: steps.version-check.outputs.version_changed == 'true'
+        run: yarn prepare
+
+      - name: Run tests
+        if: steps.version-check.outputs.version_changed == 'true'
+        run: yarn test --maxWorkers=2
+
+      - name: Publish to NPM
+        if: steps.version-check.outputs.version_changed == 'true'
+        run: |
+          npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Git Tag
+        if: steps.version-check.outputs.version_changed == 'true'
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Create GitHub Release
+        if: steps.version-check.outputs.version_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = require('./package.json').version;
+            const tagName = `v${version}`;
+            
+            // Generate release notes from commits since last tag
+            let releaseNotes = '';
+            try {
+              const { data: tags } = await github.rest.repos.listTags({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 2
+              });
+              
+              if (tags.length > 0) {
+                const latestTag = tags[0].name;
+                const { data: comparison } = await github.rest.repos.compareCommits({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  base: tags[1]?.name || tags[0].commit.sha,
+                  head: latestTag
+                });
+                
+                releaseNotes = comparison.commits
+                  .map(commit => `- ${commit.commit.message.split('\n')[0]} (${commit.sha.substring(0, 7)})`)
+                  .join('\n');
+              }
+            } catch (error) {
+              console.log('Could not generate release notes:', error.message);
+              releaseNotes = 'See CHANGELOG.md for details.';
+            }
+            
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+              name: `Release ${tagName}`,
+              body: releaseNotes || `Release version ${version}`,
+              draft: false,
+              prerelease: false
+            });
+

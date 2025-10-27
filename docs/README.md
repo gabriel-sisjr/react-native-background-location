@@ -19,8 +19,14 @@ Start here if you're new to the library:
 
 For maintainers and contributors:
 
+- **[CI/CD Guide](development/CICD.md)**  
+  Complete guide for automated testing, building, and publishing workflows.
+
 - **[Publishing Guide](development/PUBLISHING.md)**  
   How to build and publish new versions to npm.
+
+- **[Testing Guide](development/TESTING.md)**  
+  Testing procedures and best practices.
 
 - **[Implementation Summary](development/IMPLEMENTATION_SUMMARY.md)**  
   Technical overview of the architecture and implementation details.
@@ -61,17 +67,25 @@ For maintainers and contributors:
 ```
 docs/
 ├── README.md                           # This file
+├── STRUCTURE.md                        # Documentation organization
 ├── getting-started/                    # New users start here
 │   ├── QUICKSTART.md                   # 5-minute setup guide
-│   └── INTEGRATION_GUIDE.md            # Detailed integration
+│   ├── INTEGRATION_GUIDE.md            # Detailed integration
+│   └── hooks.md                        # React Hooks API guide
 └── development/                        # For maintainers
+    ├── CICD.md                         # CI/CD and automation
     ├── PUBLISHING.md                   # Release process
+    ├── TESTING.md                      # Testing guide
     └── IMPLEMENTATION_SUMMARY.md       # Technical details
 ```
 
 ## 🔄 Version
 
-This documentation is for version **0.1.0** (Android only).
+This documentation is for version **0.2.0** which includes:
+- ✅ Android implementation
+- ✅ React Hooks API
+- ✅ Automated CI/CD pipeline
+- 🚧 iOS implementation (coming soon)
 
 ---
 
