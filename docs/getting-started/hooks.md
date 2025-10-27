@@ -1,6 +1,6 @@
 # React Hooks API
 
-`react-native-background-location` provides React Hooks for easier integration and better developer experience.
+`@gabriel-sisjr/react-native-background-location` provides React Hooks for easier integration and better developer experience.
 
 ## Overview
 
@@ -17,7 +17,7 @@ Manages location permissions including foreground and background permissions.
 ### Basic Usage
 
 ```typescript
-import { useLocationPermissions } from 'react-native-background-location';
+import { useLocationPermissions } from '@gabriel-sisjr/react-native-background-location';
 
 function PermissionScreen() {
   const {
@@ -111,7 +111,7 @@ Complete hook for managing background location tracking, including starting/stop
 ### Basic Usage
 
 ```typescript
-import { useBackgroundLocation } from 'react-native-background-location';
+import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
 
 function TrackingScreen() {
   const {
@@ -292,7 +292,7 @@ Lightweight hook that only monitors tracking status. Use this when you don't nee
 ### Basic Usage
 
 ```typescript
-import { useLocationTracking } from 'react-native-background-location';
+import { useLocationTracking } from '@gabriel-sisjr/react-native-background-location';
 
 function StatusBadge() {
   const { isTracking, tripId, refresh } = useLocationTracking();
@@ -369,7 +369,7 @@ import {
   useLocationPermissions,
   useBackgroundLocation,
   useLocationTracking,
-} from 'react-native-background-location';
+} from '@gabriel-sisjr/react-native-background-location';
 
 function App() {
   // Permission management
@@ -534,7 +534,7 @@ import type {
   PermissionState,
   LocationPermissionStatus,
   Coords,
-} from 'react-native-background-location';
+} from '@gabriel-sisjr/react-native-background-location';
 ```
 
 ## See Also

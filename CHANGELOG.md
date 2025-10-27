@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- ✨ Initial release of react-native-background-location
+- ✨ Initial release of @gabriel-sisjr/react-native-background-location
 - 🚀 Background location tracking using TurboModules (New Architecture)
 - 📱 Full Android support with Kotlin implementation
 - 🔐 Session-based tracking with trip IDs
@@ -125,11 +125,11 @@ If upgrading from 0.1.0:
 
 ```typescript
 // Old (still works)
-import BackgroundLocation from 'react-native-background-location';
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
 await BackgroundLocation.startTracking('trip-123');
 
 // New (recommended)
-import { useBackgroundLocation } from 'react-native-background-location';
+import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
 const { startTracking } = useBackgroundLocation({
   onLocationUpdate: (location) => console.log(location)
 });
@@ -140,7 +140,7 @@ const { startTracking } = useBackgroundLocation({
 Starting with 0.2.0, the project follows a two-branch strategy:
 
 - **`main`**: Production-ready releases (stable versions)
-- **`develop`**: Latest development code (beta releases available via `npm install react-native-background-location@beta`)
+- **`develop`**: Latest development code (beta releases available via `npm install @gabriel-sisjr/react-native-background-location@beta`)
 
 ## [Unreleased]
 
@@ -201,17 +201,17 @@ This release introduces React Hooks for easier integration and a complete CI/CD 
 
 ```bash
 # Production version (stable)
-npm install react-native-background-location
+npm install @gabriel-sisjr/react-native-background-location
 
 # Beta version (latest features from develop)
-npm install react-native-background-location@beta
+npm install @gabriel-sisjr/react-native-background-location@beta
 ```
 
 ---
 
 ### v0.1.0 - Initial Release
 
-This is the first public release of `react-native-background-location`. The library provides robust background location tracking for React Native apps using the new TurboModule architecture.
+This is the first public release of `@gabriel-sisjr/react-native-background-location`. The library provides robust background location tracking for React Native apps using the new TurboModule architecture.
 
 **What's Working:**
 - ✅ Full Android implementation

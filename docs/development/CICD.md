@@ -99,7 +99,7 @@ feature/branch → PR → develop → CI + Pre-release (beta)
 
 **Installation**:
 ```bash
-npm install react-native-background-location@beta
+npm install @gabriel-sisjr/react-native-background-location@beta
 ```
 
 ---
@@ -176,7 +176,7 @@ git push origin test/ci-setup
 ```bash
 # Merge test PR to develop
 # Watch Actions tab → Pre-release should run
-npm view react-native-background-location dist-tags
+npm view @gabriel-sisjr/react-native-background-location dist-tags
 # Should see beta version
 ```
 
@@ -187,7 +187,7 @@ npm version patch
 git push origin develop --tags
 # Create PR to main
 # Merge → Publish should run
-npm view react-native-background-location version
+npm view @gabriel-sisjr/react-native-background-location version
 # Should see new version
 ```
 
@@ -312,13 +312,13 @@ See migration guide for details."
 
 ```bash
 # Production version (latest)
-npm view react-native-background-location version
+npm view @gabriel-sisjr/react-native-background-location version
 
 # All versions
-npm view react-native-background-location versions
+npm view @gabriel-sisjr/react-native-background-location versions
 
 # Distribution tags
-npm view react-native-background-location dist-tags
+npm view @gabriel-sisjr/react-native-background-location dist-tags
 ```
 
 **Expected output:**
@@ -460,13 +460,13 @@ When adding jobs:
 
 ```bash
 # Production (stable)
-npm install react-native-background-location
+npm install @gabriel-sisjr/react-native-background-location
 
 # Beta (develop)
-npm install react-native-background-location@beta
+npm install @gabriel-sisjr/react-native-background-location@beta
 
 # Specific version
-npm install react-native-background-location@0.2.0
+npm install @gabriel-sisjr/react-native-background-location@0.2.0
 ```
 
 ### Workflow Triggers
@@ -485,10 +485,10 @@ npm install react-native-background-location@0.2.0
 npm version patch|minor|major
 
 # View package info
-npm view react-native-background-location
+npm view @gabriel-sisjr/react-native-background-location
 
 # List versions
-npm view react-native-background-location versions
+npm view @gabriel-sisjr/react-native-background-location versions
 
 # Create token
 npm token create --type automation

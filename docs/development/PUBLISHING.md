@@ -1,6 +1,6 @@
 # Publishing Guide
 
-This guide explains how to publish the `react-native-background-location` library to npm.
+This guide explains how to publish the `@gabriel-sisjr/react-native-background-location` library to npm.
 
 ## Automated CI/CD Pipeline
 
@@ -92,9 +92,9 @@ The pre-release workflow will:
 
 Users can test beta versions with:
 ```bash
-npm install react-native-background-location@beta
+npm install @gabriel-sisjr/react-native-background-location@beta
 # or
-yarn add react-native-background-location@beta
+yarn add @gabriel-sisjr/react-native-background-location@beta
 ```
 
 ### Manual Publishing (Alternative)
@@ -194,14 +194,14 @@ After publishing:
 
 1. **Verify the package on npm**:
    ```bash
-   npm view react-native-background-location
+   npm view @gabriel-sisjr/react-native-background-location
    ```
 
 2. **Test installation in a fresh project**:
    ```bash
    npx react-native init TestApp
    cd TestApp
-   npm install react-native-background-location
+   npm install @gabriel-sisjr/react-native-background-location
    ```
 
 3. **Update GitHub release notes** with:

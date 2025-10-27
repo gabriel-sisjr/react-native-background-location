@@ -1,5 +1,5 @@
 {
-  "name": "react-native-background-location",
+  "name": "@gabriel-sisjr/react-native-background-location",
   "version": "0.2.0",
   "description": "react-native-background-location",
   "main": "./lib/module/index.js",

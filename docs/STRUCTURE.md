@@ -1,6 +1,6 @@
 # Documentation Structure
 
-This document describes the organization of documentation for `react-native-background-location`.
+This document describes the organization of documentation for `@gabriel-sisjr/react-native-background-location`.
 
 ## 📁 Folder Organization
 
