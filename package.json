@@ -1,6 +1,6 @@
 {
   "name": "@gabriel-sisjr/react-native-background-location",
-  "version": "0.2.0",
+  "version": "0.2.0-beta.20251027013545.032463a",
   "description": "react-native-background-location",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
