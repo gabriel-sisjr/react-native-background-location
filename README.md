@@ -5,6 +5,7 @@ A React Native library for tracking location in the background using TurboModule
 ## Features
 
 - ✅ **Background location tracking** - Continues tracking when app is in background
+- ✅ **Real-time location updates** - Automatic event-driven location watching (NEW in v0.3.0)
 - ✅ **TurboModule** - Built with React Native's New Architecture for better performance
 - ✅ **Session-based tracking** - Organize location data by trip/session IDs
 - ✅ **TypeScript support** - Fully typed API
@@ -83,22 +84,30 @@ The easiest way to use the library is with React Hooks:
 import {
   useLocationPermissions,
   useBackgroundLocation,
+  useLocationUpdates,  // NEW in v0.3.0
 } from '@gabriel-sisjr/react-native-background-location';
 
 function TrackingScreen() {
   // Manage permissions
   const { permissionStatus, requestPermissions } = useLocationPermissions();
 
-  // Manage tracking
+  // Manage tracking (for start/stop control)
   const {
-    isTracking,
-    tripId,
-    locations,
     startTracking,
     stopTracking,
-    error,
+    isTracking,
   } = useBackgroundLocation({
     onError: (err) => console.error(err),
+  });
+
+  // Watch real-time location updates (NEW)
+  const {
+    locations,
+    lastLocation,
+  } = useLocationUpdates({
+    onLocationUpdate: (location) => {
+      console.log('New location:', location);
+    },
   });
 
   // Request permissions first
@@ -110,6 +119,9 @@ function TrackingScreen() {
     <View>
       <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
       <Text>Locations: {locations.length}</Text>
+      {lastLocation && (
+        <Text>Last: {lastLocation.latitude}, {lastLocation.longitude}</Text>
+      )}
       <Button
         title={isTracking ? 'Stop' : 'Start'}
         onPress={isTracking ? stopTracking : () => startTracking()}
@@ -119,7 +131,39 @@ function TrackingScreen() {
 }
 ```
 
-See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation.
+#### Real-Time Updates Hook
+
+The new `useLocationUpdates` hook (v0.3.0+) provides automatic, real-time location updates:
+
+```typescript
+import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
+
+function LiveTrackingScreen() {
+  const {
+    locations,
+    lastLocation,
+    isTracking,
+    tripId,
+    error,
+  } = useLocationUpdates({
+    onLocationUpdate: (location) => {
+      console.log('New location received:', location);
+    },
+  });
+
+  return (
+    <View>
+      <Text>Locations: {locations.length}</Text>
+      {lastLocation && (
+        <Text>Last: {lastLocation.latitude}, {lastLocation.longitude}</Text>
+      )}
+    </View>
+  );
+}
+```
+
+See the [Hooks Guide](docs/getting-started/hooks.md) for complete hook documentation.  
+See the [Real-Time Updates Guide](docs/getting-started/REAL_TIME_UPDATES.md) for real-time location watching.
 
 ### Using Direct API
 
@@ -128,11 +172,12 @@ You can also use the module API directly:
 ```typescript
 import BackgroundLocation, { type Coords } from '@gabriel-sisjr/react-native-background-location';
 
-// Start tracking with a custom trip ID
-const tripId = await BackgroundLocation.startTracking('my-trip-123');
+// Recommended: Let the library generate a unique trip ID
+const tripId = await BackgroundLocation.startTracking();
 
-// Or let the library generate a trip ID
-const autoTripId = await BackgroundLocation.startTracking();
+// Optional: Resume tracking with an existing trip ID (for crash recovery)
+// Only use this to resume a previously interrupted tracking session
+const resumedTripId = await BackgroundLocation.startTracking('existing-trip-123');
 
 // Check if tracking is active
 const status = await BackgroundLocation.isTracking();
@@ -158,17 +203,33 @@ await BackgroundLocation.clearTrip(tripId);
 
 ### `startTracking(tripId?: string): Promise<string>`
 
-Starts location tracking in background for a specific trip.
+Starts location tracking in background for a new or existing trip.
 
 - **Parameters:**
-  - `tripId` (optional): Custom trip identifier. If omitted, a UUID will be generated.
+  - `tripId` (optional): Existing trip identifier to resume tracking. If omitted, a new UUID will be generated.
   
+  **⚠️ Important:** Only provide a `tripId` when resuming an interrupted tracking session (e.g., after app crash, battery drain, etc.). For new trips, always omit this parameter to let the library generate a unique UUID. This prevents data overwriting and ensures each trip has a unique identifier.
+
 - **Returns:** Promise resolving to the effective trip ID being used.
 
 - **Behavior:** 
   - If tracking is already active, returns the current trip ID (idempotent).
   - Starts a foreground service on Android with a persistent notification.
   - Requires location permissions to be granted.
+  - **New trips:** Generates a unique UUID to prevent collisions.
+  - **Resuming trips:** Continues collecting locations to the existing trip data.
+
+- **Best Practice:** 
+  ```typescript
+  // ✅ Good: Start a new trip
+  const newTripId = await startTracking();
+  
+  // ✅ Good: Resume after interruption
+  const resumedTripId = await startTracking(previousTripId);
+  
+  // ❌ Avoid: Don't create new trips with custom IDs
+  const badTripId = await startTracking('my-custom-id');
+  ```
 
 - **Throws:** 
   - `PERMISSION_DENIED` if location permissions are not granted.
