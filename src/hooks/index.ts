@@ -15,3 +15,9 @@ export type {
 
 export { useLocationTracking } from './useLocationTracking';
 export type { UseLocationTrackingResult } from './useLocationTracking';
+
+export { useLocationUpdates } from './useLocationUpdates';
+export type {
+  UseLocationUpdatesOptions,
+  UseLocationUpdatesResult,
+} from '../types';

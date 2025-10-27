@@ -1,7 +1,7 @@
 import { TurboModuleRegistry, type TurboModule } from 'react-native';
-import type { Coords, TrackingStatus } from './types';
+import type { Coords, TrackingStatus, LocationUpdateEvent } from './types';
 
-export type { Coords, TrackingStatus };
+export type { Coords, TrackingStatus, LocationUpdateEvent };
 
 export interface Spec extends TurboModule {
   /**

@@ -9,6 +9,9 @@ import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
+import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ReactContext
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.google.android.gms.location.*
 
 /**
@@ -21,9 +24,11 @@ class LocationService : Service() {
   private lateinit var locationCallback: LocationCallback
   private lateinit var storage: LocationStorage
   private var currentTripId: String? = null
+  private var reactContext: ReactContext? = null
 
   override fun onCreate() {
     super.onCreate()
+    serviceInstance = this
     fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
     storage = LocationStorage(this)
     
@@ -90,6 +95,32 @@ class LocationService : Service() {
         longitude = location.longitude,
         timestamp = location.time
       )
+      
+      // Emit location update event to React Native
+      sendLocationUpdateEvent(tripId, location)
+    }
+  }
+  
+  /**
+   * Sends a location update event to React Native
+   */
+  private fun sendLocationUpdateEvent(tripId: String, location: Location) {
+    reactContext?.let { context ->
+      try {
+        val eventData = Arguments.createMap().apply {
+          putString("tripId", tripId)
+          putString("latitude", location.latitude.toString())
+          putString("longitude", location.longitude.toString())
+          putDouble("timestamp", location.time.toDouble())
+        }
+        
+        context
+          .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+          .emit("onLocationUpdate", eventData)
+      } catch (e: Exception) {
+        // React Native context may not be available yet
+        e.printStackTrace()
+      }
     }
   }
 
@@ -131,6 +162,9 @@ class LocationService : Service() {
   override fun onDestroy() {
     super.onDestroy()
     fusedLocationClient.removeLocationUpdates(locationCallback)
+    if (serviceInstance == this) {
+      serviceInstance = null
+    }
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -145,6 +179,16 @@ class LocationService : Service() {
     private const val LOCATION_UPDATE_INTERVAL = 5000L // 5 seconds
     private const val FASTEST_LOCATION_INTERVAL = 3000L // 3 seconds
     private const val MAX_WAIT_TIME = 10000L // 10 seconds
+
+    // Store the service instance to allow setting ReactContext
+    private var serviceInstance: LocationService? = null
+
+    /**
+     * Sets the React Context for event emission
+     */
+    fun setReactContext(context: ReactContext?) {
+      serviceInstance?.reactContext = context
+    }
 
     /**
      * Starts the location service for a specific trip
