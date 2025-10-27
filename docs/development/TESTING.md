@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the testing structure implemented for the `react-native-background-location` library. Tests are organized in a modular way and focus on basic functionality and library types.
+This document describes the testing structure implemented for the `@gabriel-sisjr/react-native-background-location` library. Tests are organized in a modular way and focus on basic functionality and library types.
 
 ## Test Structure
 

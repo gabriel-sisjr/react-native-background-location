@@ -1,6 +1,6 @@
 # Documentation
 
-Complete documentation for `react-native-background-location`.
+Complete documentation for `@gabriel-sisjr/react-native-background-location`.
 
 ## 📚 Getting Started
 

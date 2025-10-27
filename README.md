@@ -1,4 +1,4 @@
-# react-native-background-location
+# @gabriel-sisjr/react-native-background-location
 
 A React Native library for tracking location in the background using TurboModules (New Architecture). Track user location even when the app is minimized or in the background.
 
@@ -15,9 +15,9 @@ A React Native library for tracking location in the background using TurboModule
 ## Installation
 
 ```sh
-npm install react-native-background-location
+npm install @gabriel-sisjr/react-native-background-location
 # or
-yarn add react-native-background-location
+yarn add @gabriel-sisjr/react-native-background-location
 ```
 
 ## Platform Configuration
@@ -83,7 +83,7 @@ The easiest way to use the library is with React Hooks:
 import {
   useLocationPermissions,
   useBackgroundLocation,
-} from 'react-native-background-location';
+} from '@gabriel-sisjr/react-native-background-location';
 
 function TrackingScreen() {
   // Manage permissions
@@ -126,7 +126,7 @@ See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation.
 You can also use the module API directly:
 
 ```typescript
-import BackgroundLocation, { type Coords } from 'react-native-background-location';
+import BackgroundLocation, { type Coords } from '@gabriel-sisjr/react-native-background-location';
 
 // Start tracking with a custom trip ID
 const tripId = await BackgroundLocation.startTracking('my-trip-123');

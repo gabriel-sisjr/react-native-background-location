@@ -1,6 +1,6 @@
 # Integration Guide
 
-Step-by-step guide to integrate `react-native-background-location` into your existing React Native app.
+Step-by-step guide to integrate `@gabriel-sisjr/react-native-background-location` into your existing React Native app.
 
 ## Prerequisites
 
@@ -13,10 +13,10 @@ Step-by-step guide to integrate `react-native-background-location` into your exi
 
 ```bash
 # Using npm
-npm install react-native-background-location
+npm install @gabriel-sisjr/react-native-background-location
 
 # Using yarn
-yarn add react-native-background-location
+yarn add @gabriel-sisjr/react-native-background-location
 ```
 
 The library uses autolinking, so no manual linking is required.
@@ -109,7 +109,7 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
 
 ```typescript
 // services/LocationService.ts
-import BackgroundLocation, { type Coords } from 'react-native-background-location';
+import BackgroundLocation, { type Coords } from '@gabriel-sisjr/react-native-background-location';
 import { requestLocationPermissions } from '../utils/permissions';
 
 class LocationTrackingService {
@@ -182,7 +182,7 @@ export default new LocationTrackingService();
 import { useState, useEffect } from 'react';
 import { View, Button, Text, Alert } from 'react-native';
 import LocationService from '../services/LocationService';
-import type { Coords } from 'react-native-background-location';
+import type { Coords } from '@gabriel-sisjr/react-native-background-location';
 
 export default function TripScreen() {
   const [isTracking, setIsTracking] = useState(false);

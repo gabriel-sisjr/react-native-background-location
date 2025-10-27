@@ -42,7 +42,7 @@ jobs:
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           
           # Get the last published version from npm
-          PUBLISHED_VERSION=$(npm view react-native-background-location version 2>/dev/null || echo "0.0.0")
+          PUBLISHED_VERSION=$(npm view @gabriel-sisjr/react-native-background-location version 2>/dev/null || echo "0.0.0")
           
           echo "Current version: $CURRENT_VERSION"
           echo "Published version: $PUBLISHED_VERSION"
