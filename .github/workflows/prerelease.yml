@@ -1,0 +1,136 @@
+name: Pre-release to NPM
+
+on:
+  push:
+    branches:
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      id-token: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Setup NPM Authentication
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Generate pre-release version
+        id: version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          COMMIT_SHA=${GITHUB_SHA::7}
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          
+          # Remove any existing pre-release tag and add beta
+          BASE_VERSION=$(echo $CURRENT_VERSION | sed 's/-.*$//')
+          PRERELEASE_VERSION="${BASE_VERSION}-beta.${TIMESTAMP}.${COMMIT_SHA}"
+          
+          echo "version=$PRERELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Generated pre-release version: $PRERELEASE_VERSION"
+          
+          # Update package.json version
+          npm version $PRERELEASE_VERSION --no-git-tag-version
+
+      - name: Build package
+        run: yarn prepare
+
+      - name: Run tests
+        run: yarn test --maxWorkers=2
+
+      - name: Publish to NPM (beta tag)
+        run: |
+          npm publish --access public --tag beta --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Pre-release Tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git add package.json
+          git commit -m "chore: pre-release $VERSION [skip ci]"
+          git tag -a "v$VERSION" -m "Pre-release v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Create GitHub Pre-release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            const tagName = `v${version}`;
+            
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+              name: `Pre-release ${tagName}`,
+              body: `🚀 Pre-release version ${version}\n\n` +
+                    `This is a beta release from the develop branch.\n\n` +
+                    `Install with: \`npm install react-native-background-location@beta\`\n\n` +
+                    `Commit: ${context.sha}`,
+              draft: false,
+              prerelease: true
+            });
+
+      - name: Comment on related PRs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            
+            // Find PRs that were just merged
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: 'develop',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 5
+            });
+            
+            const recentlyMergedPRs = prs.filter(pr => {
+              const mergedAt = new Date(pr.merged_at);
+              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+              return pr.merged_at && mergedAt > fiveMinutesAgo;
+            });
+            
+            for (const pr of recentlyMergedPRs) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `🚀 A pre-release version has been published: **v${version}**\n\n` +
+                      `You can install it with:\n` +
+                      `\`\`\`bash\n` +
+                      `npm install react-native-background-location@beta\n` +
+                      `# or\n` +
+                      `yarn add react-native-background-location@beta\n` +
+                      `\`\`\`\n\n` +
+                      `This version includes your changes and is available for testing!`
+              });
+            }
+
