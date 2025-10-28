@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import { NativeEventEmitter } from 'react-native';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type {
   UseLocationUpdatesOptions,
@@ -10,9 +10,20 @@ import type {
 
 // Check if native module is available
 const isNativeModuleAvailable = () => {
-  const nativeModule =
-    Platform.OS === 'android' ? NativeModules.BackgroundLocation : null;
-  return !!nativeModule;
+  try {
+    // Check if methods are available (works with Proxy mocks)
+    // This must be checked first before checking if module exists
+    if (typeof BackgroundLocationModule?.isTracking !== 'function') {
+      return false;
+    }
+    // Check if module exists and is not null
+    if (!BackgroundLocationModule || BackgroundLocationModule === null) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -137,6 +148,15 @@ export function useLocationUpdates(
     };
 
     checkStatus();
+
+    // Re-check status periodically (every 5 seconds) to catch tracking changes
+    const interval = setInterval(() => {
+      checkStatus();
+    }, 5000);
+
+    return () => {
+      clearInterval(interval);
+    };
   }, [providedTripId, autoLoad, loadExistingLocations]);
 
   /**
@@ -147,10 +167,9 @@ export function useLocationUpdates(
       return;
     }
 
-    // Create event emitter for Android
-    const eventEmitter = new NativeEventEmitter(
-      NativeModules.BackgroundLocation
-    );
+    // Create event emitter without passing the module (for TurboModule compatibility)
+    // The native module emits events via DeviceEventManagerModule
+    const eventEmitter = new NativeEventEmitter();
 
     const subscription = eventEmitter.addListener(
       'onLocationUpdate',

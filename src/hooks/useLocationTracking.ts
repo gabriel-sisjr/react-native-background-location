@@ -1,13 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type { TrackingStatus } from '../types';
-import { Platform, NativeModules } from 'react-native';
 
 // Check if native module is available
 const isNativeModuleAvailable = () => {
-  const nativeModule =
-    Platform.OS === 'android' ? NativeModules.BackgroundLocation : null;
-  return !!nativeModule;
+  try {
+    // Check if methods are available (works with Proxy mocks)
+    // This must be checked first before checking if module exists
+    if (typeof BackgroundLocationModule?.isTracking !== 'function') {
+      return false;
+    }
+    // Check if module exists and is not null
+    if (!BackgroundLocationModule || BackgroundLocationModule === null) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 export interface UseLocationTrackingResult {
