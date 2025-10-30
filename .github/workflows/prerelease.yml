@@ -16,6 +16,8 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      issues: write
+      pull-requests: write
     
     steps:
       - name: Checkout
@@ -57,7 +59,39 @@ jobs:
         run: yarn prepare
 
       - name: Run tests
-        run: yarn test --maxWorkers=2
+        run: yarn test --coverage --coverageReporters=json-summary,lcov,text --maxWorkers=2
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-prerelease
+          path: |
+            coverage/**
+          if-no-files-found: warn
+
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
+            node -e '
+              const fs = require("fs");
+              const s = JSON.parse(fs.readFileSync("coverage/coverage-summary.json", "utf8"));
+              const t = s.total;
+              const row = (k,v)=>`| ${k} | ${v.pct}% | ${v.covered}/${v.total} |`;
+              console.log("| Metric | % | Covered/Total |\n|---|---:|---:|\n" +
+                [
+                  row("Statements", t.statements),
+                  row("Branches", t.branches),
+                  row("Functions", t.functions),
+                  row("Lines", t.lines)
+                ].join("\n")
+              );
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No coverage summary found." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Publish to NPM (beta tag)
         run: |

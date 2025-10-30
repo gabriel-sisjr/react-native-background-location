@@ -16,6 +16,8 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      issues: write
+      pull-requests: write
     
     steps:
       - name: Checkout
@@ -61,7 +63,39 @@ jobs:
 
       - name: Run tests
         if: steps.version-check.outputs.version_changed == 'true'
-        run: yarn test --maxWorkers=2
+        run: yarn test --coverage --coverageReporters=json-summary,lcov,text --maxWorkers=2
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-release
+          path: |
+            coverage/**
+          if-no-files-found: warn
+
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "### Test Coverage" >> $GITHUB_STEP_SUMMARY
+            node -e '
+              const fs = require("fs");
+              const s = JSON.parse(fs.readFileSync("coverage/coverage-summary.json", "utf8"));
+              const t = s.total;
+              const row = (k,v)=>`| ${k} | ${v.pct}% | ${v.covered}/${v.total} |`;
+              console.log("| Metric | % | Covered/Total |\n|---|---:|---:|\n" +
+                [
+                  row("Statements", t.statements),
+                  row("Branches", t.branches),
+                  row("Functions", t.functions),
+                  row("Lines", t.lines)
+                ].join("\n")
+              );
+            ' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No coverage summary found." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Publish to NPM
         if: steps.version-check.outputs.version_changed == 'true'
@@ -122,4 +156,44 @@ jobs:
               draft: false,
               prerelease: false
             });
+
+      - name: Comment on related PRs
+        if: steps.version-check.outputs.version_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = require('./package.json').version;
+            // Find PRs that were just merged into main
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              base: 'main',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 5
+            });
+
+            const recentlyMergedPRs = prs.filter(pr => {
+              const mergedAt = new Date(pr.merged_at);
+              const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+              return pr.merged_at && mergedAt > fiveMinutesAgo;
+            });
+
+            for (const pr of recentlyMergedPRs) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: `🎉 A release has been published: **v${version}**\n\n` +
+                      `Install with:\n` +
+                      "```bash\n" +
+                      `npm install @gabriel-sisjr/react-native-background-location@${version}\n` +
+                      `# or\n` +
+                      `yarn add @gabriel-sisjr/react-native-background-location@${version}\n` +
+                      "```\n\n" +
+                      `This version includes your changes and is available for installation!`
+              });
+            }
 
