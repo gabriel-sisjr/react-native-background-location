@@ -109,9 +109,9 @@ function PermissionHandler() {
 
 Complete hook for managing background location tracking, including starting/stopping tracking and managing location data.
 
-<video src="../assets/tracking.mp4" controls muted playsinline loop width="100%"></video>
+![Example app using useBackgroundLocation](../assets/tracking.gif)
 
-<sub>Example app using `useBackgroundLocation` to start/stop a trip and refresh locations.</sub>
+*Example app using `useBackgroundLocation` to start/stop a trip and refresh locations.*
 
 ### Basic Usage
 
@@ -371,9 +371,9 @@ function Footer() {
 
 Hook for watching location updates in real-time. This hook automatically receives location updates as they are collected by the background service, without requiring manual refresh.
 
-<video src="../assets/background.mp4" controls muted playsinline loop width="100%"></video>
+![Real-time updates using useLocationUpdates](../assets/background.gif)
 
-<sub>Real‑time updates using `useLocationUpdates`, receiving new locations automatically.</sub>
+*Real‑time updates using `useLocationUpdates`, receiving new locations automatically.*
 
 ### Basic Usage
 

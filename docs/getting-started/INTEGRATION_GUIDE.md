@@ -2,6 +2,10 @@
 
 Step-by-step guide to integrate `@gabriel-sisjr/react-native-background-location` into your existing React Native app.
 
+![Background location tracking](../assets/background.gif)
+
+*Background location tracking in action - tracking continues even when the app is minimized.*
+
 ## Prerequisites
 
 - React Native 0.70 or higher
