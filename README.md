@@ -2,10 +2,13 @@
 
 A React Native library for tracking location in the background using TurboModules (New Architecture). Track user location even when the app is minimized or in the background.
 
+<video src="docs/assets/tracking.mp4" controls muted playsinline loop width="100%"></video>
+
+
 ## Features
 
 - ✅ **Background location tracking** - Continues tracking when app is in background
-- ✅ **Real-time location updates** - Automatic event-driven location watching (NEW in v0.3.0)
+- ✅ **Real-time location updates** - Automatic event-driven location watching
 - ✅ **TurboModule** - Built with React Native's New Architecture for better performance
 - ✅ **Session-based tracking** - Organize location data by trip/session IDs
 - ✅ **TypeScript support** - Fully typed API
@@ -84,7 +87,7 @@ The easiest way to use the library is with React Hooks:
 import {
   useLocationPermissions,
   useBackgroundLocation,
-  useLocationUpdates,  // NEW in v0.3.0
+  useLocationUpdates,
 } from '@gabriel-sisjr/react-native-background-location';
 
 function TrackingScreen() {
@@ -100,7 +103,7 @@ function TrackingScreen() {
     onError: (err) => console.error(err),
   });
 
-  // Watch real-time location updates (NEW)
+// Watch real-time location updates
   const {
     locations,
     lastLocation,
@@ -133,7 +136,7 @@ function TrackingScreen() {
 
 #### Real-Time Updates Hook
 
-The new `useLocationUpdates` hook (v0.3.0+) provides automatic, real-time location updates:
+The `useLocationUpdates` hook provides automatic, real-time location updates:
 
 ```typescript
 import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
