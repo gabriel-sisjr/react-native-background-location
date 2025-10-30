@@ -1,4 +1,3 @@
-import { Platform, NativeModules } from 'react-native';
 import BackgroundLocationModule from './NativeBackgroundLocation';
 
 // Export types
@@ -30,9 +29,20 @@ export {
 
 // Check if native module is available (won't be in simulator without proper setup)
 const isNativeModuleAvailable = () => {
-  const nativeModule =
-    Platform.OS === 'android' ? NativeModules.BackgroundLocation : null;
-  return !!nativeModule;
+  try {
+    // Check if methods are available (works with Proxy mocks)
+    // This must be checked first before checking if module exists
+    if (typeof BackgroundLocationModule?.isTracking !== 'function') {
+      return false;
+    }
+    // Check if module exists and is not null
+    if (!BackgroundLocationModule || BackgroundLocationModule === null) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /**

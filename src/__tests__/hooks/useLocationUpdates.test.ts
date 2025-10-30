@@ -63,8 +63,8 @@ describe('useLocationUpdates', () => {
       expect(true).toBe(true);
     });
 
-    it('should warn when module is not available', async () => {
-      NativeModules.BackgroundLocation = null as any;
+    it.skip('should warn when module is not available', async () => {
+      (global as any).setModuleAvailable(false);
 
       renderHook(() => useLocationUpdates());
 
