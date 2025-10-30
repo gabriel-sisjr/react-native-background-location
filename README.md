@@ -1,9 +1,22 @@
 # @gabriel-sisjr/react-native-background-location
 
+[![NPM Version](https://img.shields.io/npm/v/%40gabriel-sisjr%2Freact-native-background-location)](https://www.npmjs.com/package/@gabriel-sisjr/react-native-background-location)
+[![NPM Beta](https://img.shields.io/npm/v/%40gabriel-sisjr%2Freact-native-background-location/beta)](https://www.npmjs.com/package/@gabriel-sisjr/react-native-background-location/v/beta)
+[![NPM Downloads](https://img.shields.io/npm/dm/%40gabriel-sisjr%2Freact-native-background-location)](https://www.npmjs.com/package/@gabriel-sisjr/react-native-background-location)
+[![NPM Total Downloads](https://img.shields.io/npm/dt/%40gabriel-sisjr%2Freact-native-background-location)](https://www.npmjs.com/package/@gabriel-sisjr/react-native-background-location)
+[![Pre-release CI](https://github.com/gabriel-sisjr/react-native-background-location/actions/workflows/prerelease.yml/badge.svg?branch=develop&label=Pre-release)](https://github.com/gabriel-sisjr/react-native-background-location/actions/workflows/prerelease.yml)
+[![Release CI](https://github.com/gabriel-sisjr/react-native-background-location/actions/workflows/publish.yml/badge.svg?branch=main&label=Release)](https://github.com/gabriel-sisjr/react-native-background-location/actions/workflows/publish.yml)
+[![GitHub Stars](https://img.shields.io/github/stars/gabriel-sisjr/react-native-background-location)](https://github.com/gabriel-sisjr/react-native-background-location/stargazers)
+[![License](https://img.shields.io/github/license/gabriel-sisjr/react-native-background-location)](https://github.com/gabriel-sisjr/react-native-background-location/blob/develop/LICENSE)
+[
+![Bundlephobia](https://img.shields.io/bundlephobia/minzip/%40gabriel-sisjr%2Freact-native-background-location?label=size)
+](https://bundlephobia.com/package/@gabriel-sisjr/react-native-background-location)
+![Platform](https://img.shields.io/badge/platform-Android-green)
+![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)
+
 A React Native library for tracking location in the background using TurboModules (New Architecture). Track user location even when the app is minimized or in the background.
 
 <video src="docs/assets/tracking.mp4" controls muted playsinline loop width="100%"></video>
-
 
 ## Features
 
@@ -32,14 +45,14 @@ yarn add @gabriel-sisjr/react-native-background-location
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  
+
   <!-- Location permissions -->
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-  
+
   <!-- Background location for Android 10+ -->
   <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-  
+
   <!-- Foreground service permissions -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
@@ -173,14 +186,17 @@ See the [Real-Time Updates Guide](docs/getting-started/REAL_TIME_UPDATES.md) for
 You can also use the module API directly:
 
 ```typescript
-import BackgroundLocation, { type Coords } from '@gabriel-sisjr/react-native-background-location';
+import BackgroundLocation, {
+  type Coords,
+} from '@gabriel-sisjr/react-native-background-location';
 
 // Recommended: Let the library generate a unique trip ID
 const tripId = await BackgroundLocation.startTracking();
 
 // Optional: Resume tracking with an existing trip ID (for crash recovery)
 // Only use this to resume a previously interrupted tracking session
-const resumedTripId = await BackgroundLocation.startTracking('existing-trip-123');
+const resumedTripId =
+  await BackgroundLocation.startTracking('existing-trip-123');
 
 // Check if tracking is active
 const status = await BackgroundLocation.isTracking();
@@ -189,8 +205,8 @@ console.log(status.tripId); // current trip ID if active
 
 // Get all locations for a trip
 const locations: Coords[] = await BackgroundLocation.getLocations(tripId);
-locations.forEach(location => {
-  console.log(location.latitude);  // string
+locations.forEach((location) => {
+  console.log(location.latitude); // string
   console.log(location.longitude); // string
   console.log(location.timestamp); // number (Unix timestamp in ms)
 });
@@ -210,31 +226,32 @@ Starts location tracking in background for a new or existing trip.
 
 - **Parameters:**
   - `tripId` (optional): Existing trip identifier to resume tracking. If omitted, a new UUID will be generated.
-  
+
   **⚠️ Important:** Only provide a `tripId` when resuming an interrupted tracking session (e.g., after app crash, battery drain, etc.). For new trips, always omit this parameter to let the library generate a unique UUID. This prevents data overwriting and ensures each trip has a unique identifier.
 
 - **Returns:** Promise resolving to the effective trip ID being used.
 
-- **Behavior:** 
+- **Behavior:**
   - If tracking is already active, returns the current trip ID (idempotent).
   - Starts a foreground service on Android with a persistent notification.
   - Requires location permissions to be granted.
   - **New trips:** Generates a unique UUID to prevent collisions.
   - **Resuming trips:** Continues collecting locations to the existing trip data.
 
-- **Best Practice:** 
+- **Best Practice:**
+
   ```typescript
   // ✅ Good: Start a new trip
   const newTripId = await startTracking();
-  
+
   // ✅ Good: Resume after interruption
   const resumedTripId = await startTracking(previousTripId);
-  
+
   // ❌ Avoid: Don't create new trips with custom IDs
   const badTripId = await startTracking('my-custom-id');
   ```
 
-- **Throws:** 
+- **Throws:**
   - `PERMISSION_DENIED` if location permissions are not granted.
   - `START_TRACKING_ERROR` if unable to start the service.
 
@@ -268,15 +285,17 @@ Retrieves all stored location points for a specific trip.
   - `tripId`: The trip identifier.
 
 - **Returns:** Promise resolving to array of location coordinates:
+
   ```typescript
   {
-    latitude: string;     // Latitude as string
-    longitude: string;    // Longitude as string
-    timestamp: number;    // Unix timestamp in milliseconds
-  }[]
+    latitude: string; // Latitude as string
+    longitude: string; // Longitude as string
+    timestamp: number; // Unix timestamp in milliseconds
+  }
+  [];
   ```
 
-- **Throws:** 
+- **Throws:**
   - `INVALID_TRIP_ID` if trip ID is empty.
   - `GET_LOCATIONS_ERROR` if unable to retrieve data.
 
@@ -333,6 +352,7 @@ On Android, some manufacturers (Xiaomi, Huawei, etc.) have aggressive battery op
 ## Simulator/Emulator Support
 
 When the native module is not available (e.g., running in simulator without proper setup), all methods will:
+
 - Log a warning to the console
 - Return safe fallback values
 - Not crash the app
@@ -349,10 +369,10 @@ Manages location permissions including background permissions.
 
 ```typescript
 const {
-  permissionStatus,     // Current permission state
-  requestPermissions,   // Request all permissions
-  checkPermissions,     // Check without requesting
-  isRequesting,         // Loading state
+  permissionStatus, // Current permission state
+  requestPermissions, // Request all permissions
+  checkPermissions, // Check without requesting
+  isRequesting, // Loading state
 } = useLocationPermissions();
 ```
 
@@ -362,21 +382,21 @@ Complete hook for managing tracking, locations, and state.
 
 ```typescript
 const {
-  isTracking,           // Whether tracking is active
-  tripId,               // Current trip ID
-  locations,            // Array of locations
-  isLoading,            // Loading state
-  error,                // Last error
-  startTracking,        // Start tracking
-  stopTracking,         // Stop tracking
-  refreshLocations,     // Refresh locations
-  clearCurrentTrip,     // Clear trip data
-  clearError,           // Clear error
+  isTracking, // Whether tracking is active
+  tripId, // Current trip ID
+  locations, // Array of locations
+  isLoading, // Loading state
+  error, // Last error
+  startTracking, // Start tracking
+  stopTracking, // Stop tracking
+  refreshLocations, // Refresh locations
+  clearCurrentTrip, // Clear trip data
+  clearError, // Clear error
 } = useBackgroundLocation({
-  autoStart: false,                      // Auto-start on mount
-  onTrackingStart: (id) => {},           // Callback
-  onTrackingStop: () => {},              // Callback
-  onError: (err) => {},                  // Callback
+  autoStart: false, // Auto-start on mount
+  onTrackingStart: (id) => {}, // Callback
+  onTrackingStop: () => {}, // Callback
+  onError: (err) => {}, // Callback
 });
 ```
 
@@ -386,10 +406,10 @@ Lightweight hook for monitoring tracking status.
 
 ```typescript
 const {
-  isTracking,           // Whether tracking is active
-  tripId,               // Current trip ID
-  refresh,              // Refresh status
-  isLoading,            // Loading state
+  isTracking, // Whether tracking is active
+  tripId, // Current trip ID
+  refresh, // Refresh status
+  isLoading, // Loading state
 } = useLocationTracking(true);
 ```
 
@@ -418,12 +438,14 @@ See the **[Hooks Guide](docs/getting-started/hooks.md)** for complete documentat
 ## Documentation
 
 ### Getting Started
+
 - **[Quick Start Guide](docs/getting-started/QUICKSTART.md)** - Get up and running in 5 minutes
 - **[Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md)** - Detailed integration steps for existing apps
 - **[Hooks Guide](docs/getting-started/hooks.md)** - Complete hooks documentation
 - **[Real-Time Updates Guide](docs/getting-started/REAL_TIME_UPDATES.md)** - Automatic location watching with useLocationUpdates
 
 ### Development
+
 - **[Publishing Guide](docs/development/PUBLISHING.md)** - How to publish updates to npm
 - **[Implementation Summary](docs/development/IMPLEMENTATION_SUMMARY.md)** - Technical overview of the implementation
 - **[Testing Guide](docs/development/TESTING.md)** - Testing structure and guidelines
@@ -464,6 +486,7 @@ yarn ios
 ### TypeScript errors
 
 Make sure your `tsconfig.json` includes:
+
 ```json
 {
   "compilerOptions": {
