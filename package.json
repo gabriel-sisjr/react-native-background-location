@@ -138,6 +138,11 @@
       "!src/__tests__/**",
       "!src/**/*.d.ts"
     ],
+    "coverageReporters": [
+      "json-summary",
+      "lcov",
+      "text"
+    ],
     "coverageThreshold": {
       "global": {
         "branches": 0,
