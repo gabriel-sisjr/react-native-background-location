@@ -59,7 +59,7 @@ jobs:
         run: yarn prepare
 
       - name: Run tests
-        run: yarn test --coverage --coverageReporters=json-summary,lcov,text --maxWorkers=2
+        run: yarn test --coverage --maxWorkers=2
 
       - name: Upload coverage artifact
         if: always()
@@ -69,6 +69,15 @@ jobs:
           path: |
             coverage/**
           if-no-files-found: warn
+
+      - name: Upload coverage reports to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
+          flags: prerelease
+          fail_ci_if_error: false
 
       - name: Publish coverage summary
         if: always()
