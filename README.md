@@ -18,7 +18,7 @@
 
 A React Native library for tracking location in the background using TurboModules (New Architecture). Track user location even when the app is minimized or in the background.
 
-<video src="docs/assets/tracking.mp4" controls muted playsinline loop width="100%"></video>
+![Tracking demo](docs/assets/tracking.gif)
 
 ## Features
 
@@ -511,6 +511,19 @@ Make sure your `tsconfig.json` includes:
 ## Contributing
 
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
+
+## Support & Sponsorship
+
+If you find this library useful, please consider:
+
+- ⭐ **Star the repository** - It helps others discover the project
+- 🐛 **Report bugs** - Help me improve the library
+- 💻 **Contribute code** - Pull requests are always welcome
+- ☕ **Sponsor on GitHub** - Support ongoing development and maintenance
+
+[**Sponsor this project**](https://github.com/sponsors/gabriel-sisjr) to help me continue building and maintaining open source tools for the React Native community.
+
+See the [Sponsor page](SPONSOR.md) for more details about sponsorship benefits and how your support helps the project.
 
 ## License
 
