@@ -4,11 +4,12 @@
 
 ## Overview
 
-The library includes three main hooks:
+The library includes four main hooks:
 
 1. **`useLocationPermissions`** - Manage location permissions
-2. **`useBackgroundLocation`** - Full tracking management
+2. **`useBackgroundLocation`** - Full tracking management with manual refresh
 3. **`useLocationTracking`** - Lightweight status monitoring
+4. **`useLocationUpdates`** - Real-time location watching
 
 ## useLocationPermissions
 
@@ -108,6 +109,10 @@ function PermissionHandler() {
 
 Complete hook for managing background location tracking, including starting/stopping tracking and managing location data.
 
+![Example app using useBackgroundLocation](../assets/tracking.gif)
+
+*Example app using `useBackgroundLocation` to start/stop a trip and refresh locations.*
+
 ### Basic Usage
 
 ```typescript
@@ -168,7 +173,8 @@ interface UseLocationTrackingOptions {
   // Auto-start tracking when component mounts
   autoStart?: boolean;
 
-  // Custom trip ID to use
+  // Existing trip ID to resume tracking (not for creating new trips)
+  // ⚠️ Only provide this when resuming an interrupted session
   tripId?: string;
 
   // Callback when tracking starts
@@ -202,7 +208,8 @@ interface UseBackgroundLocationResult {
   error: Error | null;
 
   // Start tracking (returns trip ID or null on error)
-  startTracking: (customTripId?: string) => Promise<string | null>;
+  // ⚠️ existingTripId is for RESUMING interrupted sessions only
+  startTracking: (existingTripId?: string) => Promise<string | null>;
 
   // Stop tracking
   stopTracking: () => Promise<void>;
@@ -224,7 +231,7 @@ interface UseBackgroundLocationResult {
 function AutoTrackingScreen() {
   const { isTracking, locations } = useBackgroundLocation({
     autoStart: true, // Start immediately on mount
-    tripId: 'my-trip-123', // Use custom trip ID
+    // Don't provide tripId for new trips - let the library generate a UUID
     onError: (error) => {
       Alert.alert('Error', error.message);
     },
@@ -360,9 +367,161 @@ function Footer() {
 }
 ```
 
+## useLocationUpdates
+
+Hook for watching location updates in real-time. This hook automatically receives location updates as they are collected by the background service, without requiring manual refresh.
+
+![Real-time updates using useLocationUpdates](../assets/background.gif)
+
+*Real‑time updates using `useLocationUpdates`, receiving new locations automatically.*
+
+### Basic Usage
+
+```typescript
+import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
+
+function LiveMapScreen() {
+  const {
+    locations,
+    lastLocation,
+    isTracking,
+    tripId,
+    isLoading,
+    error,
+    clearError,
+  } = useLocationUpdates({
+    onLocationUpdate: (location) => {
+      console.log('New location:', location);
+    },
+  });
+
+  return (
+    <View>
+      <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
+      <Text>Locations: {locations.length}</Text>
+      {lastLocation && (
+        <Text>
+          Last: {lastLocation.latitude}, {lastLocation.longitude}
+        </Text>
+      )}
+    </View>
+  );
+}
+```
+
+### Options
+
+```typescript
+interface UseLocationUpdatesOptions {
+  // Specific trip ID to watch
+  tripId?: string;
+
+  // Callback when a new location is received
+  onLocationUpdate?: (location: Coords) => void;
+
+  // Whether to automatically load existing locations on mount
+  autoLoad?: boolean;  // Default: true
+}
+```
+
+### Return Values
+
+```typescript
+interface UseLocationUpdatesResult {
+  // Current trip ID being watched
+  tripId: string | null;
+
+  // Whether location tracking is currently active
+  isTracking: boolean;
+
+  // All locations received for the current trip (updates automatically)
+  locations: Coords[];
+
+  // The most recent location received
+  lastLocation: Coords | null;
+
+  // Whether data is being loaded
+  isLoading: boolean;
+
+  // Last error that occurred
+  error: Error | null;
+
+  // Clear error state
+  clearError: () => void;
+}
+```
+
+### Key Differences from useBackgroundLocation
+
+| Feature | useBackgroundLocation | useLocationUpdates |
+|---------|----------------------|-------------------|
+| Tracking control | ✅ Yes | ❌ No |
+| Automatic updates | ❌ No | ✅ Yes |
+| Manual refresh | ✅ Yes | ❌ Not needed |
+| Real-time events | ❌ No | ✅ Yes |
+| Use case | Control tracking | Watch live data |
+
+### Example: Real-Time Map Updates
+
+```typescript
+function LiveMap() {
+  const { locations, lastLocation } = useLocationUpdates();
+
+  return (
+    <MapView>
+      {locations.map((loc, index) => (
+        <Marker
+          key={index}
+          coordinate={{
+            latitude: parseFloat(loc.latitude),
+            longitude: parseFloat(loc.longitude),
+          }}
+        />
+      ))}
+      {lastLocation && (
+        <Circle
+          center={{
+            latitude: parseFloat(lastLocation.latitude),
+            longitude: parseFloat(lastLocation.longitude),
+          }}
+          radius={100}
+        />
+      )}
+    </MapView>
+  );
+}
+```
+
+### Example: Combine with Control
+
+```typescript
+function CompleteTracking() {
+  // Control (start/stop)
+  const { startTracking, stopTracking } = useBackgroundLocation();
+
+  // Live updates
+  const { locations, lastLocation } = useLocationUpdates({
+    onLocationUpdate: (location) => {
+      // Send to server in real-time
+      sendToServer(location);
+    },
+  });
+
+  return (
+    <View>
+      <Button onPress={startTracking}>Start</Button>
+      <Button onPress={stopTracking}>Stop</Button>
+      <Text>Points: {locations.length}</Text>
+    </View>
+  );
+}
+```
+
+For more details, see the [Real-Time Updates Guide](REAL_TIME_UPDATES.md).
+
 ## Complete Example
 
-Here's a complete example using all three hooks together:
+Here's a complete example using all hooks together:
 
 ```typescript
 import {
@@ -531,6 +690,8 @@ import type {
   UseLocationPermissionsResult,
   UseBackgroundLocationResult,
   UseLocationTrackingResult,
+  UseLocationUpdatesOptions,
+  UseLocationUpdatesResult,
   PermissionState,
   LocationPermissionStatus,
   Coords,
@@ -540,6 +701,7 @@ import type {
 ## See Also
 
 - [Quick Start Guide](QUICKSTART.md)
+- [Real-Time Updates Guide](REAL_TIME_UPDATES.md)
 - [Integration Guide](INTEGRATION_GUIDE.md)
 - [API Reference](../../README.md#api-reference)
 - [Example App](../../example/src/App.tsx)

@@ -2,6 +2,10 @@
 
 Get started with `@gabriel-sisjr/react-native-background-location` in 5 minutes.
 
+![Starting and stopping location tracking](../assets/tracking.gif)
+
+*Example: Starting and stopping location tracking with the library.*
+
 ## Installation
 
 ```bash

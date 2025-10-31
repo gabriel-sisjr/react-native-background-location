@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Text,
   View,
@@ -9,23 +10,27 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Switch,
 } from 'react-native';
 import {
   useLocationPermissions,
   useBackgroundLocation,
+  useLocationUpdates,
   LocationPermissionStatus,
 } from '@gabriel-sisjr/react-native-background-location';
 
 export default function App() {
+  const [useAutoUpdates, setUseAutoUpdates] = React.useState(true);
+
   // Manage permissions with hook
   const { permissionStatus, requestPermissions, isRequesting } =
     useLocationPermissions();
 
-  // Manage tracking with hook
+  // Manage tracking with hook (manual refresh mode)
   const {
     isTracking,
     tripId,
-    locations,
+    locations: manualLocations,
     isLoading,
     error,
     startTracking,
@@ -44,6 +49,21 @@ export default function App() {
       console.error('Tracking error:', err);
     },
   });
+
+  // Watch location updates in real-time (automatic mode)
+  const {
+    locations: autoLocations,
+    lastLocation,
+    isTracking: isAutoTracking,
+  } = useLocationUpdates({
+    onLocationUpdate: (location) => {
+      console.log('New location received:', location);
+    },
+  });
+
+  // Use the appropriate locations based on the selected mode
+  const locations = useAutoUpdates ? autoLocations : manualLocations;
+  const trackingActive = useAutoUpdates ? isAutoTracking : isTracking;
 
   // Handle permission-blocked state
   if (permissionStatus.status === LocationPermissionStatus.BLOCKED) {
@@ -115,15 +135,33 @@ export default function App() {
         <Text style={styles.title}>Background Location Example</Text>
         <Text style={styles.subtitle}>Using React Hooks</Text>
 
+        <View style={styles.modeContainer}>
+          <Text style={styles.modeLabel}>Auto-Update Mode:</Text>
+          <Switch
+            value={useAutoUpdates}
+            onValueChange={setUseAutoUpdates}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={useAutoUpdates ? '#2196F3' : '#f4f3f4'}
+          />
+        </View>
+
+        <View style={styles.infoContainer}>
+          <Text style={styles.infoText}>
+            {useAutoUpdates
+              ? '✨ Auto: Locations update automatically in real-time'
+              : '🔄 Manual: Tap "Refresh" to get latest locations'}
+          </Text>
+        </View>
+
         <View style={styles.statusContainer}>
           <Text style={styles.statusLabel}>Status:</Text>
           <Text
             style={[
               styles.statusText,
-              isTracking ? styles.tracking : styles.stopped,
+              trackingActive ? styles.tracking : styles.stopped,
             ]}
           >
-            {isTracking ? 'TRACKING' : 'STOPPED'}
+            {trackingActive ? 'TRACKING' : 'STOPPED'}
           </Text>
         </View>
 
@@ -131,6 +169,21 @@ export default function App() {
           <View style={styles.tripIdContainer}>
             <Text style={styles.label}>Current Trip ID:</Text>
             <Text style={styles.tripId}>{tripId}</Text>
+          </View>
+        )}
+
+        {useAutoUpdates && lastLocation && (
+          <View style={styles.lastLocationContainer}>
+            <Text style={styles.label}>Last Location (Live):</Text>
+            <Text style={styles.locationDetail}>
+              Lat: {lastLocation.latitude}
+            </Text>
+            <Text style={styles.locationDetail}>
+              Lng: {lastLocation.longitude}
+            </Text>
+            <Text style={styles.timestampText}>
+              {new Date(lastLocation.timestamp).toLocaleString()}
+            </Text>
           </View>
         )}
 
@@ -160,7 +213,7 @@ export default function App() {
                 />
               )}
 
-              {isTracking && (
+              {isTracking && !useAutoUpdates && (
                 <Button
                   title="Refresh Locations"
                   onPress={refreshLocations}
@@ -186,8 +239,10 @@ export default function App() {
 
           {locations.length === 0 ? (
             <Text style={styles.emptyText}>
-              {isTracking
-                ? 'Collecting locations...'
+              {trackingActive
+                ? useAutoUpdates
+                  ? 'Waiting for location updates... (Auto-updating)'
+                  : 'Collecting locations... (Tap Refresh to update)'
                 : 'No locations yet. Start tracking to collect locations.'}
             </Text>
           ) : (
@@ -212,6 +267,8 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#f5f5f5',
   },
   scrollView: {
@@ -304,6 +361,57 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     color: '#333',
+  },
+  modeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    padding: 15,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modeLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  infoContainer: {
+    marginBottom: 15,
+    padding: 12,
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#2196F3',
+  },
+  infoText: {
+    fontSize: 13,
+    color: '#1565C0',
+    lineHeight: 18,
+  },
+  lastLocationContainer: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  locationDetail: {
+    fontSize: 14,
+    color: '#2E7D32',
+    marginTop: 5,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   buttonContainer: {
     gap: 10,

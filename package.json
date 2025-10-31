@@ -1,7 +1,7 @@
 {
   "name": "@gabriel-sisjr/react-native-background-location",
-  "version": "0.2.0",
-  "description": "react-native-background-location",
+  "version": "0.3.0",
+  "description": "React Native library for background location tracking using TurboModules. Track user location even when the app is minimized or in the background.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -42,8 +42,34 @@
   },
   "keywords": [
     "react-native",
+    "react-native-background-location",
+    "location",
+    "gps",
+    "tracking",
+    "background-location",
+    "background-tracking",
+    "geolocation",
+    "coordinate",
+    "latitude",
+    "longitude",
+    "trip",
+    "session",
+    "turbo-module",
+    "turbomodule",
+    "new-architecture",
+    "location-service",
+    "foreground-service",
+    "android",
     "ios",
-    "android"
+    "typescript",
+    "hooks",
+    "useBackgroundLocation",
+    "useLocationUpdates",
+    "real-time",
+    "event-driven",
+    "location-updates",
+    "persistent-storage",
+    "location-permissions"
   ],
   "repository": {
     "type": "git",
@@ -111,6 +137,11 @@
       "src/**/*.{js,ts,tsx}",
       "!src/__tests__/**",
       "!src/**/*.d.ts"
+    ],
+    "coverageReporters": [
+      "json-summary",
+      "lcov",
+      "text"
     ],
     "coverageThreshold": {
       "global": {

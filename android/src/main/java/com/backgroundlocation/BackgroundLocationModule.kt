@@ -18,6 +18,11 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   private val storage: LocationStorage = LocationStorage(reactContext)
 
+  init {
+    // Set the React Context in LocationService for event emission
+    LocationService.setReactContext(reactContext)
+  }
+
   override fun getName(): String = NAME
 
   /**
