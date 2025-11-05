@@ -1,10 +1,13 @@
 import BackgroundLocationModule from './NativeBackgroundLocation';
+import type { TrackingOptions } from './types';
+import type { TrackingOptionsSpec } from './NativeBackgroundLocation';
 
 // Export types
 export type {
   Coords,
   TrackingStatus,
   LocationUpdateEvent,
+  TrackingOptions,
 } from './NativeBackgroundLocation';
 export type {
   PermissionState,
@@ -17,7 +20,11 @@ export type {
 export type { UseLocationTrackingResult } from './hooks/useLocationTracking';
 
 // Export enums (as values)
-export { LocationPermissionStatus } from './types';
+export {
+  LocationPermissionStatus,
+  LocationAccuracy,
+  NotificationPriority,
+} from './types';
 
 // Export hooks
 export {
@@ -55,16 +62,33 @@ export default {
   /**
    * Starts location tracking in background for a specific trip
    * @param tripId Optional trip identifier. If omitted, a new one will be generated
+   * @param options Optional tracking configuration options
    * @returns Promise resolving to the effective tripId (received or generated)
    */
-  startTracking(tripId?: string): Promise<string> {
+  startTracking(tripId?: string, options?: TrackingOptions): Promise<string> {
     if (!isNativeModuleAvailable()) {
       console.warn(
         'BackgroundLocation not available - running in simulator or module not linked?'
       );
       return Promise.resolve(tripId || `simulator-trip-${Date.now()}`);
     }
-    return BackgroundLocationModule.startTracking(tripId);
+    // Convert TrackingOptions (with enums) to TrackingOptionsSpec (with strings) for Codegen
+    const specOptions: TrackingOptionsSpec | undefined = options
+      ? {
+          updateInterval: options.updateInterval,
+          fastestInterval: options.fastestInterval,
+          maxWaitTime: options.maxWaitTime,
+          accuracy: options.accuracy ? String(options.accuracy) : undefined,
+          waitForAccurateLocation: options.waitForAccurateLocation,
+          notificationTitle: options.notificationTitle,
+          notificationText: options.notificationText,
+          notificationChannelName: options.notificationChannelName,
+          notificationPriority: options.notificationPriority
+            ? String(options.notificationPriority)
+            : undefined,
+        }
+      : undefined;
+    return BackgroundLocationModule.startTracking(tripId, specOptions);
   },
 
   /**

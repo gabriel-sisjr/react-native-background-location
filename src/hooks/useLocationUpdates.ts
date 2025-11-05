@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { NativeEventEmitter } from 'react-native';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type {
@@ -72,6 +72,7 @@ export function useLocationUpdates(
   const [lastLocation, setLastLocation] = useState<Coords | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const wasClearedRef = useRef(false);
 
   /**
    * Clear error state
@@ -79,6 +80,40 @@ export function useLocationUpdates(
   const clearError = useCallback(() => {
     setError(null);
   }, []);
+
+  /**
+   * Clear all locations for current trip
+   */
+  const clearLocations = useCallback(async (): Promise<void> => {
+    if (!tripId) {
+      return;
+    }
+
+    if (!isNativeModuleAvailable()) {
+      setLocations([]);
+      setLastLocation(null);
+      wasClearedRef.current = true;
+      console.warn('BackgroundLocation not available');
+      return;
+    }
+
+    setIsLoading(true);
+    clearError();
+
+    try {
+      await BackgroundLocationModule.clearTrip(tripId);
+      setLocations([]);
+      setLastLocation(null);
+      wasClearedRef.current = true;
+    } catch (err) {
+      const clearError_instance =
+        err instanceof Error ? err : new Error('Failed to clear locations');
+      setError(clearError_instance);
+      console.error('Error clearing locations:', clearError_instance);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [tripId, clearError]);
 
   /**
    * Load existing locations for a trip
@@ -137,9 +172,14 @@ export function useLocationUpdates(
         if (effectiveTripId) {
           setTripId(effectiveTripId);
 
-          // Load existing locations if autoLoad is enabled
-          if (autoLoad) {
+          // Load existing locations if autoLoad is enabled and wasn't recently cleared
+          if (autoLoad && !wasClearedRef.current) {
             await loadExistingLocations(effectiveTripId);
+          } else if (wasClearedRef.current) {
+            // Reset the cleared flag after a delay to allow reloading on next check
+            setTimeout(() => {
+              wasClearedRef.current = false;
+            }, 2000);
           }
         }
       } catch (err) {
@@ -190,8 +230,17 @@ export function useLocationUpdates(
             setIsTracking(true);
           }
 
-          // Add to locations array
-          setLocations((prev) => [...prev, newLocation]);
+          // If locations were cleared, start fresh (don't append to empty array)
+          // Otherwise, add to existing locations array
+          setLocations((prev) => {
+            // If was cleared, start fresh with just the new location
+            // Otherwise, append to existing array
+            if (wasClearedRef.current && prev.length === 0) {
+              wasClearedRef.current = false; // Reset cleared flag when new location arrives
+              return [newLocation];
+            }
+            return [...prev, newLocation];
+          });
           setLastLocation(newLocation);
 
           // Call callback if provided
@@ -227,5 +276,6 @@ export function useLocationUpdates(
     isLoading,
     error,
     clearError,
+    clearLocations,
   };
 }
