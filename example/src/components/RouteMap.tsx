@@ -322,80 +322,74 @@ export function RouteMap({
         {/* Route line */}
         {showRoute && routeCoordinates.length > 1 && (
           <ShapeSource id="route" shape={routeGeoJSON}>
-            <LineLayer
-              id="route-line"
-              style={{
-                lineColor: '#2196F3',
-                lineWidth: 4,
-                lineOpacity: 0.8,
-              }}
-            />
+            <LineLayer id="route-line" style={mapStyles.routeLine} />
           </ShapeSource>
         )}
 
         {/* Start marker (green circle) */}
         {startMarkers.length > 0 && (
           <ShapeSource id="start-markers" shape={startMarkersGeoJSON}>
-            <CircleLayer
-              id="start-circles"
-              style={{
-                circleRadius: 8,
-                circleColor: '#4CAF50',
-                circleStrokeColor: '#fff',
-                circleStrokeWidth: 2,
-              }}
-            />
+            <CircleLayer id="start-circles" style={mapStyles.startMarker} />
           </ShapeSource>
         )}
 
         {/* Current location marker (red circle) */}
         {currentMarkers.length > 0 && (
           <ShapeSource id="current-markers" shape={currentMarkersGeoJSON}>
-            <CircleLayer
-              id="current-circles"
-              style={{
-                circleRadius: 10,
-                circleColor: '#f44336',
-                circleStrokeColor: '#fff',
-                circleStrokeWidth: 3,
-              }}
-            />
+            <CircleLayer id="current-circles" style={mapStyles.currentMarker} />
           </ShapeSource>
         )}
 
         {/* End marker (red circle) */}
         {endMarkers.length > 0 && (
           <ShapeSource id="end-markers" shape={endMarkersGeoJSON}>
-            <CircleLayer
-              id="end-circles"
-              style={{
-                circleRadius: 8,
-                circleColor: '#f44336',
-                circleStrokeColor: '#fff',
-                circleStrokeWidth: 2,
-              }}
-            />
+            <CircleLayer id="end-circles" style={mapStyles.endMarker} />
           </ShapeSource>
         )}
 
         {/* Point markers (blue circles) */}
         {pointMarkers.length > 0 && (
           <ShapeSource id="point-markers" shape={pointMarkersGeoJSON}>
-            <CircleLayer
-              id="point-circles"
-              style={{
-                circleRadius: 6,
-                circleColor: '#2196F3',
-                circleStrokeColor: '#fff',
-                circleStrokeWidth: 2,
-              }}
-            />
+            <CircleLayer id="point-circles" style={mapStyles.pointMarker} />
           </ShapeSource>
         )}
       </MapView>
     </View>
   );
 }
+
+// Map layer styles
+const mapStyles = {
+  routeLine: {
+    lineColor: '#2196F3',
+    lineWidth: 4,
+    lineOpacity: 0.8,
+  },
+  startMarker: {
+    circleRadius: 8,
+    circleColor: '#4CAF50',
+    circleStrokeColor: '#fff',
+    circleStrokeWidth: 2,
+  },
+  currentMarker: {
+    circleRadius: 10,
+    circleColor: '#f44336',
+    circleStrokeColor: '#fff',
+    circleStrokeWidth: 3,
+  },
+  endMarker: {
+    circleRadius: 8,
+    circleColor: '#f44336',
+    circleStrokeColor: '#fff',
+    circleStrokeWidth: 2,
+  },
+  pointMarker: {
+    circleRadius: 6,
+    circleColor: '#2196F3',
+    circleStrokeColor: '#fff',
+    circleStrokeWidth: 2,
+  },
+};
 
 const styles = StyleSheet.create({
   container: {
