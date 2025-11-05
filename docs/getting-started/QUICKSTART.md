@@ -55,15 +55,27 @@ const requestPermissions = async () => {
 ### 3. Start Tracking
 
 ```typescript
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+import BackgroundLocation, {
+  LocationAccuracy,
+  NotificationPriority,
+  type TrackingOptions,
+} from '@gabriel-sisjr/react-native-background-location';
 
 // Request permissions first
 const hasPermission = await requestPermissions();
 
 if (hasPermission) {
-  // Start tracking
+  // Start tracking with default options
   const tripId = await BackgroundLocation.startTracking();
   console.log('Tracking started:', tripId);
+
+  // Or with custom options
+  const options: TrackingOptions = {
+    accuracy: LocationAccuracy.HIGH_ACCURACY,
+    updateInterval: 5000,
+    notificationPriority: NotificationPriority.LOW,
+  };
+  const customTripId = await BackgroundLocation.startTracking(undefined, options);
 }
 ```
 
