@@ -1,6 +1,11 @@
 import BackgroundLocationModule from './NativeBackgroundLocation';
 import type { TrackingOptions } from './types';
 import type { TrackingOptionsSpec } from './NativeBackgroundLocation';
+import {
+  LocationPermissionStatus as LocationPermissionStatusEnum,
+  LocationAccuracy as LocationAccuracyEnum,
+  NotificationPriority as NotificationPriorityEnum,
+} from './types/enums';
 
 // Export types
 export type {
@@ -19,12 +24,10 @@ export type {
 } from './types';
 export type { UseLocationTrackingResult } from './hooks/useLocationTracking';
 
-// Export enums (as values)
-export {
-  LocationPermissionStatus,
-  LocationAccuracy,
-  NotificationPriority,
-} from './types';
+// Export enums (as values) - import and re-export as named exports to ensure they're available at runtime
+export const LocationPermissionStatus = LocationPermissionStatusEnum;
+export const LocationAccuracy = LocationAccuracyEnum;
+export const NotificationPriority = NotificationPriorityEnum;
 
 // Export hooks
 export {
