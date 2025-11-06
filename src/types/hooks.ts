@@ -1,61 +1,12 @@
 /**
- * Types and interfaces for react-native-background-location
+ * Types and interfaces for React hooks
  */
 
-export interface Coords {
-  latitude: string;
-  longitude: string;
-  timestamp: number;
-}
+import type { Coords, TrackingOptions } from './tracking';
 
-export interface TrackingStatus {
-  active: boolean;
-  tripId?: string;
-}
-
-export interface LocationUpdateEvent {
-  tripId: string;
-  latitude: string;
-  longitude: string;
-  timestamp: number;
-}
-
-export enum LocationPermissionStatus {
-  GRANTED = 'granted',
-  DENIED = 'denied',
-  BLOCKED = 'blocked',
-  UNDETERMINED = 'undetermined',
-}
-
-export interface PermissionState {
-  hasPermission: boolean;
-  status: LocationPermissionStatus;
-  canRequestAgain: boolean;
-}
-
-export interface UseLocationPermissionsResult {
-  /**
-   * Current permission state
-   */
-  permissionStatus: PermissionState;
-
-  /**
-   * Request location permissions
-   * Returns true if all permissions are granted
-   */
-  requestPermissions: () => Promise<boolean>;
-
-  /**
-   * Check current permission status without requesting
-   */
-  checkPermissions: () => Promise<boolean>;
-
-  /**
-   * Whether permissions are currently being requested
-   */
-  isRequesting: boolean;
-}
-
+/**
+ * Result type for useBackgroundLocation hook
+ */
 export interface UseBackgroundLocationResult {
   /**
    * Current trip ID if tracking is active
@@ -83,9 +34,12 @@ export interface UseBackgroundLocationResult {
   error: Error | null;
 
   /**
-   * Start tracking with optional custom trip ID
+   * Start tracking with optional custom trip ID and options
    */
-  startTracking: (customTripId?: string) => Promise<string | null>;
+  startTracking: (
+    customTripId?: string,
+    options?: TrackingOptions
+  ) => Promise<string | null>;
 
   /**
    * Stop tracking
@@ -108,6 +62,9 @@ export interface UseBackgroundLocationResult {
   clearError: () => void;
 }
 
+/**
+ * Options for useLocationTracking hook
+ */
 export interface UseLocationTrackingOptions {
   /**
    * Automatically start tracking when component mounts
@@ -119,6 +76,11 @@ export interface UseLocationTrackingOptions {
    * Custom trip ID to use
    */
   tripId?: string;
+
+  /**
+   * Tracking configuration options
+   */
+  options?: TrackingOptions;
 
   /**
    * Callback when tracking starts
@@ -136,6 +98,9 @@ export interface UseLocationTrackingOptions {
   onError?: (error: Error) => void;
 }
 
+/**
+ * Options for useLocationUpdates hook
+ */
 export interface UseLocationUpdatesOptions {
   /**
    * Specific trip ID to watch
@@ -155,6 +120,9 @@ export interface UseLocationUpdatesOptions {
   autoLoad?: boolean;
 }
 
+/**
+ * Result type for useLocationUpdates hook
+ */
 export interface UseLocationUpdatesResult {
   /**
    * Current trip ID being watched
@@ -191,4 +159,9 @@ export interface UseLocationUpdatesResult {
    * Clear error state
    */
   clearError: () => void;
+
+  /**
+   * Clear all locations for current trip
+   */
+  clearLocations: () => Promise<void>;
 }

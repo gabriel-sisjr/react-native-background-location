@@ -8,15 +8,17 @@ Complete guide for the automated CI/CD pipeline that handles testing, building, 
 
 The library uses GitHub Actions for automated:
 - **Continuous Integration** - Code validation on every PR
-- **Beta Releases** - Automatic publishing from `develop` branch
+- **Beta Releases** - Manual publishing via GitHub Actions UI (workflow_dispatch)
 - **Production Releases** - Automatic publishing from `main` branch
 
 ### Workflow Architecture
 
 ```
-feature/branch → PR → develop → CI + Pre-release (beta)
+feature/branch → PR → develop → CI (no auto-deploy)
                          ↓
                     PR → main → CI + Publish (production)
+                    
+Beta releases: Manual trigger via GitHub Actions UI
 ```
 
 ---
@@ -75,13 +77,23 @@ feature/branch → PR → develop → CI + Pre-release (beta)
 
 ### 3. Pre-release Workflow (`prerelease.yml`)
 
-**Purpose**: Automated beta releases from develop branch
+**Purpose**: Manual beta releases from develop branch
 
 **Triggers**:
-- Push to `develop` branch
+- **Manual trigger** via GitHub Actions UI (`workflow_dispatch`)
+- No automatic deployment on push to `develop`
+
+**How to Trigger**:
+1. Go to GitHub Actions tab
+2. Select "Pre-release to NPM" workflow
+3. Click "Run workflow"
+4. Select branch: `develop`
+5. (Optional) Provide custom version suffix (e.g., `rc1`, `beta1`)
+6. (Optional) Provide description for the pre-release
+7. Click "Run workflow"
 
 **Process**:
-1. Generate beta version: `X.Y.Z-beta.TIMESTAMP.SHA`
+1. Generate beta version: `X.Y.Z-beta.TIMESTAMP.SHA` (or custom suffix)
 2. Build package
 3. Run unit tests
 4. Publish to npm with `@beta` tag
@@ -95,6 +107,10 @@ feature/branch → PR → develop → CI + Pre-release (beta)
 ```
 0.2.0-beta.20251026143022.a1b2c3d
        └── timestamp ──┘ └─ commit SHA ─┘
+
+Or with custom suffix:
+0.2.0-rc1
+0.2.0-beta1
 ```
 
 **Installation**:
@@ -175,6 +191,8 @@ git push origin test/ci-setup
 **Test Pre-release:**
 ```bash
 # Merge test PR to develop
+# Go to GitHub Actions tab → "Pre-release to NPM" → "Run workflow"
+# Select branch: develop → Run workflow
 # Watch Actions tab → Pre-release should run
 npm view @gabriel-sisjr/react-native-background-location dist-tags
 # Should see beta version
@@ -213,9 +231,9 @@ git push origin feature/awesome-feature
 ```
 
 **After merge to develop:**
-- CI runs automatically
-- Beta version published to npm
-- Team can test with `@beta` tag
+- CI runs automatically (lint, test, build)
+- **No automatic beta release** - Deploy beta manually when needed via GitHub Actions UI
+- To publish beta: Go to Actions → "Pre-release to NPM" → "Run workflow"
 
 ### Production Release
 

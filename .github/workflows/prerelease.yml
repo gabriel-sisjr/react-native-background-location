@@ -1,9 +1,21 @@
 name: Pre-release to NPM
 
 on:
-  push:
-    branches:
-      - develop
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to release from (default: develop)'
+        required: false
+        type: string
+        default: 'develop'
+      version_suffix:
+        description: 'Optional version suffix (e.g., "rc1", "beta1"). Leave empty for auto-generated beta version.'
+        required: false
+        type: string
+      description:
+        description: 'Optional description for this pre-release'
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +35,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.event.inputs.branch || 'develop' }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -45,9 +58,15 @@ jobs:
           COMMIT_SHA=${GITHUB_SHA::7}
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
           
-          # Remove any existing pre-release tag and add beta
+          # Remove any existing pre-release tag
           BASE_VERSION=$(echo $CURRENT_VERSION | sed 's/-.*$//')
-          PRERELEASE_VERSION="${BASE_VERSION}-beta.${TIMESTAMP}.${COMMIT_SHA}"
+          
+          # Use custom suffix if provided, otherwise auto-generate beta version
+          if [ -n "${{ github.event.inputs.version_suffix }}" ]; then
+            PRERELEASE_VERSION="${BASE_VERSION}-${{ github.event.inputs.version_suffix }}"
+          else
+            PRERELEASE_VERSION="${BASE_VERSION}-beta.${TIMESTAMP}.${COMMIT_SHA}"
+          fi
           
           echo "version=$PRERELEASE_VERSION" >> $GITHUB_OUTPUT
           echo "Generated pre-release version: $PRERELEASE_VERSION"
@@ -124,13 +143,15 @@ jobs:
             const version = '${{ steps.version.outputs.version }}';
             const tagName = `v${version}`;
             
+            const description = '${{ github.event.inputs.description }}' || 'This is a beta release from the develop branch.';
+            
             await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tagName,
               name: `Pre-release ${tagName}`,
               body: `🚀 Pre-release version ${version}\n\n` +
-                    `This is a beta release from the develop branch.\n\n` +
+                    `${description}\n\n` +
                     `Install with: \`npm install @gabriel-sisjr/react-native-background-location@beta\`\n\n` +
                     `Commit: ${context.sha}`,
               draft: false,
