@@ -2,31 +2,110 @@ import React from 'react';
 import {
   Text,
   View,
-  StyleSheet,
   Button,
   ScrollView,
   Alert,
   SafeAreaView,
   ActivityIndicator,
   Linking,
-  Platform,
   Switch,
+  TouchableOpacity,
 } from 'react-native';
 import {
   useLocationPermissions,
   useBackgroundLocation,
   useLocationUpdates,
   LocationPermissionStatus,
+  LocationAccuracy,
+  NotificationPriority,
+  type TrackingOptions,
 } from '@gabriel-sisjr/react-native-background-location';
+
+import styles from './styles';
+import { RouteMap } from './components';
 
 export default function App() {
   const [useAutoUpdates, setUseAutoUpdates] = React.useState(true);
+  const [showConfig, setShowConfig] = React.useState(false);
+  const [showMap, setShowMap] = React.useState(false);
+  const [configPreset, setConfigPreset] = React.useState<
+    'default' | 'high-accuracy' | 'balanced' | 'low-power' | 'custom'
+  >('default');
+
+  // Tracking configuration options
+  const [trackingOptions, setTrackingOptions] = React.useState<TrackingOptions>(
+    {
+      updateInterval: 5000,
+      fastestInterval: 3000,
+      maxWaitTime: 10000,
+      accuracy: LocationAccuracy.HIGH_ACCURACY,
+      waitForAccurateLocation: false,
+      notificationTitle: 'Location Tracking',
+      notificationText: 'Tracking your location in background',
+      notificationChannelName: 'Background Location',
+      notificationPriority: NotificationPriority.LOW,
+    }
+  );
+
+  // Predefined configuration presets
+  const configPresets = {
+    'default': {
+      updateInterval: 5000,
+      fastestInterval: 3000,
+      maxWaitTime: 10000,
+      accuracy: LocationAccuracy.HIGH_ACCURACY,
+      waitForAccurateLocation: false,
+      notificationTitle: 'Location Tracking',
+      notificationText: 'Tracking your location in background',
+      notificationChannelName: 'Background Location',
+      notificationPriority: NotificationPriority.LOW,
+    } as TrackingOptions,
+    'high-accuracy': {
+      updateInterval: 2000,
+      fastestInterval: 1000,
+      maxWaitTime: 5000,
+      accuracy: LocationAccuracy.HIGH_ACCURACY,
+      waitForAccurateLocation: true,
+      notificationTitle: 'High Accuracy Tracking',
+      notificationText: 'Using GPS for precise location tracking',
+      notificationChannelName: 'High Accuracy Tracking',
+      notificationPriority: NotificationPriority.DEFAULT,
+    } as TrackingOptions,
+    'balanced': {
+      updateInterval: 10000,
+      fastestInterval: 5000,
+      maxWaitTime: 15000,
+      accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+      waitForAccurateLocation: false,
+      notificationTitle: 'Balanced Tracking',
+      notificationText: 'Balanced location tracking',
+      notificationChannelName: 'Balanced Location',
+      notificationPriority: NotificationPriority.LOW,
+    } as TrackingOptions,
+    'low-power': {
+      updateInterval: 30000,
+      fastestInterval: 15000,
+      maxWaitTime: 60000,
+      accuracy: LocationAccuracy.LOW_POWER,
+      waitForAccurateLocation: false,
+      notificationTitle: 'Low Power Tracking',
+      notificationText: 'Power-efficient location tracking',
+      notificationChannelName: 'Low Power Tracking',
+      notificationPriority: NotificationPriority.LOW,
+    } as TrackingOptions,
+  };
+
+  // Apply preset configuration
+  const applyPreset = (preset: keyof typeof configPresets) => {
+    setConfigPreset(preset);
+    setTrackingOptions(configPresets[preset]);
+  };
 
   // Manage permissions with hook
   const { permissionStatus, requestPermissions, isRequesting } =
     useLocationPermissions();
 
-  // Manage tracking with hook (manual refresh mode)
+  // Manage tracking with hook (manual refresh mode) with custom options
   const {
     isTracking,
     tripId,
@@ -39,6 +118,7 @@ export default function App() {
     clearCurrentTrip,
     clearError,
   } = useBackgroundLocation({
+    options: trackingOptions,
     onTrackingStart: (id) => {
       Alert.alert('Success', `Tracking started with trip ID: ${id}`);
     },
@@ -55,6 +135,7 @@ export default function App() {
     locations: autoLocations,
     lastLocation,
     isTracking: isAutoTracking,
+    clearLocations: clearAutoLocations,
   } = useLocationUpdates({
     onLocationUpdate: (location) => {
       console.log('New location received:', location);
@@ -110,7 +191,7 @@ export default function App() {
   }
 
   // Handle errors
-  const handleClearTrip = () => {
+  const handleClearTrip = async () => {
     Alert.alert(
       'Clear Trip Data',
       `Are you sure you want to clear all data for trip ${tripId}?`,
@@ -119,7 +200,13 @@ export default function App() {
         {
           text: 'Clear',
           style: 'destructive',
-          onPress: clearCurrentTrip,
+          onPress: async () => {
+            // Clear from both hooks depending on the mode
+            await clearCurrentTrip();
+            if (useAutoUpdates) {
+              await clearAutoLocations();
+            }
+          },
         },
       ]
     );
@@ -143,6 +230,130 @@ export default function App() {
             trackColor={{ false: '#767577', true: '#81b0ff' }}
             thumbColor={useAutoUpdates ? '#2196F3' : '#f4f3f4'}
           />
+        </View>
+
+        <View style={styles.configContainer}>
+          <View style={styles.configHeader}>
+            <Text style={styles.configTitle}>Tracking Configuration</Text>
+            <Button
+              title={showConfig ? 'Hide' : 'Show'}
+              onPress={() => setShowConfig(!showConfig)}
+              color="#2196F3"
+            />
+          </View>
+
+          {showConfig && (
+            <View style={styles.configContent}>
+              <Text style={styles.configSectionTitle}>Presets:</Text>
+              <View style={styles.presetContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.presetButton,
+                    configPreset === 'default' && styles.presetButtonSelected,
+                  ]}
+                  onPress={() => applyPreset('default')}
+                >
+                  <Text
+                    style={[
+                      styles.presetButtonText,
+                      configPreset === 'default' &&
+                        styles.presetButtonTextSelected,
+                    ]}
+                  >
+                    Default
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.presetButton,
+                    configPreset === 'high-accuracy' &&
+                      styles.presetButtonSelected,
+                  ]}
+                  onPress={() => applyPreset('high-accuracy')}
+                >
+                  <Text
+                    style={[
+                      styles.presetButtonText,
+                      configPreset === 'high-accuracy' &&
+                        styles.presetButtonTextSelected,
+                    ]}
+                  >
+                    High Accuracy
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.presetButton,
+                    configPreset === 'balanced' && styles.presetButtonSelected,
+                  ]}
+                  onPress={() => applyPreset('balanced')}
+                >
+                  <Text
+                    style={[
+                      styles.presetButtonText,
+                      configPreset === 'balanced' &&
+                        styles.presetButtonTextSelected,
+                    ]}
+                  >
+                    Balanced
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.presetButton,
+                    configPreset === 'low-power' && styles.presetButtonSelected,
+                  ]}
+                  onPress={() => applyPreset('low-power')}
+                >
+                  <Text
+                    style={[
+                      styles.presetButtonText,
+                      configPreset === 'low-power' &&
+                        styles.presetButtonTextSelected,
+                    ]}
+                  >
+                    Low Power
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.configDetails}>
+                <Text style={styles.configDetailTitle}>
+                  Current Configuration:
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Update Interval: {trackingOptions.updateInterval}ms
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Fastest Interval: {trackingOptions.fastestInterval}ms
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Max Wait Time: {trackingOptions.maxWaitTime}ms
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Accuracy: {trackingOptions.accuracy}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Wait for Accurate:{' '}
+                  {trackingOptions.waitForAccurateLocation ? 'Yes' : 'No'}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Notification Priority: {trackingOptions.notificationPriority}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Notification Title: {trackingOptions.notificationTitle}
+                </Text>
+              </View>
+
+              <View style={styles.configInfo}>
+                <Text style={styles.configInfoText}>
+                  💡 These options will be applied when you start tracking. The
+                  configuration affects battery consumption and location
+                  accuracy.
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.infoContainer}>
@@ -194,6 +405,39 @@ export default function App() {
           </View>
         )}
 
+        {/* Route Map */}
+        {locations.length > 0 && (
+          <View style={styles.mapContainer}>
+            <View style={styles.mapHeader}>
+              <Text style={styles.mapTitle}>
+                Route Map ({locations.length} points)
+              </Text>
+              <Button
+                title={showMap ? 'Hide' : 'Show'}
+                onPress={() => setShowMap(!showMap)}
+                color="#2196F3"
+              />
+            </View>
+
+            {showMap && (
+              <>
+                <Text style={styles.mapSubtitle}>
+                  {useAutoUpdates
+                    ? 'Live route tracking (auto-updating)'
+                    : 'Route from stored locations'}
+                </Text>
+                <RouteMap
+                  locations={locations}
+                  currentLocation={useAutoUpdates ? lastLocation : null}
+                  showRoute={true}
+                  showAllMarkers={false}
+                  autoFitBounds={true}
+                />
+              </>
+            )}
+          </View>
+        )}
+
         <View style={styles.buttonContainer}>
           {isLoading ? (
             <ActivityIndicator size="large" color="#2196F3" />
@@ -202,7 +446,7 @@ export default function App() {
               {!isTracking ? (
                 <Button
                   title="Start Tracking"
-                  onPress={() => startTracking()}
+                  onPress={() => startTracking(undefined, trackingOptions)}
                   color="#2196F3"
                 />
               ) : (
@@ -263,194 +507,3 @@ export default function App() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-    color: '#333',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  description: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  errorContainer: {
-    backgroundColor: '#ffebee',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#f44336',
-  },
-  errorText: {
-    color: '#c62828',
-    fontSize: 14,
-    marginBottom: 10,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statusLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginRight: 10,
-    color: '#666',
-  },
-  statusText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  tracking: {
-    color: '#4CAF50',
-  },
-  stopped: {
-    color: '#f44336',
-  },
-  tripIdContainer: {
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  label: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
-  },
-  tripId: {
-    fontSize: 12,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    color: '#333',
-  },
-  modeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  modeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  infoContainer: {
-    marginBottom: 15,
-    padding: 12,
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#2196F3',
-  },
-  infoText: {
-    fontSize: 13,
-    color: '#1565C0',
-    lineHeight: 18,
-  },
-  lastLocationContainer: {
-    marginBottom: 20,
-    padding: 15,
-    backgroundColor: '#E8F5E9',
-    borderRadius: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  locationDetail: {
-    fontSize: 14,
-    color: '#2E7D32',
-    marginTop: 5,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  buttonContainer: {
-    gap: 10,
-    marginBottom: 20,
-  },
-  locationsContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 15,
-    color: '#333',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#999',
-    fontStyle: 'italic',
-    paddingVertical: 20,
-  },
-  locationItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  locationText: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 4,
-  },
-  timestampText: {
-    fontSize: 12,
-    color: '#999',
-  },
-});

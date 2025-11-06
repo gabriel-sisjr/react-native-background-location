@@ -103,11 +103,26 @@ import {
   useLocationPermissions,
   useBackgroundLocation,
   useLocationUpdates,
+  LocationAccuracy,
+  NotificationPriority,
+  type TrackingOptions,
 } from '@gabriel-sisjr/react-native-background-location';
 
 function TrackingScreen() {
   // Manage permissions
   const { permissionStatus, requestPermissions } = useLocationPermissions();
+
+  // Configure tracking options
+  const trackingOptions: TrackingOptions = {
+    updateInterval: 5000, // 5 seconds
+    fastestInterval: 3000, // 3 seconds
+    maxWaitTime: 10000, // 10 seconds
+    accuracy: LocationAccuracy.HIGH_ACCURACY,
+    waitForAccurateLocation: false,
+    notificationTitle: 'Location Tracking',
+    notificationText: 'Tracking your location in background',
+    notificationPriority: NotificationPriority.LOW,
+  };
 
   // Manage tracking (for start/stop control)
   const {
@@ -118,7 +133,7 @@ function TrackingScreen() {
     onError: (err) => console.error(err),
   });
 
-// Watch real-time location updates
+  // Watch real-time location updates
   const {
     locations,
     lastLocation,
@@ -133,6 +148,10 @@ function TrackingScreen() {
     return <Button title="Grant Permissions" onPress={requestPermissions} />;
   }
 
+  const handleStartTracking = () => {
+    startTracking(undefined, trackingOptions);
+  };
+
   return (
     <View>
       <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
@@ -142,7 +161,7 @@ function TrackingScreen() {
       )}
       <Button
         title={isTracking ? 'Stop' : 'Start'}
-        onPress={isTracking ? stopTracking : () => startTracking()}
+        onPress={isTracking ? stopTracking : handleStartTracking}
       />
     </View>
   );
@@ -190,15 +209,30 @@ You can also use the module API directly:
 ```typescript
 import BackgroundLocation, {
   type Coords,
+  LocationAccuracy,
+  NotificationPriority,
+  type TrackingOptions,
 } from '@gabriel-sisjr/react-native-background-location';
 
+// Configure tracking options
+const options: TrackingOptions = {
+  updateInterval: 5000,
+  fastestInterval: 3000,
+  maxWaitTime: 10000,
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  waitForAccurateLocation: false,
+  notificationTitle: 'Location Tracking',
+  notificationText: 'Tracking your location in background',
+  notificationPriority: NotificationPriority.LOW,
+};
+
 // Recommended: Let the library generate a unique trip ID
-const tripId = await BackgroundLocation.startTracking();
+const tripId = await BackgroundLocation.startTracking(undefined, options);
 
 // Optional: Resume tracking with an existing trip ID (for crash recovery)
 // Only use this to resume a previously interrupted tracking session
 const resumedTripId =
-  await BackgroundLocation.startTracking('existing-trip-123');
+  await BackgroundLocation.startTracking('existing-trip-123', options);
 
 // Check if tracking is active
 const status = await BackgroundLocation.isTracking();
@@ -222,14 +256,16 @@ await BackgroundLocation.clearTrip(tripId);
 
 ## API Reference
 
-### `startTracking(tripId?: string): Promise<string>`
+### `startTracking(tripId?: string, options?: TrackingOptions): Promise<string>`
 
 Starts location tracking in background for a new or existing trip.
 
 - **Parameters:**
   - `tripId` (optional): Existing trip identifier to resume tracking. If omitted, a new UUID will be generated.
 
-  **⚠️ Important:** Only provide a `tripId` when resuming an interrupted tracking session (e.g., after app crash, battery drain, etc.). For new trips, always omit this parameter to let the library generate a unique UUID. This prevents data overwriting and ensures each trip has a unique identifier.
+    **⚠️ Important:** Only provide a `tripId` when resuming an interrupted tracking session (e.g., after app crash, battery drain, etc.). For new trips, always omit this parameter to let the library generate a unique UUID. This prevents data overwriting and ensures each trip has a unique identifier.
+
+  - `options` (optional): Configuration options for location tracking. See [TrackingOptions](#trackingoptions) for details.
 
 - **Returns:** Promise resolving to the effective trip ID being used.
 
@@ -239,12 +275,19 @@ Starts location tracking in background for a new or existing trip.
   - Requires location permissions to be granted.
   - **New trips:** Generates a unique UUID to prevent collisions.
   - **Resuming trips:** Continues collecting locations to the existing trip data.
+  - Uses provided `options` or defaults if not specified.
 
 - **Best Practice:**
 
   ```typescript
-  // ✅ Good: Start a new trip
+  // ✅ Good: Start a new trip with default options
   const newTripId = await startTracking();
+
+  // ✅ Good: Start a new trip with custom options
+  const customTripId = await startTracking(undefined, {
+    accuracy: LocationAccuracy.HIGH_ACCURACY,
+    updateInterval: 2000,
+  });
 
   // ✅ Good: Resume after interruption
   const resumedTripId = await startTracking(previousTripId);
@@ -327,18 +370,139 @@ interface TrackingStatus {
   active: boolean;
   tripId?: string;
 }
+
+interface TrackingOptions {
+  updateInterval?: number; // Interval between location updates in milliseconds (default: 5000)
+  fastestInterval?: number; // Fastest interval between location updates in milliseconds (default: 3000)
+  maxWaitTime?: number; // Maximum wait time in milliseconds before delivering location updates (default: 10000)
+  accuracy?: LocationAccuracy; // Location accuracy priority (default: LocationAccuracy.HIGH_ACCURACY)
+  waitForAccurateLocation?: boolean; // Whether to wait for accurate location before delivering updates (default: false)
+  notificationTitle?: string; // Notification title for foreground service (default: "Location Tracking")
+  notificationText?: string; // Notification text for foreground service (default: "Tracking your location in background")
+  notificationChannelName?: string; // Notification channel name (Android) (default: "Background Location")
+  notificationPriority?: NotificationPriority; // Notification priority (Android) (default: NotificationPriority.LOW)
+}
+```
+
+## Enums
+
+### LocationAccuracy
+
+Location accuracy priority levels:
+
+```typescript
+enum LocationAccuracy {
+  HIGH_ACCURACY = 'HIGH_ACCURACY', // Highest accuracy - uses GPS and other sensors (default)
+  BALANCED_POWER_ACCURACY = 'BALANCED_POWER_ACCURACY', // Balanced accuracy and power consumption
+  LOW_POWER = 'LOW_POWER', // Low power consumption - uses network-based location
+  NO_POWER = 'NO_POWER', // No power consumption - only receives location updates when other apps request them
+  PASSIVE = 'PASSIVE', // Passive location updates - receives location updates from other apps
+}
+```
+
+### NotificationPriority
+
+Notification priority levels for Android:
+
+```typescript
+enum NotificationPriority {
+  LOW = 'LOW', // Low priority - minimal notification (default)
+  DEFAULT = 'DEFAULT', // Default priority
+  HIGH = 'HIGH', // High priority - more prominent notification
+  MAX = 'MAX', // Maximum priority - urgent notification
+}
+```
+
+### LocationPermissionStatus
+
+Location permission status:
+
+```typescript
+enum LocationPermissionStatus {
+  GRANTED = 'granted',
+  DENIED = 'denied',
+  BLOCKED = 'blocked',
+  UNDETERMINED = 'undetermined',
+}
 ```
 
 ## Configuration
 
-The library uses the following default location update intervals on Android:
+The library provides configurable tracking options through `TrackingOptions`. You can customize location update intervals, accuracy, and notification settings.
 
-- **Update interval:** 5 seconds
-- **Fastest interval:** 3 seconds
-- **Max wait time:** 10 seconds
-- **Priority:** High accuracy
+### Default Configuration
 
-These settings are optimized for real-time tracking. Future versions may allow customization.
+The library uses the following default settings:
+
+- **Update interval:** 5 seconds (5000ms)
+- **Fastest interval:** 3 seconds (3000ms)
+- **Max wait time:** 10 seconds (10000ms)
+- **Accuracy:** `LocationAccuracy.HIGH_ACCURACY`
+- **Wait for accurate location:** `false`
+- **Notification title:** "Location Tracking"
+- **Notification text:** "Tracking your location in background"
+- **Notification channel name:** "Background Location"
+- **Notification priority:** `NotificationPriority.LOW`
+
+### Customizing Configuration
+
+You can customize tracking options when starting tracking:
+
+```typescript
+import {
+  BackgroundLocation,
+  LocationAccuracy,
+  NotificationPriority,
+  type TrackingOptions,
+} from '@gabriel-sisjr/react-native-background-location';
+
+// High accuracy preset (for navigation)
+const highAccuracyOptions: TrackingOptions = {
+  updateInterval: 2000,
+  fastestInterval: 1000,
+  maxWaitTime: 5000,
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  waitForAccurateLocation: true,
+  notificationTitle: 'High Accuracy Tracking',
+  notificationText: 'Using GPS for precise location tracking',
+  notificationPriority: NotificationPriority.DEFAULT,
+};
+
+// Balanced preset (for most tracking use cases)
+const balancedOptions: TrackingOptions = {
+  updateInterval: 10000,
+  fastestInterval: 5000,
+  maxWaitTime: 15000,
+  accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+  waitForAccurateLocation: false,
+  notificationPriority: NotificationPriority.LOW,
+};
+
+// Low power preset (for battery efficiency)
+const lowPowerOptions: TrackingOptions = {
+  updateInterval: 30000,
+  fastestInterval: 15000,
+  maxWaitTime: 60000,
+  accuracy: LocationAccuracy.LOW_POWER,
+  waitForAccurateLocation: false,
+  notificationTitle: 'Low Power Tracking',
+  notificationText: 'Power-efficient location tracking',
+  notificationPriority: NotificationPriority.LOW,
+};
+
+// Start tracking with custom options
+const tripId = await BackgroundLocation.startTracking(undefined, highAccuracyOptions);
+```
+
+### Configuration Presets
+
+The example app includes predefined configuration presets that you can use as a reference:
+
+- **High Accuracy:** Optimized for navigation and precise tracking (2s interval, GPS)
+- **Balanced:** Good balance between accuracy and battery (10s interval, balanced accuracy)
+- **Low Power:** Optimized for battery efficiency (30s interval, network-based)
+
+See the [example app](example/src/App.tsx) for complete implementation examples.
 
 ## Battery Optimization
 
@@ -511,6 +675,19 @@ Make sure your `tsconfig.json` includes:
 ## Contributing
 
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
+
+## Support & Sponsorship
+
+If you find this library useful, please consider:
+
+- ⭐ **Star the repository** - It helps others discover the project
+- 🐛 **Report bugs** - Help me improve the library
+- 💻 **Contribute code** - Pull requests are always welcome
+- ☕ **Sponsor on GitHub** - Support ongoing development and maintenance
+
+[**Sponsor this project**](https://github.com/sponsors/gabriel-sisjr) to help me continue building and maintaining open source tools for the React Native community.
+
+See the [Sponsor page](SPONSOR.md) for more details about sponsorship benefits and how your support helps the project.
 
 ## License
 

@@ -30,7 +30,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
    * If tripId is null or empty, generates a new UUID
    * Returns the effective tripId being used
    */
-  override fun startTracking(tripId: String?, promise: Promise) {
+  override fun startTracking(tripId: String?, options: ReadableMap?, promise: Promise) {
     try {
       // Check location permissions
       if (!hasLocationPermissions()) {
@@ -56,17 +56,42 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
         tripId
       }
 
+      // Parse options if provided
+      val trackingOptions = parseTrackingOptions(options)
+
       // Save tracking state
       storage.saveTrackingState(effectiveTripId, true)
 
-      // Start the foreground service
+      // Start the foreground service with options
       val context = reactApplicationContext
-      LocationService.startService(context, effectiveTripId)
+      LocationService.startService(context, effectiveTripId, trackingOptions)
 
       promise.resolve(effectiveTripId)
     } catch (e: Exception) {
       promise.reject("START_TRACKING_ERROR", "Failed to start tracking: ${e.message}", e)
     }
+  }
+
+  /**
+   * Parses TrackingOptions from ReadableMap
+   */
+  private fun parseTrackingOptions(options: ReadableMap?): TrackingOptions {
+    if (options == null) {
+      return TrackingOptions()
+    }
+
+    val accuracyString = if (options.hasKey("accuracy")) options.getString("accuracy") else null
+    return TrackingOptions(
+      updateInterval = if (options.hasKey("updateInterval")) options.getDouble("updateInterval").toLong() else null,
+      fastestInterval = if (options.hasKey("fastestInterval")) options.getDouble("fastestInterval").toLong() else null,
+      maxWaitTime = if (options.hasKey("maxWaitTime")) options.getDouble("maxWaitTime").toLong() else null,
+      accuracy = LocationAccuracy.fromString(accuracyString),
+      waitForAccurateLocation = if (options.hasKey("waitForAccurateLocation")) options.getBoolean("waitForAccurateLocation") else null,
+      notificationTitle = if (options.hasKey("notificationTitle")) options.getString("notificationTitle") else null,
+      notificationText = if (options.hasKey("notificationText")) options.getString("notificationText") else null,
+      notificationChannelName = if (options.hasKey("notificationChannelName")) options.getString("notificationChannelName") else null,
+      notificationPriority = if (options.hasKey("notificationPriority")) options.getString("notificationPriority") else null
+    )
   }
 
   /**
