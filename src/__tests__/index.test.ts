@@ -1,6 +1,10 @@
 import { NativeModules, Platform } from 'react-native';
-import BackgroundLocation from '../index';
+import BackgroundLocation, {
+  LocationAccuracy,
+  NotificationPriority,
+} from '../index';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
+import type { TrackingOptions } from '../types';
 
 describe('BackgroundLocation API', () => {
   const mockTripId = 'test-trip-123';
@@ -33,7 +37,8 @@ describe('BackgroundLocation API', () => {
 
       expect(result).toBe(mockTripId);
       expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
-        mockTripId
+        mockTripId,
+        undefined
       );
       expect(console.warn).not.toHaveBeenCalled();
     });
@@ -48,6 +53,7 @@ describe('BackgroundLocation API', () => {
 
       expect(result).toBe(generatedId);
       expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        undefined,
         undefined
       );
     });
@@ -80,7 +86,10 @@ describe('BackgroundLocation API', () => {
       const result = await BackgroundLocation.startTracking('');
 
       expect(result).toBe('new-trip-id');
-      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith('');
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        '',
+        undefined
+      );
     });
 
     it('should propagate errors from native module', async () => {
@@ -92,6 +101,111 @@ describe('BackgroundLocation API', () => {
       await expect(BackgroundLocation.startTracking()).rejects.toThrow(
         'Permission denied'
       );
+    });
+
+    it('should start tracking with options and convert enums to strings', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        fastestInterval: 2000,
+        maxWaitTime: 10000,
+        accuracy: LocationAccuracy.HIGH_ACCURACY,
+        waitForAccurateLocation: true,
+        notificationTitle: 'Tracking',
+        notificationText: 'Location tracking active',
+        notificationChannelName: 'location',
+        notificationPriority: NotificationPriority.HIGH,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        {
+          updateInterval: 5000,
+          fastestInterval: 2000,
+          maxWaitTime: 10000,
+          accuracy: 'HIGH_ACCURACY',
+          waitForAccurateLocation: true,
+          notificationTitle: 'Tracking',
+          notificationText: 'Location tracking active',
+          notificationChannelName: 'location',
+          notificationPriority: 'HIGH',
+        }
+      );
+    });
+
+    it('should start tracking with partial options', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        {
+          updateInterval: 5000,
+          accuracy: 'BALANCED_POWER_ACCURACY',
+        }
+      );
+    });
+
+    it('should handle when module is not available - isTracking returns false', async () => {
+      // Mock BackgroundLocationModule to return undefined for isTracking
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+      });
+
+      const result = await BackgroundLocation.startTracking();
+
+      expect(result).toMatch(/^simulator-trip-\d+$/);
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+      });
+    });
+
+    it('should handle when module is null', async () => {
+      const originalModule = BackgroundLocationModule;
+      // Mock module to be null
+      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
+        value: null,
+        configurable: true,
+      });
+
+      // Need to re-import to get the null module
+      const BackgroundLocationWithNullModule = require('../index').default;
+      const result = await BackgroundLocationWithNullModule.startTracking();
+
+      expect(result).toMatch(/^simulator-trip-\d+$/);
+      expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
+        value: originalModule,
+        configurable: true,
+      });
     });
   });
 
@@ -107,14 +221,23 @@ describe('BackgroundLocation API', () => {
       expect(console.warn).not.toHaveBeenCalled();
     });
 
-    it.skip('should handle simulator mode gracefully', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should handle when module is not available', async () => {
+      Object.defineProperty(BackgroundLocationModule, 'stopTracking', {
+        value: undefined,
+        configurable: true,
+      });
 
       await BackgroundLocation.stopTracking();
 
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining('BackgroundLocation not available')
       );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'stopTracking', {
+        value: jest.fn(),
+        configurable: true,
+      });
     });
 
     it('should propagate errors from native module', async () => {
@@ -143,13 +266,24 @@ describe('BackgroundLocation API', () => {
       expect(console.warn).not.toHaveBeenCalled();
     });
 
-    it.skip('should return inactive status in simulator mode', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should return inactive status when module is not available', async () => {
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+      });
 
       const result = await BackgroundLocation.isTracking();
 
       expect(result).toEqual({ active: false });
-      expect(console.warn).toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+      });
     });
 
     it('should handle inactive tracking', async () => {
@@ -190,13 +324,24 @@ describe('BackgroundLocation API', () => {
       expect(console.warn).not.toHaveBeenCalled();
     });
 
-    it.skip('should return empty array in simulator mode', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should return empty array when module is not available', async () => {
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: undefined,
+        configurable: true,
+      });
 
       const result = await BackgroundLocation.getLocations(mockTripId);
 
       expect(result).toEqual([]);
-      expect(console.warn).toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: jest.fn(),
+        configurable: true,
+      });
     });
 
     it('should handle empty locations array', async () => {
@@ -248,15 +393,31 @@ describe('BackgroundLocation API', () => {
       expect(console.warn).not.toHaveBeenCalled();
     });
 
-    it.skip('should handle simulator mode gracefully', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should handle when module is not available', async () => {
+      const originalClearTrip = BackgroundLocationModule.clearTrip;
+      Object.defineProperty(BackgroundLocationModule, 'clearTrip', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       await BackgroundLocation.clearTrip(mockTripId);
 
-      expect(console.warn).toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'clearTrip', {
+        value: originalClearTrip,
+        configurable: true,
+        writable: true,
+      });
     });
 
     it('should propagate errors from native module', async () => {
+      // Ensure clearTrip is a mock before testing
+      (BackgroundLocationModule.clearTrip as jest.Mock).mockClear();
       const error = new Error('Failed to clear trip');
       (BackgroundLocationModule.clearTrip as jest.Mock).mockRejectedValue(
         error
@@ -306,13 +467,41 @@ describe('BackgroundLocation API', () => {
       expect(BackgroundLocationModule.isTracking).toHaveBeenCalled();
     });
 
-    it.skip('should detect when module is not available', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should handle exception when checking module availability', async () => {
+      // Mock to throw an error when accessing isTracking
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        get: () => {
+          throw new Error('Module error');
+        },
+        configurable: true,
+      });
 
-      const result = await BackgroundLocation.isTracking();
+      const result = await BackgroundLocation.startTracking();
 
-      expect(result).toEqual({ active: false });
+      expect(result).toMatch(/^simulator-trip-\d+$/);
       expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+      });
+    });
+  });
+
+  describe('Enum exports', () => {
+    it('should export LocationAccuracy enum', () => {
+      expect(LocationAccuracy).toBeDefined();
+      expect(LocationAccuracy.HIGH_ACCURACY).toBe('HIGH_ACCURACY');
+      expect(LocationAccuracy.BALANCED_POWER_ACCURACY).toBe(
+        'BALANCED_POWER_ACCURACY'
+      );
+    });
+
+    it('should export NotificationPriority enum', () => {
+      expect(NotificationPriority).toBeDefined();
+      expect(NotificationPriority.HIGH).toBe('HIGH');
+      expect(NotificationPriority.DEFAULT).toBe('DEFAULT');
     });
   });
 });

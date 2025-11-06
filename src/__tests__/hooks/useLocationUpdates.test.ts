@@ -8,6 +8,7 @@ jest.mock('../../NativeBackgroundLocation', () => ({
   default: {
     isTracking: jest.fn(),
     getLocations: jest.fn(),
+    clearTrip: jest.fn(),
   },
 }));
 
@@ -501,6 +502,221 @@ describe('useLocationUpdates', () => {
       });
 
       expect(result.current.lastLocation?.latitude).toBe('37.7760');
+    });
+  });
+
+  describe('clearLocations', () => {
+    it('should clear locations when module is available', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.locations.length).toBeGreaterThan(0);
+      });
+
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      expect(result.current.locations).toEqual([]);
+      expect(result.current.lastLocation).toBeNull();
+      expect(BackgroundLocationModule.clearTrip).toHaveBeenCalledWith(
+        mockTripId
+      );
+    });
+
+    it('should not clear if no tripId', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      expect(BackgroundLocationModule.clearTrip).not.toHaveBeenCalled();
+    });
+
+    it('should handle when module is not available', async () => {
+      const originalClearTrip = BackgroundLocationModule.clearTrip;
+      Object.defineProperty(BackgroundLocationModule, 'clearTrip', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId })
+      );
+
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      // When module is not available, clearLocations should still clear local state
+      expect(result.current.locations).toEqual([]);
+      expect(result.current.lastLocation).toBeNull();
+      expect(console.warn).toHaveBeenCalledWith(
+        'BackgroundLocation not available'
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'clearTrip', {
+        value: originalClearTrip,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('should handle errors during clear', async () => {
+      const error = new Error('Failed to clear');
+      (BackgroundLocationModule.clearTrip as jest.Mock).mockRejectedValue(
+        error
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId })
+      );
+
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      expect(result.current.error).toEqual(error);
+      expect(console.error).toHaveBeenCalled();
+    });
+
+    it('should prevent reloading locations immediately after clear', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.locations.length).toBeGreaterThan(0);
+      });
+
+      // Clear locations
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      expect(result.current.locations).toEqual([]);
+
+      // Clear the mock to track if it's called again
+      (BackgroundLocationModule.getLocations as jest.Mock).mockClear();
+
+      // Wait a bit - should not reload immediately
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should not reload immediately after clear
+      expect(BackgroundLocationModule.getLocations).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Location update events with wasClearedRef', () => {
+    it('should prevent reloading locations immediately after clear', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.locations.length).toBeGreaterThan(0);
+      });
+
+      // Clear locations
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      expect(result.current.locations).toEqual([]);
+
+      // Clear the mock to track if it's called again
+      (BackgroundLocationModule.getLocations as jest.Mock).mockClear();
+
+      // Wait a bit - should not reload immediately
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+
+      // Should not reload immediately after clear
+      expect(BackgroundLocationModule.getLocations).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Module availability', () => {
+    it('should handle when module is not available on mount', async () => {
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+      });
+
+      renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(console.warn).toHaveBeenCalledWith(
+          expect.stringContaining('BackgroundLocation not available')
+        );
+      });
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+      });
+    });
+
+    it('should handle when module is not available in loadExistingLocations', async () => {
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: undefined,
+        configurable: true,
+      });
+
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.tripId).toBe(mockTripId);
+      });
+
+      // Should not crash
+      expect(result.current.locations).toEqual([]);
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: jest.fn(),
+        configurable: true,
+      });
     });
   });
 });
