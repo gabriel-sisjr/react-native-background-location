@@ -25,6 +25,22 @@ describe('BackgroundLocation API', () => {
     };
     Platform.OS = 'android';
     console.warn = jest.fn();
+
+    // Ensure BackgroundLocationModule methods are properly mocked
+    (BackgroundLocationModule.startTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.stopTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.clearTrip as jest.Mock) = jest.fn();
+  });
+
+  afterEach(() => {
+    // Restore all mocks after each test
+    (BackgroundLocationModule.startTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.stopTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.clearTrip as jest.Mock) = jest.fn();
   });
 
   describe('startTracking', () => {
@@ -222,9 +238,12 @@ describe('BackgroundLocation API', () => {
     });
 
     it('should handle when module is not available', async () => {
-      Object.defineProperty(BackgroundLocationModule, 'stopTracking', {
+      // Mock isTracking to return undefined (not a function) to simulate unavailable module
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
         value: undefined,
         configurable: true,
+        writable: true,
       });
 
       await BackgroundLocation.stopTracking();
@@ -234,10 +253,14 @@ describe('BackgroundLocation API', () => {
       );
 
       // Restore
-      Object.defineProperty(BackgroundLocationModule, 'stopTracking', {
-        value: jest.fn(),
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
         configurable: true,
+        writable: true,
       });
+      // Ensure it's a mock again
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.stopTracking as jest.Mock) = jest.fn();
     });
 
     it('should propagate errors from native module', async () => {
@@ -325,9 +348,12 @@ describe('BackgroundLocation API', () => {
     });
 
     it('should return empty array when module is not available', async () => {
-      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+      // Mock isTracking to return undefined (not a function) to simulate unavailable module
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
         value: undefined,
         configurable: true,
+        writable: true,
       });
 
       const result = await BackgroundLocation.getLocations(mockTripId);
@@ -338,10 +364,14 @@ describe('BackgroundLocation API', () => {
       );
 
       // Restore
-      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
-        value: jest.fn(),
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
         configurable: true,
+        writable: true,
       });
+      // Ensure it's a mock again
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
     });
 
     it('should handle empty locations array', async () => {
@@ -394,8 +424,9 @@ describe('BackgroundLocation API', () => {
     });
 
     it('should handle when module is not available', async () => {
-      const originalClearTrip = BackgroundLocationModule.clearTrip;
-      Object.defineProperty(BackgroundLocationModule, 'clearTrip', {
+      // Mock isTracking to return undefined (not a function) to simulate unavailable module
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
         value: undefined,
         configurable: true,
         writable: true,
@@ -408,16 +439,17 @@ describe('BackgroundLocation API', () => {
       );
 
       // Restore
-      Object.defineProperty(BackgroundLocationModule, 'clearTrip', {
-        value: originalClearTrip,
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
         configurable: true,
         writable: true,
       });
+      // Ensure it's a mock again
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.clearTrip as jest.Mock) = jest.fn();
     });
 
     it('should propagate errors from native module', async () => {
-      // Ensure clearTrip is a mock before testing
-      (BackgroundLocationModule.clearTrip as jest.Mock).mockClear();
       const error = new Error('Failed to clear trip');
       (BackgroundLocationModule.clearTrip as jest.Mock).mockRejectedValue(
         error
@@ -469,6 +501,7 @@ describe('BackgroundLocation API', () => {
 
     it('should handle exception when checking module availability', async () => {
       // Mock to throw an error when accessing isTracking
+      const originalIsTracking = BackgroundLocationModule.isTracking;
       Object.defineProperty(BackgroundLocationModule, 'isTracking', {
         get: () => {
           throw new Error('Module error');
@@ -483,9 +516,12 @@ describe('BackgroundLocation API', () => {
 
       // Restore
       Object.defineProperty(BackgroundLocationModule, 'isTracking', {
-        value: jest.fn(),
+        value: originalIsTracking,
         configurable: true,
+        writable: true,
       });
+      // Ensure it's a mock again
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
   });
 
@@ -496,12 +532,17 @@ describe('BackgroundLocation API', () => {
       expect(LocationAccuracy.BALANCED_POWER_ACCURACY).toBe(
         'BALANCED_POWER_ACCURACY'
       );
+      expect(LocationAccuracy.LOW_POWER).toBe('LOW_POWER');
+      expect(LocationAccuracy.NO_POWER).toBe('NO_POWER');
+      expect(LocationAccuracy.PASSIVE).toBe('PASSIVE');
     });
 
     it('should export NotificationPriority enum', () => {
       expect(NotificationPriority).toBeDefined();
       expect(NotificationPriority.HIGH).toBe('HIGH');
       expect(NotificationPriority.DEFAULT).toBe('DEFAULT');
+      expect(NotificationPriority.LOW).toBe('LOW');
+      expect(NotificationPriority.MAX).toBe('MAX');
     });
   });
 });
