@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-11-05
+
+### Added
+
+- ⚙️ **Configurable Tracking Options**: Full customization of location tracking parameters
+  - `TrackingOptions` interface for comprehensive configuration
+  - Customizable update intervals (`updateInterval`, `fastestInterval`, `maxWaitTime`)
+  - Location accuracy levels (`LocationAccuracy` enum)
+  - Notification customization (`notificationTitle`, `notificationText`, `notificationChannelName`, `notificationPriority`)
+  - `waitForAccurateLocation` option for precise GPS tracking
+  - Support for configuration options in `startTracking()` method and `useBackgroundLocation` hook
+
+- 📊 **Location Accuracy Enums**: Type-safe location accuracy levels
+  - `LocationAccuracy.HIGH_ACCURACY` - Highest accuracy using GPS and sensors
+  - `LocationAccuracy.BALANCED_POWER_ACCURACY` - Balanced accuracy and power consumption
+  - `LocationAccuracy.LOW_POWER` - Low power consumption using network-based location
+  - `LocationAccuracy.NO_POWER` - No power consumption, passive updates
+  - `LocationAccuracy.PASSIVE` - Receives location updates from other apps
+
+- 🔔 **Notification Priority Enums**: Type-safe notification priority levels
+  - `NotificationPriority.LOW` - Low priority (default)
+  - `NotificationPriority.DEFAULT` - Default priority
+  - `NotificationPriority.HIGH` - High priority
+  - `NotificationPriority.MAX` - Maximum priority
+
+- 🗑️ **Clear Locations Method**: Added `clearLocations()` method to `useLocationUpdates` hook
+  - Allows clearing all locations for the current trip
+  - Prevents immediate reloading of data after clear operation
+  - Works seamlessly with auto-update functionality
+
+- 📱 **Configuration Presets**: Example app includes predefined configuration presets
+  - **High Accuracy**: Optimized for navigation (2s interval, GPS)
+  - **Balanced**: Good balance between accuracy and battery (10s interval)
+  - **Low Power**: Optimized for battery efficiency (30s interval, network-based)
+  - **Default**: Standard configuration (5s interval)
+
+### Changed
+
+- 🔧 **API Enhancement**: `startTracking()` now accepts optional `TrackingOptions` parameter
+  - `startTracking(tripId?: string, options?: TrackingOptions): Promise<string>`
+  - Backwards compatible with existing code (options are optional)
+  - Default values applied when options not provided
+
+- 📚 **Documentation Updates**: Comprehensive documentation for new features
+  - Updated README.md with configuration examples and enums documentation
+  - Enhanced hooks.md with TrackingOptions examples
+  - Updated QUICKSTART.md with configuration examples
+  - Added configuration presets documentation
+
+### Fixed
+
+- 🐛 Fixed inline styles warnings in RouteMap component
+- 🐛 Fixed enum export/import issues for proper TypeScript support
+- 🐛 Improved type safety for TrackingOptions across the codebase
+
 ## [0.1.0] - 2025-10-26
 
 ### Added

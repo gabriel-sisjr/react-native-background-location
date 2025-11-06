@@ -4,6 +4,7 @@ import type {
   UseBackgroundLocationResult,
   Coords,
   UseLocationTrackingOptions,
+  TrackingOptions,
 } from '../types';
 
 // Check if native module is available
@@ -65,6 +66,7 @@ export function useBackgroundLocation(
   const {
     autoStart = false,
     tripId: initialTripId,
+    options: trackingOptions,
     onTrackingStart,
     onTrackingStop,
     onError,
@@ -112,10 +114,10 @@ export function useBackgroundLocation(
    */
   useEffect(() => {
     if (autoStart && !isTracking) {
-      startTracking(initialTripId);
+      startTracking(initialTripId, trackingOptions);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart]);
+  }, [autoStart, trackingOptions]);
 
   /**
    * Clear error state
@@ -128,7 +130,10 @@ export function useBackgroundLocation(
    * Start tracking
    */
   const startTracking = useCallback(
-    async (customTripId?: string): Promise<string | null> => {
+    async (
+      customTripId?: string,
+      trackingOptionsOverride?: TrackingOptions
+    ): Promise<string | null> => {
       if (!isNativeModuleAvailable()) {
         const simulatedId = customTripId || `simulator-trip-${Date.now()}`;
         setTripId(simulatedId);
@@ -143,8 +148,12 @@ export function useBackgroundLocation(
       clearError();
 
       try {
-        const effectiveTripId =
-          await BackgroundLocationModule.startTracking(customTripId);
+        // Use provided options or fallback to options from hook config
+        const effectiveOptions = trackingOptionsOverride || trackingOptions;
+        const effectiveTripId = await BackgroundLocationModule.startTracking(
+          customTripId,
+          effectiveOptions
+        );
         setTripId(effectiveTripId);
         setIsTracking(true);
         setLocations([]); // Clear previous locations
@@ -162,7 +171,7 @@ export function useBackgroundLocation(
         setIsLoading(false);
       }
     },
-    [clearError, onTrackingStart, onError]
+    [clearError, onTrackingStart, onError, trackingOptions]
   );
 
   /**
