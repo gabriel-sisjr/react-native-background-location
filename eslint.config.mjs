@@ -24,6 +24,13 @@ export default defineConfig([
     },
   },
   {
-    ignores: ['node_modules/', 'lib/'],
+    ignores: [
+      'node_modules/',
+      'lib/',
+      'coverage/',
+      '**/build/',
+      '**/dist/',
+      'eslint.config.mjs',
+    ],
   },
 ]);

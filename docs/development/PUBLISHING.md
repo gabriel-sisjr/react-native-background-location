@@ -76,19 +76,32 @@ Before using automated publishing, configure:
 
 #### Beta Release (to `develop`)
 
-Simply push to `develop` branch:
-```bash
-git checkout develop
-git add .
-git commit -m "feat: new feature"
-git push origin develop
-```
+**Manual trigger via GitHub Actions UI:**
+
+1. **Push your changes to `develop`**:
+   ```bash
+   git checkout develop
+   git add .
+   git commit -m "feat: new feature"
+   git push origin develop
+   ```
+
+2. **Trigger beta release manually**:
+   - Go to GitHub repository → **Actions** tab
+   - Select **"Pre-release to NPM"** workflow
+   - Click **"Run workflow"** button
+   - Select branch: `develop`
+   - (Optional) Provide custom version suffix (e.g., `rc1`, `beta1`)
+   - (Optional) Provide description for the pre-release
+   - Click **"Run workflow"**
 
 The pre-release workflow will:
-- Generate a beta version (`X.Y.Z-beta.TIMESTAMP.SHA`)
+- Generate a beta version (`X.Y.Z-beta.TIMESTAMP.SHA` or custom suffix)
 - Publish to npm with `@beta` tag
 - Create a pre-release on GitHub
 - Comment on recent PRs with install instructions
+
+**Note**: Beta releases are no longer automatic. They must be triggered manually via GitHub Actions UI to avoid unnecessary deployments (e.g., for documentation-only changes).
 
 Users can test beta versions with:
 ```bash

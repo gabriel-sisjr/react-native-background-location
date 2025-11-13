@@ -109,7 +109,7 @@ function PermissionHandler() {
 
 Complete hook for managing background location tracking, including starting/stopping tracking and managing location data.
 
-![Example app using useBackgroundLocation](../assets/tracking.gif)
+![Example app using useBackgroundLocation](../assets/background.gif)
 
 *Example app using `useBackgroundLocation` to start/stop a trip and refresh locations.*
 
@@ -177,6 +177,9 @@ interface UseLocationTrackingOptions {
   // ⚠️ Only provide this when resuming an interrupted session
   tripId?: string;
 
+  // Tracking configuration options
+  trackingOptions?: TrackingOptions;
+
   // Callback when tracking starts
   onTrackingStart?: (tripId: string) => void;
 
@@ -209,7 +212,7 @@ interface UseBackgroundLocationResult {
 
   // Start tracking (returns trip ID or null on error)
   // ⚠️ existingTripId is for RESUMING interrupted sessions only
-  startTracking: (existingTripId?: string) => Promise<string | null>;
+  startTracking: (existingTripId?: string, options?: TrackingOptions) => Promise<string | null>;
 
   // Stop tracking
   stopTracking: () => Promise<void>;
@@ -228,10 +231,17 @@ interface UseBackgroundLocationResult {
 ### Example: Auto-Start Tracking
 
 ```typescript
+import { LocationAccuracy, NotificationPriority } from '@gabriel-sisjr/react-native-background-location';
+
 function AutoTrackingScreen() {
   const { isTracking, locations } = useBackgroundLocation({
     autoStart: true, // Start immediately on mount
     // Don't provide tripId for new trips - let the library generate a UUID
+    trackingOptions: {
+      accuracy: LocationAccuracy.HIGH_ACCURACY,
+      updateInterval: 5000,
+      notificationPriority: NotificationPriority.LOW,
+    },
     onError: (error) => {
       Alert.alert('Error', error.message);
     },
@@ -249,6 +259,8 @@ function AutoTrackingScreen() {
 ### Example: Complete Trip Management
 
 ```typescript
+import { LocationAccuracy, NotificationPriority, type TrackingOptions } from '@gabriel-sisjr/react-native-background-location';
+
 function TripManager() {
   const {
     isTracking,
@@ -261,7 +273,15 @@ function TripManager() {
   } = useBackgroundLocation();
 
   const handleStartTrip = async () => {
-    const id = await startTracking();
+    const options: TrackingOptions = {
+      accuracy: LocationAccuracy.HIGH_ACCURACY,
+      updateInterval: 5000,
+      notificationTitle: 'Trip Tracking',
+      notificationText: 'Tracking your trip in background',
+      notificationPriority: NotificationPriority.LOW,
+    };
+
+    const id = await startTracking(undefined, options);
     if (id) {
       console.log('Trip started:', id);
       // Save trip ID to your backend
@@ -389,6 +409,7 @@ function LiveMapScreen() {
     isLoading,
     error,
     clearError,
+    clearLocations,
   } = useLocationUpdates({
     onLocationUpdate: (location) => {
       console.log('New location:', location);
@@ -404,6 +425,7 @@ function LiveMapScreen() {
           Last: {lastLocation.latitude}, {lastLocation.longitude}
         </Text>
       )}
+      <Button title="Clear Locations" onPress={clearLocations} />
     </View>
   );
 }
@@ -448,6 +470,9 @@ interface UseLocationUpdatesResult {
 
   // Clear error state
   clearError: () => void;
+
+  // Clear all locations for the current trip
+  clearLocations: () => Promise<void>;
 }
 ```
 
@@ -683,7 +708,7 @@ function StatusIcon() {
 
 ## TypeScript Support
 
-All hooks are fully typed. Import types as needed:
+All hooks are fully typed. Import types and enums as needed:
 
 ```typescript
 import type {
@@ -693,8 +718,14 @@ import type {
   UseLocationUpdatesOptions,
   UseLocationUpdatesResult,
   PermissionState,
-  LocationPermissionStatus,
+  TrackingOptions,
   Coords,
+} from '@gabriel-sisjr/react-native-background-location';
+
+import {
+  LocationPermissionStatus,
+  LocationAccuracy,
+  NotificationPriority,
 } from '@gabriel-sisjr/react-native-background-location';
 ```
 

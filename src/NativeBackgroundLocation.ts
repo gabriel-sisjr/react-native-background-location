@@ -1,15 +1,40 @@
 import { TurboModuleRegistry, type TurboModule } from 'react-native';
-import type { Coords, TrackingStatus, LocationUpdateEvent } from './types';
+import type {
+  Coords,
+  TrackingStatus,
+  LocationUpdateEvent,
+  TrackingOptions,
+} from './types';
 
-export type { Coords, TrackingStatus, LocationUpdateEvent };
+export type { Coords, TrackingStatus, LocationUpdateEvent, TrackingOptions };
+
+/**
+ * Tracking options interface for TurboModule spec
+ * Must be defined inline for Codegen compatibility
+ */
+export interface TrackingOptionsSpec {
+  updateInterval?: number;
+  fastestInterval?: number;
+  maxWaitTime?: number;
+  accuracy?: string;
+  waitForAccurateLocation?: boolean;
+  notificationTitle?: string;
+  notificationText?: string;
+  notificationChannelName?: string;
+  notificationPriority?: string;
+}
 
 export interface Spec extends TurboModule {
   /**
    * Starts location tracking in background for a specific trip
    * @param tripId Optional trip identifier. If omitted, a new one will be generated
+   * @param options Optional tracking configuration options
    * @returns The effective tripId (received or generated)
    */
-  startTracking(tripId?: string): Promise<string>;
+  startTracking(
+    tripId?: string,
+    options?: TrackingOptionsSpec
+  ): Promise<string>;
 
   /**
    * Stops all location tracking and terminates the background service

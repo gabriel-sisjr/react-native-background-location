@@ -33,5 +33,30 @@ target 'BackgroundLocationExample' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Call MapLibre post_install to configure SPM dependencies
+    # The MapLibre podspec defines a $MLRN.post_install method that needs to be called
+    # This configures the Swift Package Manager dependency for MapLibre
+    begin
+      maplibre_podspec_path = File.join(
+        Pod::Config.instance.installation_root,
+        '..',
+        'node_modules',
+        '@maplibre',
+        'maplibre-react-native',
+        'maplibre-react-native.podspec'
+      )
+      if File.exist?(maplibre_podspec_path)
+        # Load the podspec to get access to $MLRN global object
+        load maplibre_podspec_path
+        # Call the post_install hook to configure SPM dependencies
+        if defined?($MLRN) && $MLRN.respond_to?(:post_install)
+          $MLRN.post_install(installer)
+        end
+      end
+    rescue => e
+      Pod::UI.warn "Failed to configure MapLibre: #{e.message}"
+      Pod::UI.warn e.backtrace.first(5).join("\n")
+    end
   end
 end
