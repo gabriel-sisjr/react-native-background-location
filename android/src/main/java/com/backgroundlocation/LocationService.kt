@@ -11,6 +11,7 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
+import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.google.android.gms.location.*
 
@@ -126,11 +127,51 @@ class LocationService : Service() {
 
   private fun handleLocation(location: Location) {
     currentTripId?.let { tripId ->
+      // Extract all available location data
+      val accuracy = if (location.hasAccuracy()) location.accuracy else null
+      val altitude = if (location.hasAltitude()) location.altitude else null
+      val speed = if (location.hasSpeed()) location.speed else null
+      val bearing = if (location.hasBearing()) location.bearing else null
+      
+      // API 26+ fields - check if values are valid (not NaN)
+      val verticalAccuracyMeters = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val value = location.verticalAccuracyMeters
+        if (!value.isNaN()) value else null
+      } else null
+      
+      val speedAccuracyMetersPerSecond = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val value = location.speedAccuracyMetersPerSecond
+        if (!value.isNaN()) value else null
+      } else null
+      
+      val bearingAccuracyDegrees = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val value = location.bearingAccuracyDegrees
+        if (!value.isNaN()) value else null
+      } else null
+      
+      val elapsedRealtimeNanos = location.elapsedRealtimeNanos
+      val provider = location.provider
+      
+      // API 18+ field
+      val isFromMockProvider = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+        location.isFromMockProvider
+      } else null
+      
       storage.saveLocation(
         tripId = tripId,
         latitude = location.latitude,
         longitude = location.longitude,
-        timestamp = location.time
+        timestamp = location.time,
+        accuracy = accuracy,
+        altitude = altitude,
+        speed = speed,
+        bearing = bearing,
+        verticalAccuracyMeters = verticalAccuracyMeters,
+        speedAccuracyMetersPerSecond = speedAccuracyMetersPerSecond,
+        bearingAccuracyDegrees = bearingAccuracyDegrees,
+        elapsedRealtimeNanos = elapsedRealtimeNanos,
+        provider = provider,
+        isFromMockProvider = isFromMockProvider
       )
       
       // Emit location update event to React Native
@@ -139,17 +180,12 @@ class LocationService : Service() {
   }
   
   /**
-   * Sends a location update event to React Native
+   * Sends a location update event to React Native with extended location data
    */
   private fun sendLocationUpdateEvent(tripId: String, location: Location) {
     reactContext?.let { context ->
       try {
-        val eventData = Arguments.createMap().apply {
-          putString("tripId", tripId)
-          putString("latitude", location.latitude.toString())
-          putString("longitude", location.longitude.toString())
-          putDouble("timestamp", location.time.toDouble())
-        }
+        val eventData = createLocationMap(tripId, location)
         
         context
           .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -159,6 +195,60 @@ class LocationService : Service() {
         e.printStackTrace()
       }
     }
+  }
+  
+  /**
+   * Creates a WritableMap with all available location data
+   */
+  private fun createLocationMap(tripId: String, location: Location): WritableMap {
+    val map = Arguments.createMap().apply {
+      putString("tripId", tripId)
+      putString("latitude", location.latitude.toString())
+      putString("longitude", location.longitude.toString())
+      putDouble("timestamp", location.time.toDouble())
+      
+      // Add optional fields if available
+      if (location.hasAccuracy()) {
+        putDouble("accuracy", location.accuracy.toDouble())
+      }
+      if (location.hasAltitude()) {
+        putDouble("altitude", location.altitude)
+      }
+      if (location.hasSpeed()) {
+        putDouble("speed", location.speed.toDouble())
+      }
+      if (location.hasBearing()) {
+        putDouble("bearing", location.bearing.toDouble())
+      }
+      
+      // API 26+ fields - check if values are valid (not NaN)
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val verticalAccuracy = location.verticalAccuracyMeters
+        if (!verticalAccuracy.isNaN()) {
+          putDouble("verticalAccuracyMeters", verticalAccuracy.toDouble())
+        }
+        
+        val speedAccuracy = location.speedAccuracyMetersPerSecond
+        if (!speedAccuracy.isNaN()) {
+          putDouble("speedAccuracyMetersPerSecond", speedAccuracy.toDouble())
+        }
+        
+        val bearingAccuracy = location.bearingAccuracyDegrees
+        if (!bearingAccuracy.isNaN()) {
+          putDouble("bearingAccuracyDegrees", bearingAccuracy.toDouble())
+        }
+      }
+      
+      // Always available fields
+      putDouble("elapsedRealtimeNanos", location.elapsedRealtimeNanos.toDouble())
+      location.provider?.let { putString("provider", it) }
+      
+      // API 18+ field
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+        putBoolean("isFromMockProvider", location.isFromMockProvider)
+      }
+    }
+    return map
   }
 
   private fun createNotificationChannel() {
