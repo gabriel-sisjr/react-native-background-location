@@ -339,6 +339,24 @@ describe('useLocationPermissions - Complete Tests', () => {
       );
     });
 
+    it('should handle iOS platform in checkPermissions (lines 39-44)', async () => {
+      Platform.OS = 'ios';
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const hasPermission = await result.current.checkPermissions();
+        expect(hasPermission).toBe(false);
+      });
+
+      expect(result.current.permissionStatus.hasPermission).toBe(false);
+      expect(result.current.permissionStatus.status).toBe(
+        LocationPermissionStatus.UNDETERMINED
+      );
+      expect(result.current.permissionStatus.canRequestAgain).toBe(true);
+      expect(PermissionsAndroid.check).not.toHaveBeenCalled();
+    });
+
     it('should handle Android platform correctly', async () => {
       Platform.OS = 'android';
       Object.defineProperty(Platform, 'Version', {
