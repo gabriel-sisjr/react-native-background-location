@@ -223,6 +223,43 @@ describe('BackgroundLocation API', () => {
         configurable: true,
       });
     });
+
+    it('should handle when module is null in isNativeModuleAvailable check', async () => {
+      // Test the specific line 50: when BackgroundLocationModule === null
+      const originalModule = BackgroundLocationModule;
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+
+      // First set isTracking to be a function (to pass first check)
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+        writable: true,
+      });
+
+      // Then set module to null to trigger line 50
+      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
+        value: null,
+        configurable: true,
+      });
+
+      // Re-import to get the null module
+      const BackgroundLocationWithNullModule = require('../index').default;
+      const result = await BackgroundLocationWithNullModule.isTracking();
+
+      expect(result).toEqual({ active: false });
+      expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
+        value: originalModule,
+        configurable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+    });
   });
 
   describe('stopTracking', () => {

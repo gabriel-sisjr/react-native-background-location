@@ -29,6 +29,22 @@ describe('useLocationTracking', () => {
     };
     console.warn = jest.fn();
     console.error = jest.fn();
+
+    // Ensure BackgroundLocationModule methods are properly mocked
+    (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+      active: false,
+      tripId: undefined,
+    });
+  });
+
+  afterEach(() => {
+    // Restore all mocks after each test
+    (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+      active: false,
+      tripId: undefined,
+    });
   });
 
   describe('Initialization', () => {
@@ -200,6 +216,150 @@ describe('useLocationTracking', () => {
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining('BackgroundLocation not available')
       );
+    });
+
+    it('should handle when isTracking is not a function (line 11)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      const { result } = renderHook(() => useLocationTracking(false));
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+      expect(result.current.isTracking).toBe(false);
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    });
+
+    it('should handle when module is null (line 15)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      const originalModule = BackgroundLocationModule;
+
+      // Set isTracking to be a function (to pass first check)
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+        writable: true,
+      });
+
+      // Set module to null to trigger line 15
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: null,
+          configurable: true,
+        }
+      );
+
+      // Re-import hook to get the null module
+      const {
+        useLocationTracking: useLocationTrackingWithNull,
+      } = require('../../hooks/useLocationTracking');
+      const { result } = renderHook(() => useLocationTrackingWithNull(false));
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: originalModule,
+          configurable: true,
+        }
+      );
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    });
+
+    it('should handle exception in isNativeModuleAvailable (line 19)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+
+      // Make accessing isTracking throw an error
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        get: () => {
+          throw new Error('Access error');
+        },
+        configurable: true,
+      });
+
+      const { result } = renderHook(() => useLocationTracking(false));
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    });
+
+    it('should handle when module is not available in refresh (lines 81-84)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      const { result } = renderHook(() => useLocationTracking(false));
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+      expect(result.current.isTracking).toBe(false);
+      // isTracking is undefined, so we can't check if it was called
+      // The important thing is that the warning was shown and isTracking is false
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: false,
+        tripId: undefined,
+      });
     });
   });
 

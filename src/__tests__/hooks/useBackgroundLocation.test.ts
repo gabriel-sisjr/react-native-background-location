@@ -645,6 +645,143 @@ describe('useBackgroundLocation', () => {
       (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
     });
 
+    it('should handle when module is null in isNativeModuleAvailable (line 20)', async () => {
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+      const originalModule = BackgroundLocationModule;
+
+      // Set startTracking to be a function (to pass first check)
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: jest.fn(),
+        configurable: true,
+        writable: true,
+      });
+
+      // Set module to null to trigger line 20
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: null,
+          configurable: true,
+        }
+      );
+
+      // Re-import hook to get the null module
+      const {
+        useBackgroundLocation: useBackgroundLocationWithNull,
+      } = require('../../hooks/useBackgroundLocation');
+      const { result } = renderHook(() => useBackgroundLocationWithNull());
+
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      expect(console.warn).toHaveBeenCalled();
+      expect(result.current.tripId).toMatch(/^simulator-trip-\d+$/);
+
+      // Restore
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: originalModule,
+          configurable: true,
+        }
+      );
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('should handle exception in isNativeModuleAvailable (line 24)', async () => {
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+
+      // Make accessing startTracking throw an error
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        get: () => {
+          throw new Error('Access error');
+        },
+        configurable: true,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      expect(console.warn).toHaveBeenCalled();
+      expect(result.current.tripId).toMatch(/^simulator-trip-\d+$/);
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('should handle when module is not available in refreshLocations (lines 215-216)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+      const originalGetLocations = BackgroundLocationModule.getLocations;
+
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      // Set tripId manually
+      await act(async () => {
+        result.current.tripId = mockTripId;
+      });
+
+      await act(async () => {
+        await result.current.refreshLocations();
+      });
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+      // getLocations is undefined, so we can't check if it was called
+      // The important thing is that the warning was shown and no error occurred
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: originalGetLocations,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.startTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
+    });
+
     it('should handle errors during refresh', async () => {
       const error = new Error('Failed to get locations');
       (BackgroundLocationModule.getLocations as jest.Mock).mockRejectedValue(
