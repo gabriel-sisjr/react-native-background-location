@@ -23,6 +23,55 @@ import {
 
 import styles from './styles';
 import { RouteMap } from './components';
+import type { Coords } from '@gabriel-sisjr/react-native-background-location';
+
+/**
+ * Formats location properties for display
+ * Returns an object with formatted strings for all available properties
+ */
+function formatLocationProperties(location: Coords) {
+  const properties: Record<string, string> = {};
+
+  if (location.accuracy !== undefined) {
+    properties.Accuracy = `${location.accuracy.toFixed(2)} m`;
+  }
+  if (location.altitude !== undefined) {
+    properties.Altitude = `${location.altitude.toFixed(2)} m`;
+  }
+  if (location.speed !== undefined) {
+    // Convert m/s to km/h for better readability
+    const speedKmh = (location.speed * 3.6).toFixed(2);
+    properties.Speed = `${speedKmh} km/h (${location.speed.toFixed(2)} m/s)`;
+  }
+  if (location.bearing !== undefined) {
+    properties.Bearing = `${location.bearing.toFixed(2)}°`;
+  }
+  if (location.verticalAccuracyMeters !== undefined) {
+    properties['Vertical Accuracy'] =
+      `${location.verticalAccuracyMeters.toFixed(2)} m`;
+  }
+  if (location.speedAccuracyMetersPerSecond !== undefined) {
+    properties['Speed Accuracy'] =
+      `${location.speedAccuracyMetersPerSecond.toFixed(2)} m/s`;
+  }
+  if (location.bearingAccuracyDegrees !== undefined) {
+    properties['Bearing Accuracy'] =
+      `${location.bearingAccuracyDegrees.toFixed(2)}°`;
+  }
+  if (location.provider !== undefined) {
+    properties.Provider = location.provider;
+  }
+  if (location.isFromMockProvider !== undefined) {
+    properties['Mock Provider'] = location.isFromMockProvider ? 'Yes' : 'No';
+  }
+  if (location.elapsedRealtimeNanos !== undefined) {
+    // Convert nanoseconds to milliseconds for display
+    const elapsedMs = (location.elapsedRealtimeNanos / 1000000).toFixed(2);
+    properties['Elapsed Realtime'] = `${elapsedMs} ms`;
+  }
+
+  return properties;
+}
 
 export default function App() {
   const [useAutoUpdates, setUseAutoUpdates] = React.useState(true);
@@ -395,6 +444,13 @@ export default function App() {
             <Text style={styles.timestampText}>
               {new Date(lastLocation.timestamp).toLocaleString()}
             </Text>
+            {Object.entries(formatLocationProperties(lastLocation)).map(
+              ([key, value]) => (
+                <Text key={key} style={styles.locationDetail}>
+                  {key}: {value}
+                </Text>
+              )
+            )}
           </View>
         )}
 
@@ -490,17 +546,32 @@ export default function App() {
                 : 'No locations yet. Start tracking to collect locations.'}
             </Text>
           ) : (
-            locations.map((location, index) => (
-              <View key={index} style={styles.locationItem}>
-                <Text style={styles.locationText}>
-                  #{index + 1} - Lat: {location.latitude}, Lng:{' '}
-                  {location.longitude}
-                </Text>
-                <Text style={styles.timestampText}>
-                  {new Date(location.timestamp).toLocaleString()}
-                </Text>
-              </View>
-            ))
+            locations.map((location, index) => {
+              const additionalProps = formatLocationProperties(location);
+              const hasAdditionalProps =
+                Object.keys(additionalProps).length > 0;
+
+              return (
+                <View key={index} style={styles.locationItem}>
+                  <Text style={styles.locationText}>
+                    #{index + 1} - Lat: {location.latitude}, Lng:{' '}
+                    {location.longitude}
+                  </Text>
+                  <Text style={styles.timestampText}>
+                    {new Date(location.timestamp).toLocaleString()}
+                  </Text>
+                  {hasAdditionalProps && (
+                    <View style={styles.additionalPropsContainer}>
+                      {Object.entries(additionalProps).map(([key, value]) => (
+                        <Text key={key} style={styles.additionalPropText}>
+                          {key}: {value}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              );
+            })
           )}
         </View>
       </ScrollView>
