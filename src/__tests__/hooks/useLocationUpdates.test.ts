@@ -175,11 +175,14 @@ describe('useLocationUpdates', () => {
       expect(result.current.tripId).toBe(mockTripId);
       expect(result.current.isTracking).toBe(true);
       expect(result.current.locations).toHaveLength(1);
-      expect(result.current.lastLocation).toEqual({
-        latitude: '37.7750',
-        longitude: '-122.4195',
-        timestamp: 1640995201000,
-      });
+      expect(result.current.lastLocation).toEqual(
+        expect.objectContaining({
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          tripId: mockTripId,
+        })
+      );
     });
 
     it('should accumulate multiple location updates', async () => {
@@ -233,11 +236,14 @@ describe('useLocationUpdates', () => {
       });
 
       expect(onLocationUpdate).toHaveBeenCalledTimes(1);
-      expect(onLocationUpdate).toHaveBeenCalledWith({
-        latitude: locationEvent.latitude,
-        longitude: locationEvent.longitude,
-        timestamp: locationEvent.timestamp,
-      });
+      expect(onLocationUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          latitude: locationEvent.latitude,
+          longitude: locationEvent.longitude,
+          timestamp: locationEvent.timestamp,
+          tripId: locationEvent.tripId,
+        })
+      );
     });
 
     it('should filter events by tripId when provided', async () => {
@@ -437,6 +443,152 @@ describe('useLocationUpdates', () => {
       expect(result.current.error).toBeInstanceOf(Error);
       expect(result.current.error?.message).toBe(
         'Failed to load existing locations'
+      );
+    });
+  });
+
+  describe('Extended location properties', () => {
+    it('should include extended properties when provided in event', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate location update event with extended properties
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          accuracy: 10.5,
+          altitude: 100.2,
+          speed: 5.5,
+          bearing: 90.0,
+          provider: 'gps',
+          isFromMockProvider: false,
+        });
+      });
+
+      expect(result.current.lastLocation).toEqual(
+        expect.objectContaining({
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          accuracy: 10.5,
+          altitude: 100.2,
+          speed: 5.5,
+          bearing: 90.0,
+          provider: 'gps',
+          isFromMockProvider: false,
+          tripId: mockTripId,
+        })
+      );
+    });
+
+    it('should include API 26+ properties when provided', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate location update event with API 26+ properties
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          verticalAccuracyMeters: 5.0,
+          speedAccuracyMetersPerSecond: 0.5,
+          bearingAccuracyDegrees: 2.0,
+          elapsedRealtimeNanos: 1000000000,
+        });
+      });
+
+      expect(result.current.lastLocation).toEqual(
+        expect.objectContaining({
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          verticalAccuracyMeters: 5.0,
+          speedAccuracyMetersPerSecond: 0.5,
+          bearingAccuracyDegrees: 2.0,
+          elapsedRealtimeNanos: 1000000000,
+          tripId: mockTripId,
+        })
+      );
+    });
+
+    it('should only include defined properties (exclude undefined)', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate event with only some properties
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          accuracy: 10.5,
+          // speed, altitude, etc. are not provided (undefined)
+        });
+      });
+
+      const lastLocation = result.current.lastLocation;
+      expect(lastLocation).not.toBeNull();
+      if (lastLocation) {
+        expect(lastLocation.latitude).toBe('37.7750');
+        expect(lastLocation.longitude).toBe('-122.4195');
+        expect(lastLocation.timestamp).toBe(1640995201000);
+        expect(lastLocation.accuracy).toBe(10.5);
+        // These should not be present (undefined)
+        expect(lastLocation.speed).toBeUndefined();
+        expect(lastLocation.altitude).toBeUndefined();
+        expect(lastLocation.bearing).toBeUndefined();
+        // tripId is included by extractDefinedProperties (current behavior)
+        expect((lastLocation as any).tripId).toBe(mockTripId);
+      }
+    });
+
+    it('should pass extended properties to onLocationUpdate callback', async () => {
+      const onLocationUpdate = jest.fn();
+
+      renderHook(() => useLocationUpdates({ onLocationUpdate }));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const locationEvent = {
+        tripId: mockTripId,
+        latitude: '37.7750',
+        longitude: '-122.4195',
+        timestamp: 1640995201000,
+        accuracy: 10.5,
+        speed: 5.5,
+        altitude: 100.2,
+      };
+
+      act(() => {
+        simulateEvent(locationEvent);
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+      expect(onLocationUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          latitude: locationEvent.latitude,
+          longitude: locationEvent.longitude,
+          timestamp: locationEvent.timestamp,
+          accuracy: locationEvent.accuracy,
+          speed: locationEvent.speed,
+          altitude: locationEvent.altitude,
+          tripId: locationEvent.tripId,
+        })
       );
     });
   });

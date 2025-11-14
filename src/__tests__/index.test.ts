@@ -407,6 +407,79 @@ describe('BackgroundLocation API', () => {
         'Failed to get locations'
       );
     });
+
+    it('should return locations with extended properties when available', async () => {
+      const locationsWithExtendedProps = [
+        {
+          latitude: '37.7749',
+          longitude: '-122.4194',
+          timestamp: 1640995200000,
+          accuracy: 10.5,
+          altitude: 100.2,
+          speed: 5.5,
+          bearing: 90.0,
+          provider: 'gps',
+          isFromMockProvider: false,
+        },
+        {
+          latitude: '37.7849',
+          longitude: '-122.4094',
+          timestamp: 1640995260000,
+          accuracy: 12.0,
+          altitude: 105.0,
+          speed: 6.0,
+          bearing: 95.0,
+          verticalAccuracyMeters: 5.0,
+          speedAccuracyMetersPerSecond: 0.5,
+          bearingAccuracyDegrees: 2.0,
+          elapsedRealtimeNanos: 1000000000,
+          provider: 'gps',
+        },
+      ];
+
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        locationsWithExtendedProps
+      );
+
+      const result = await BackgroundLocation.getLocations(mockTripId);
+
+      expect(result).toEqual(locationsWithExtendedProps);
+      expect(result[0]?.accuracy).toBe(10.5);
+      expect(result[0]?.altitude).toBe(100.2);
+      expect(result[0]?.speed).toBe(5.5);
+      expect(result[0]?.bearing).toBe(90.0);
+      expect(result[0]?.provider).toBe('gps');
+      expect(result[0]?.isFromMockProvider).toBe(false);
+      expect(result[1]?.verticalAccuracyMeters).toBe(5.0);
+      expect(result[1]?.speedAccuracyMetersPerSecond).toBe(0.5);
+      expect(result[1]?.bearingAccuracyDegrees).toBe(2.0);
+      expect(result[1]?.elapsedRealtimeNanos).toBe(1000000000);
+    });
+
+    it('should return locations with only basic properties when extended properties are not available', async () => {
+      const basicLocations = [
+        {
+          latitude: '37.7749',
+          longitude: '-122.4194',
+          timestamp: 1640995200000,
+        },
+      ];
+
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        basicLocations
+      );
+
+      const result = await BackgroundLocation.getLocations(mockTripId);
+
+      expect(result).toEqual(basicLocations);
+      expect(result[0]?.latitude).toBe('37.7749');
+      expect(result[0]?.longitude).toBe('-122.4194');
+      expect(result[0]?.timestamp).toBe(1640995200000);
+      // Extended properties should be undefined
+      expect(result[0]?.accuracy).toBeUndefined();
+      expect(result[0]?.speed).toBeUndefined();
+      expect(result[0]?.altitude).toBeUndefined();
+    });
   });
 
   describe('clearTrip', () => {

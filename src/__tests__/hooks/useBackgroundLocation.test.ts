@@ -530,6 +530,64 @@ describe('useBackgroundLocation', () => {
       );
     });
 
+    it('should refresh locations with extended properties when available', async () => {
+      const locationsWithExtendedProps = [
+        {
+          latitude: '37.7749',
+          longitude: '-122.4194',
+          timestamp: 1640995200000,
+          accuracy: 10.5,
+          altitude: 100.2,
+          speed: 5.5,
+          bearing: 90.0,
+          provider: 'gps',
+          isFromMockProvider: false,
+        },
+        {
+          latitude: '37.7849',
+          longitude: '-122.4094',
+          timestamp: 1640995260000,
+          accuracy: 12.0,
+          verticalAccuracyMeters: 5.0,
+          speedAccuracyMetersPerSecond: 0.5,
+          elapsedRealtimeNanos: 1000000000,
+        },
+      ];
+
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        locationsWithExtendedProps
+      );
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      // Start tracking first to set tripId
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      await act(async () => {
+        await result.current.refreshLocations();
+      });
+
+      expect(result.current.locations).toEqual(locationsWithExtendedProps);
+      expect(result.current.locations[0]?.accuracy).toBe(10.5);
+      expect(result.current.locations[0]?.altitude).toBe(100.2);
+      expect(result.current.locations[0]?.speed).toBe(5.5);
+      expect(result.current.locations[0]?.bearing).toBe(90.0);
+      expect(result.current.locations[0]?.provider).toBe('gps');
+      expect(result.current.locations[0]?.isFromMockProvider).toBe(false);
+      expect(result.current.locations[1]?.verticalAccuracyMeters).toBe(5.0);
+      expect(result.current.locations[1]?.speedAccuracyMetersPerSecond).toBe(
+        0.5
+      );
+      expect(result.current.locations[1]?.elapsedRealtimeNanos).toBe(
+        1000000000
+      );
+    });
+
     it('should not refresh if no tripId', async () => {
       const { result } = renderHook(() => useBackgroundLocation());
 
