@@ -175,11 +175,14 @@ describe('useLocationUpdates', () => {
       expect(result.current.tripId).toBe(mockTripId);
       expect(result.current.isTracking).toBe(true);
       expect(result.current.locations).toHaveLength(1);
-      expect(result.current.lastLocation).toEqual({
-        latitude: '37.7750',
-        longitude: '-122.4195',
-        timestamp: 1640995201000,
-      });
+      expect(result.current.lastLocation).toEqual(
+        expect.objectContaining({
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          tripId: mockTripId,
+        })
+      );
     });
 
     it('should accumulate multiple location updates', async () => {
@@ -233,11 +236,14 @@ describe('useLocationUpdates', () => {
       });
 
       expect(onLocationUpdate).toHaveBeenCalledTimes(1);
-      expect(onLocationUpdate).toHaveBeenCalledWith({
-        latitude: locationEvent.latitude,
-        longitude: locationEvent.longitude,
-        timestamp: locationEvent.timestamp,
-      });
+      expect(onLocationUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          latitude: locationEvent.latitude,
+          longitude: locationEvent.longitude,
+          timestamp: locationEvent.timestamp,
+          tripId: locationEvent.tripId,
+        })
+      );
     });
 
     it('should filter events by tripId when provided', async () => {
@@ -437,6 +443,152 @@ describe('useLocationUpdates', () => {
       expect(result.current.error).toBeInstanceOf(Error);
       expect(result.current.error?.message).toBe(
         'Failed to load existing locations'
+      );
+    });
+  });
+
+  describe('Extended location properties', () => {
+    it('should include extended properties when provided in event', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate location update event with extended properties
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          accuracy: 10.5,
+          altitude: 100.2,
+          speed: 5.5,
+          bearing: 90.0,
+          provider: 'gps',
+          isFromMockProvider: false,
+        });
+      });
+
+      expect(result.current.lastLocation).toEqual(
+        expect.objectContaining({
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          accuracy: 10.5,
+          altitude: 100.2,
+          speed: 5.5,
+          bearing: 90.0,
+          provider: 'gps',
+          isFromMockProvider: false,
+          tripId: mockTripId,
+        })
+      );
+    });
+
+    it('should include API 26+ properties when provided', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate location update event with API 26+ properties
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          verticalAccuracyMeters: 5.0,
+          speedAccuracyMetersPerSecond: 0.5,
+          bearingAccuracyDegrees: 2.0,
+          elapsedRealtimeNanos: 1000000000,
+        });
+      });
+
+      expect(result.current.lastLocation).toEqual(
+        expect.objectContaining({
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          verticalAccuracyMeters: 5.0,
+          speedAccuracyMetersPerSecond: 0.5,
+          bearingAccuracyDegrees: 2.0,
+          elapsedRealtimeNanos: 1000000000,
+          tripId: mockTripId,
+        })
+      );
+    });
+
+    it('should only include defined properties (exclude undefined)', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate event with only some properties
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+          accuracy: 10.5,
+          // speed, altitude, etc. are not provided (undefined)
+        });
+      });
+
+      const lastLocation = result.current.lastLocation;
+      expect(lastLocation).not.toBeNull();
+      if (lastLocation) {
+        expect(lastLocation.latitude).toBe('37.7750');
+        expect(lastLocation.longitude).toBe('-122.4195');
+        expect(lastLocation.timestamp).toBe(1640995201000);
+        expect(lastLocation.accuracy).toBe(10.5);
+        // These should not be present (undefined)
+        expect(lastLocation.speed).toBeUndefined();
+        expect(lastLocation.altitude).toBeUndefined();
+        expect(lastLocation.bearing).toBeUndefined();
+        // tripId is included by extractDefinedProperties (current behavior)
+        expect((lastLocation as any).tripId).toBe(mockTripId);
+      }
+    });
+
+    it('should pass extended properties to onLocationUpdate callback', async () => {
+      const onLocationUpdate = jest.fn();
+
+      renderHook(() => useLocationUpdates({ onLocationUpdate }));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const locationEvent = {
+        tripId: mockTripId,
+        latitude: '37.7750',
+        longitude: '-122.4195',
+        timestamp: 1640995201000,
+        accuracy: 10.5,
+        speed: 5.5,
+        altitude: 100.2,
+      };
+
+      act(() => {
+        simulateEvent(locationEvent);
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+      expect(onLocationUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          latitude: locationEvent.latitude,
+          longitude: locationEvent.longitude,
+          timestamp: locationEvent.timestamp,
+          accuracy: locationEvent.accuracy,
+          speed: locationEvent.speed,
+          altitude: locationEvent.altitude,
+          tripId: locationEvent.tripId,
+        })
       );
     });
   });
@@ -680,6 +832,252 @@ describe('useLocationUpdates', () => {
         value: jest.fn(),
         configurable: true,
       });
+    });
+
+    it('should handle when module is null in isNativeModuleAvailable (line 22)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      const originalModule = BackgroundLocationModule;
+
+      // Set isTracking to be a function (to pass first check)
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+        writable: true,
+      });
+
+      // Set module to null to trigger line 22
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: null,
+          configurable: true,
+        }
+      );
+
+      // Re-import hook to get the null module
+      const {
+        useLocationUpdates: useLocationUpdatesWithNull,
+      } = require('../../hooks/useLocationUpdates');
+      renderHook(() => useLocationUpdatesWithNull());
+
+      await waitFor(() => {
+        expect(console.warn).toHaveBeenCalledWith(
+          expect.stringContaining('BackgroundLocation not available')
+        );
+      });
+
+      // Restore
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: originalModule,
+          configurable: true,
+        }
+      );
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    });
+
+    it('should handle exception in isNativeModuleAvailable (line 26)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+
+      // Make accessing isTracking throw an error
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        get: () => {
+          throw new Error('Access error');
+        },
+        configurable: true,
+      });
+
+      renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(console.warn).toHaveBeenCalledWith(
+          expect.stringContaining('BackgroundLocation not available')
+        );
+      });
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    });
+
+    it('should handle when module is not available in loadExistingLocations (line 125)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.tripId).toBe(mockTripId);
+      });
+
+      // Should not crash and should not call getLocations
+      expect(result.current.locations).toEqual([]);
+      expect(BackgroundLocationModule.getLocations).not.toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    });
+
+    it('should handle wasClearedRef timeout reset (lines 181-187)', async () => {
+      jest.useFakeTimers();
+
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+      (BackgroundLocationModule.clearTrip as jest.Mock).mockResolvedValue(
+        undefined
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(result.current.locations).toEqual(mockLocations);
+      });
+
+      // Clear locations
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Fast-forward time to trigger setTimeout (line 181-183)
+      // This happens in the checkStatus effect when wasClearedRef.current is true
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+
+      // After timeout, wasClearedRef should be reset, allowing reload
+      // This is tested by checking that locations can be loaded again
+      (
+        BackgroundLocationModule.getLocations as jest.Mock
+      ).mockResolvedValueOnce(mockLocations);
+
+      // Trigger checkStatus again by waiting for interval (line 195)
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      await waitFor(() => {
+        // After timeout reset, locations should be reloadable
+        expect(BackgroundLocationModule.getLocations).toHaveBeenCalled();
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('should handle periodic status check interval (line 195)', async () => {
+      jest.useFakeTimers();
+
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+
+      renderHook(() => useLocationUpdates());
+
+      // Initial check should happen immediately
+      await waitFor(() => {
+        expect(BackgroundLocationModule.isTracking).toHaveBeenCalled();
+      });
+
+      const initialCallCount = (
+        BackgroundLocationModule.isTracking as jest.Mock
+      ).mock.calls.length;
+
+      // Fast-forward 5 seconds to trigger interval check
+      act(() => {
+        jest.advanceTimersByTime(5000);
+      });
+
+      await waitFor(() => {
+        expect(BackgroundLocationModule.isTracking).toHaveBeenCalledTimes(
+          initialCallCount + 1
+        );
+      });
+
+      jest.useRealTimers();
+    });
+
+    it('should reset wasClearedRef when new location arrives after clear (lines 237-238)', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+      (BackgroundLocationModule.clearTrip as jest.Mock).mockResolvedValue(
+        undefined
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      // Wait for initial load
+      await waitFor(() => {
+        expect(result.current.locations).toEqual(mockLocations);
+      });
+
+      // Clear locations
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate new location event after clear
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7770',
+          longitude: '-122.4197',
+          timestamp: 1640995203000,
+        });
+      });
+
+      // After new location arrives, wasClearedRef should be reset (line 237)
+      // and location should be added (line 238)
+      // When wasClearedRef is true and prev.length === 0, it returns [newLocation]
+      await waitFor(() => {
+        expect(result.current.locations).toHaveLength(1);
+      });
+      expect(result.current.locations[0]?.latitude).toBe('37.7770');
     });
   });
 });

@@ -5,6 +5,108 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-11-14
+
+### Added
+
+- 📍 **Extended Location Properties**: Full support for all location data from play-services-location:21.3.0
+  - `accuracy` - Horizontal accuracy in meters
+  - `altitude` - Altitude in meters above sea level
+  - `speed` - Speed in meters per second
+  - `bearing` - Bearing in degrees (0-360)
+  - `verticalAccuracyMeters` - Vertical accuracy in meters (Android API 26+)
+  - `speedAccuracyMetersPerSecond` - Speed accuracy in meters per second (Android API 26+)
+  - `bearingAccuracyDegrees` - Bearing accuracy in degrees (Android API 26+)
+  - `elapsedRealtimeNanos` - Elapsed realtime in nanoseconds since system boot
+  - `provider` - Location provider (gps, network, passive, etc.)
+  - `isFromMockProvider` - Whether the location is from a mock provider (Android API 18+)
+  - All properties are optional and only included when available from the location provider
+
+- 🛠️ **Utility Functions**: New utility module for object manipulation
+  - `extractDefinedProperties()` - Generic function to extract all defined properties from objects
+  - Located in `src/utils/objectUtils.ts` for reusability across the codebase
+  - Automatically handles optional properties without manual field listing
+
+- 📱 **Enhanced Example App**: Updated example app to demonstrate extended location properties
+  - Displays all available location properties in real-time
+  - Shows formatted values (speed in km/h, elapsed time in ms, etc.)
+  - Visual separation between required and optional properties
+  - Demonstrates proper usage of extended location data
+
+### Changed
+
+- 🔧 **TypeScript Interfaces**: Extended `Coords` and `LocationUpdateEvent` interfaces
+  - Added 10 new optional properties with full JSDoc documentation
+  - Maintains backward compatibility (all new fields are optional)
+  - Type-safe access to all location data from play-services-location API
+
+- 🔄 **Hook Implementation**: Enhanced `useLocationUpdates` hook
+  - Automatically extracts and includes all available location properties
+  - Uses generic utility function for property extraction
+  - No manual field mapping required for future property additions
+
+- 📦 **Native Android Module**: Extended LocationService and LocationStorage
+  - `LocationService.handleLocation()` now extracts all available location data
+  - `LocationService.sendLocationUpdateEvent()` includes all properties in events
+  - `LocationStorage.saveLocation()` stores all available properties
+  - `LocationStorage.getLocations()` returns all stored properties
+  - Proper handling of API-level specific properties (Android 18+, 26+)
+
+### Technical Details
+
+**File Changes:**
+- `android/src/main/java/com/backgroundlocation/LocationService.kt`: Extended to extract and emit all location properties
+- `android/src/main/java/com/backgroundlocation/LocationStorage.kt`: Extended to save and retrieve all location properties
+- `src/types/tracking.ts`: Added optional properties to `Coords` and `LocationUpdateEvent` interfaces
+- `src/hooks/useLocationUpdates.ts`: Enhanced to map all properties using `extractDefinedProperties`
+- `src/utils/objectUtils.ts`: New utility module for generic property extraction
+- `example/src/App.tsx`: Updated to display all location properties
+- `example/src/styles.ts`: Added styles for additional properties display
+
+**Architecture:**
+- Generic property extraction eliminates manual field mapping
+- Future-proof design automatically includes new properties
+- Type-safe access to all location data
+- Backward compatible (existing code continues to work)
+- Proper handling of optional and API-level specific properties
+
+### Migration Guide
+
+If upgrading from 0.4.0:
+
+**No Breaking Changes** - All existing code continues to work without modifications.
+
+**New Features Available:**
+
+```typescript
+// Existing code still works
+const { locations } = useLocationUpdates();
+locations.forEach((location) => {
+  console.log(location.latitude);
+  console.log(location.longitude);
+  console.log(location.timestamp);
+});
+
+// New properties are now available (when provided by location provider)
+locations.forEach((location) => {
+  if (location.accuracy !== undefined) {
+    console.log(`Accuracy: ${location.accuracy} meters`);
+  }
+  if (location.speed !== undefined) {
+    console.log(`Speed: ${location.speed} m/s`);
+  }
+  if (location.altitude !== undefined) {
+    console.log(`Altitude: ${location.altitude} meters`);
+  }
+  // ... and more properties
+});
+```
+
+**Best Practices:**
+- Always check for `undefined` before using optional properties
+- Properties may not be available on all devices or Android versions
+- Some properties require specific Android API levels (18+, 26+)
+
 ## [0.4.0] - 2025-11-05
 
 ### Added

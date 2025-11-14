@@ -47,9 +47,17 @@ function LiveTrackingScreen() {
       <Text>Locations collected: {locations.length}</Text>
       
       {lastLocation && (
-        <Text>
-          Last: {lastLocation.latitude}, {lastLocation.longitude}
-        </Text>
+        <>
+          <Text>
+            Last: {lastLocation.latitude}, {lastLocation.longitude}
+          </Text>
+          {lastLocation.accuracy !== undefined && (
+            <Text>Accuracy: {lastLocation.accuracy.toFixed(2)} m</Text>
+          )}
+          {lastLocation.speed !== undefined && (
+            <Text>Speed: {(lastLocation.speed * 3.6).toFixed(2)} km/h</Text>
+          )}
+        </>
       )}
     </View>
   );
@@ -156,6 +164,24 @@ export function LiveMapScreen() {
           <Text>
             Time: {new Date(lastLocation.timestamp).toLocaleString()}
           </Text>
+          {lastLocation.accuracy !== undefined && (
+            <Text>Accuracy: {lastLocation.accuracy.toFixed(2)} m</Text>
+          )}
+          {lastLocation.altitude !== undefined && (
+            <Text>Altitude: {lastLocation.altitude.toFixed(2)} m</Text>
+          )}
+          {lastLocation.speed !== undefined && (
+            <Text>
+              Speed: {(lastLocation.speed * 3.6).toFixed(2)} km/h
+              {' '}({lastLocation.speed.toFixed(2)} m/s)
+            </Text>
+          )}
+          {lastLocation.bearing !== undefined && (
+            <Text>Bearing: {lastLocation.bearing.toFixed(2)}°</Text>
+          )}
+          {lastLocation.provider && (
+            <Text>Provider: {lastLocation.provider}</Text>
+          )}
         </View>
       )}
 
@@ -227,9 +253,17 @@ function AdvancedTrackingScreen() {
       )}
 
       {liveIsTracking && lastLocation && (
-        <Text>
-          Last location: {lastLocation.latitude}, {lastLocation.longitude}
-        </Text>
+        <>
+          <Text>
+            Last location: {lastLocation.latitude}, {lastLocation.longitude}
+          </Text>
+          {lastLocation.accuracy !== undefined && (
+            <Text>Accuracy: {lastLocation.accuracy.toFixed(2)} m</Text>
+          )}
+          {lastLocation.speed !== undefined && (
+            <Text>Speed: {(lastLocation.speed * 3.6).toFixed(2)} km/h</Text>
+          )}
+        </>
       )}
 
       <Text>Points collected: {locations.length}</Text>
@@ -298,6 +332,63 @@ useLocationUpdates({
   }
 });
 ```
+
+## Extended Location Properties
+
+Starting from version 0.5.0, location objects include extended properties from the Android location API. All properties are optional and only available when provided by the location provider.
+
+### Available Properties
+
+- `accuracy` - Horizontal accuracy in meters
+- `altitude` - Altitude in meters above sea level
+- `speed` - Speed in meters per second
+- `bearing` - Bearing in degrees (0-360)
+- `verticalAccuracyMeters` - Vertical accuracy (Android API 26+)
+- `speedAccuracyMetersPerSecond` - Speed accuracy (Android API 26+)
+- `bearingAccuracyDegrees` - Bearing accuracy (Android API 26+)
+- `elapsedRealtimeNanos` - Elapsed realtime in nanoseconds
+- `provider` - Location provider (gps, network, passive, etc.)
+- `isFromMockProvider` - Whether from mock provider (Android API 18+)
+
+### Example: Using Extended Properties in Real-Time Updates
+
+```typescript
+useLocationUpdates({
+  onLocationUpdate: (location) => {
+    // Basic properties (always available)
+    console.log('Coordinates:', location.latitude, location.longitude);
+    console.log('Timestamp:', new Date(location.timestamp).toLocaleString());
+    
+    // Extended properties (check for undefined)
+    if (location.accuracy !== undefined) {
+      console.log(`Accuracy: ${location.accuracy.toFixed(2)} meters`);
+    }
+    
+    if (location.speed !== undefined) {
+      const speedKmh = location.speed * 3.6;
+      console.log(`Speed: ${speedKmh.toFixed(2)} km/h`);
+    }
+    
+    if (location.altitude !== undefined) {
+      console.log(`Altitude: ${location.altitude.toFixed(2)} meters`);
+    }
+    
+    if (location.bearing !== undefined) {
+      console.log(`Bearing: ${location.bearing.toFixed(2)}°`);
+    }
+    
+    if (location.provider) {
+      console.log(`Provider: ${location.provider}`);
+    }
+  }
+});
+```
+
+### Best Practices
+
+1. **Always check for undefined** before using optional properties
+2. **Format values appropriately** (convert m/s to km/h, nanoseconds to milliseconds)
+3. **Handle API-level differences** (some properties require Android API 18+ or 26+)
 
 ## Frequently Asked Questions
 

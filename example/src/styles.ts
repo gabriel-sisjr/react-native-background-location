@@ -189,6 +189,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
+  additionalPropsContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  additionalPropText: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 3,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
   configContainer: {
     marginBottom: 20,
     padding: 15,

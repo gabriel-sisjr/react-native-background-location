@@ -530,6 +530,64 @@ describe('useBackgroundLocation', () => {
       );
     });
 
+    it('should refresh locations with extended properties when available', async () => {
+      const locationsWithExtendedProps = [
+        {
+          latitude: '37.7749',
+          longitude: '-122.4194',
+          timestamp: 1640995200000,
+          accuracy: 10.5,
+          altitude: 100.2,
+          speed: 5.5,
+          bearing: 90.0,
+          provider: 'gps',
+          isFromMockProvider: false,
+        },
+        {
+          latitude: '37.7849',
+          longitude: '-122.4094',
+          timestamp: 1640995260000,
+          accuracy: 12.0,
+          verticalAccuracyMeters: 5.0,
+          speedAccuracyMetersPerSecond: 0.5,
+          elapsedRealtimeNanos: 1000000000,
+        },
+      ];
+
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        locationsWithExtendedProps
+      );
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      // Start tracking first to set tripId
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      await act(async () => {
+        await result.current.refreshLocations();
+      });
+
+      expect(result.current.locations).toEqual(locationsWithExtendedProps);
+      expect(result.current.locations[0]?.accuracy).toBe(10.5);
+      expect(result.current.locations[0]?.altitude).toBe(100.2);
+      expect(result.current.locations[0]?.speed).toBe(5.5);
+      expect(result.current.locations[0]?.bearing).toBe(90.0);
+      expect(result.current.locations[0]?.provider).toBe('gps');
+      expect(result.current.locations[0]?.isFromMockProvider).toBe(false);
+      expect(result.current.locations[1]?.verticalAccuracyMeters).toBe(5.0);
+      expect(result.current.locations[1]?.speedAccuracyMetersPerSecond).toBe(
+        0.5
+      );
+      expect(result.current.locations[1]?.elapsedRealtimeNanos).toBe(
+        1000000000
+      );
+    });
+
     it('should not refresh if no tripId', async () => {
       const { result } = renderHook(() => useBackgroundLocation());
 
@@ -582,6 +640,143 @@ describe('useBackgroundLocation', () => {
         writable: true,
       });
       // Ensure it's a mock again
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.startTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
+    });
+
+    it('should handle when module is null in isNativeModuleAvailable (line 20)', async () => {
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+      const originalModule = BackgroundLocationModule;
+
+      // Set startTracking to be a function (to pass first check)
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: jest.fn(),
+        configurable: true,
+        writable: true,
+      });
+
+      // Set module to null to trigger line 20
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: null,
+          configurable: true,
+        }
+      );
+
+      // Re-import hook to get the null module
+      const {
+        useBackgroundLocation: useBackgroundLocationWithNull,
+      } = require('../../hooks/useBackgroundLocation');
+      const { result } = renderHook(() => useBackgroundLocationWithNull());
+
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      expect(console.warn).toHaveBeenCalled();
+      expect(result.current.tripId).toMatch(/^simulator-trip-\d+$/);
+
+      // Restore
+      Object.defineProperty(
+        require('../../NativeBackgroundLocation'),
+        'default',
+        {
+          value: originalModule,
+          configurable: true,
+        }
+      );
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('should handle exception in isNativeModuleAvailable (line 24)', async () => {
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+
+      // Make accessing startTracking throw an error
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        get: () => {
+          throw new Error('Access error');
+        },
+        configurable: true,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      expect(console.warn).toHaveBeenCalled();
+      expect(result.current.tripId).toMatch(/^simulator-trip-\d+$/);
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+    });
+
+    it('should handle when module is not available in refreshLocations (lines 215-216)', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+      const originalGetLocations = BackgroundLocationModule.getLocations;
+
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      // Set tripId manually
+      await act(async () => {
+        result.current.tripId = mockTripId;
+      });
+
+      await act(async () => {
+        await result.current.refreshLocations();
+      });
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+      // getLocations is undefined, so we can't check if it was called
+      // The important thing is that the warning was shown and no error occurred
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+      Object.defineProperty(BackgroundLocationModule, 'getLocations', {
+        value: originalGetLocations,
+        configurable: true,
+        writable: true,
+      });
       (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
       (BackgroundLocationModule.startTracking as jest.Mock) = jest.fn();
       (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
