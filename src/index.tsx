@@ -1,5 +1,5 @@
 import BackgroundLocationModule from './NativeBackgroundLocation';
-import type { TrackingOptions } from './types';
+import type { TrackingOptions, Coords } from './types';
 import type { TrackingOptionsSpec } from './NativeBackgroundLocation';
 import {
   LocationPermissionStatus as LocationPermissionStatusEnum,
@@ -125,13 +125,9 @@ export default {
   /**
    * Retrieves all stored location points for a specific trip
    * @param tripId The trip identifier
-   * @returns Promise resolving to array of location coordinates
+   * @returns Promise resolving to array of location coordinates with extended location data
    */
-  getLocations(
-    tripId: string
-  ): Promise<
-    Array<{ latitude: string; longitude: string; timestamp: number }>
-  > {
+  getLocations(tripId: string): Promise<Coords[]> {
     if (!isNativeModuleAvailable()) {
       console.warn(
         'BackgroundLocation not available - running in simulator or module not linked?'

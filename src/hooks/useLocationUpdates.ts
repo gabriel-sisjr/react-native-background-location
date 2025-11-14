@@ -7,6 +7,7 @@ import type {
   Coords,
   LocationUpdateEvent,
 } from '../types';
+import { extractDefinedProperties } from '../utils/objectUtils';
 
 // Check if native module is available
 const isNativeModuleAvailable = () => {
@@ -218,11 +219,8 @@ export function useLocationUpdates(
 
         // Only process events for the trip we're watching (or all if no specific trip)
         if (!tripId || locationEvent.tripId === tripId) {
-          const newLocation: Coords = {
-            latitude: locationEvent.latitude,
-            longitude: locationEvent.longitude,
-            timestamp: locationEvent.timestamp,
-          };
+          // Extract all defined properties (both required and optional)
+          const newLocation = extractDefinedProperties(locationEvent) as Coords;
 
           // Update trip ID if we weren't watching a specific one
           if (!tripId && locationEvent.tripId) {
