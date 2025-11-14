@@ -421,9 +421,17 @@ function LiveMapScreen() {
       <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
       <Text>Locations: {locations.length}</Text>
       {lastLocation && (
-        <Text>
-          Last: {lastLocation.latitude}, {lastLocation.longitude}
-        </Text>
+        <>
+          <Text>
+            Last: {lastLocation.latitude}, {lastLocation.longitude}
+          </Text>
+          {lastLocation.accuracy !== undefined && (
+            <Text>Accuracy: {lastLocation.accuracy.toFixed(2)} m</Text>
+          )}
+          {lastLocation.speed !== undefined && (
+            <Text>Speed: {(lastLocation.speed * 3.6).toFixed(2)} km/h</Text>
+          )}
+        </>
       )}
       <Button title="Clear Locations" onPress={clearLocations} />
     </View>
@@ -509,7 +517,7 @@ function LiveMap() {
             latitude: parseFloat(lastLocation.latitude),
             longitude: parseFloat(lastLocation.longitude),
           }}
-          radius={100}
+          radius={lastLocation.accuracy || 100}
         />
       )}
     </MapView>
@@ -621,6 +629,12 @@ function App() {
               #{index + 1}: {item.latitude}, {item.longitude}
             </Text>
             <Text>{new Date(item.timestamp).toLocaleString()}</Text>
+            {item.accuracy !== undefined && (
+              <Text>Accuracy: {item.accuracy.toFixed(2)} m</Text>
+            )}
+            {item.speed !== undefined && (
+              <Text>Speed: {(item.speed * 3.6).toFixed(2)} km/h</Text>
+            )}
           </View>
         )}
       />
@@ -703,6 +717,115 @@ function StatusIcon() {
 function StatusIcon() {
   const { isTracking } = useLocationTracking();
   return <Icon name={isTracking ? 'gps' : 'gps-off'} />;
+}
+```
+
+## Extended Location Properties
+
+Starting from version 0.5.0, location objects (`Coords`) include extended properties from the Android location API. All properties are optional and only available when provided by the location provider.
+
+### Available Properties
+
+```typescript
+interface Coords {
+  // Required properties
+  latitude: string;
+  longitude: string;
+  timestamp: number;
+  
+  // Extended properties (optional)
+  accuracy?: number; // Horizontal accuracy in meters
+  altitude?: number; // Altitude in meters above sea level
+  speed?: number; // Speed in meters per second
+  bearing?: number; // Bearing in degrees (0-360)
+  verticalAccuracyMeters?: number; // Vertical accuracy (Android API 26+)
+  speedAccuracyMetersPerSecond?: number; // Speed accuracy (Android API 26+)
+  bearingAccuracyDegrees?: number; // Bearing accuracy (Android API 26+)
+  elapsedRealtimeNanos?: number; // Elapsed realtime in nanoseconds
+  provider?: string; // Location provider (gps, network, passive, etc.)
+  isFromMockProvider?: boolean; // Whether from mock provider (Android API 18+)
+}
+```
+
+### Example: Using Extended Properties
+
+```typescript
+function LocationDetails({ location }: { location: Coords }) {
+  return (
+    <View>
+      <Text>Coordinates: {location.latitude}, {location.longitude}</Text>
+      <Text>Time: {new Date(location.timestamp).toLocaleString()}</Text>
+      
+      {/* Always check for undefined before using optional properties */}
+      {location.accuracy !== undefined && (
+        <Text>Accuracy: {location.accuracy.toFixed(2)} meters</Text>
+      )}
+      
+      {location.altitude !== undefined && (
+        <Text>Altitude: {location.altitude.toFixed(2)} meters</Text>
+      )}
+      
+      {location.speed !== undefined && (
+        <Text>
+          Speed: {(location.speed * 3.6).toFixed(2)} km/h
+          {' '}({location.speed.toFixed(2)} m/s)
+        </Text>
+      )}
+      
+      {location.bearing !== undefined && (
+        <Text>Bearing: {location.bearing.toFixed(2)}°</Text>
+      )}
+      
+      {location.provider && (
+        <Text>Provider: {location.provider}</Text>
+      )}
+      
+      {location.isFromMockProvider !== undefined && (
+        <Text>
+          Mock Provider: {location.isFromMockProvider ? 'Yes' : 'No'}
+        </Text>
+      )}
+    </View>
+  );
+}
+```
+
+### Best Practices
+
+1. **Always check for undefined**: Optional properties may not be available on all devices or Android versions.
+
+```typescript
+// ✅ Good
+if (location.accuracy !== undefined) {
+  console.log(`Accuracy: ${location.accuracy} m`);
+}
+
+// ❌ Bad - may be undefined
+console.log(`Accuracy: ${location.accuracy} m`);
+```
+
+2. **Handle API-level differences**: Some properties require specific Android API levels (18+, 26+).
+
+```typescript
+// Properties available on Android API 26+
+if (location.verticalAccuracyMeters !== undefined) {
+  console.log(`Vertical accuracy: ${location.verticalAccuracyMeters} m`);
+}
+```
+
+3. **Format values appropriately**: Convert units for better readability.
+
+```typescript
+// Convert m/s to km/h for speed
+if (location.speed !== undefined) {
+  const speedKmh = location.speed * 3.6;
+  console.log(`Speed: ${speedKmh.toFixed(2)} km/h`);
+}
+
+// Convert nanoseconds to milliseconds
+if (location.elapsedRealtimeNanos !== undefined) {
+  const elapsedMs = location.elapsedRealtimeNanos / 1000000;
+  console.log(`Elapsed: ${elapsedMs.toFixed(2)} ms`);
 }
 ```
 

@@ -157,7 +157,15 @@ function TrackingScreen() {
       <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
       <Text>Locations: {locations.length}</Text>
       {lastLocation && (
-        <Text>Last: {lastLocation.latitude}, {lastLocation.longitude}</Text>
+        <>
+          <Text>Last: {lastLocation.latitude}, {lastLocation.longitude}</Text>
+          {lastLocation.accuracy !== undefined && (
+            <Text>Accuracy: {lastLocation.accuracy.toFixed(2)} m</Text>
+          )}
+          {lastLocation.speed !== undefined && (
+            <Text>Speed: {(lastLocation.speed * 3.6).toFixed(2)} km/h</Text>
+          )}
+        </>
       )}
       <Button
         title={isTracking ? 'Stop' : 'Start'}
@@ -192,7 +200,15 @@ function LiveTrackingScreen() {
     <View>
       <Text>Locations: {locations.length}</Text>
       {lastLocation && (
-        <Text>Last: {lastLocation.latitude}, {lastLocation.longitude}</Text>
+        <>
+          <Text>Last: {lastLocation.latitude}, {lastLocation.longitude}</Text>
+          {lastLocation.accuracy !== undefined && (
+            <Text>Accuracy: {lastLocation.accuracy.toFixed(2)} m</Text>
+          )}
+          {lastLocation.speed !== undefined && (
+            <Text>Speed: {(lastLocation.speed * 3.6).toFixed(2)} km/h</Text>
+          )}
+        </>
       )}
     </View>
   );
@@ -245,6 +261,18 @@ locations.forEach((location) => {
   console.log(location.latitude); // string
   console.log(location.longitude); // string
   console.log(location.timestamp); // number (Unix timestamp in ms)
+  
+  // Extended properties (optional, check for undefined)
+  if (location.accuracy !== undefined) {
+    console.log(`Accuracy: ${location.accuracy} meters`);
+  }
+  if (location.speed !== undefined) {
+    console.log(`Speed: ${location.speed} m/s`);
+  }
+  if (location.altitude !== undefined) {
+    console.log(`Altitude: ${location.altitude} meters`);
+  }
+  // ... and more properties available
 });
 
 // Stop tracking
@@ -329,15 +357,25 @@ Retrieves all stored location points for a specific trip.
 - **Parameters:**
   - `tripId`: The trip identifier.
 
-- **Returns:** Promise resolving to array of location coordinates:
+- **Returns:** Promise resolving to array of location coordinates with extended properties:
 
   ```typescript
   {
     latitude: string; // Latitude as string
     longitude: string; // Longitude as string
     timestamp: number; // Unix timestamp in milliseconds
-  }
-  [];
+    // Extended properties (optional, available when provided by location provider)
+    accuracy?: number; // Horizontal accuracy in meters
+    altitude?: number; // Altitude in meters above sea level
+    speed?: number; // Speed in meters per second
+    bearing?: number; // Bearing in degrees (0-360)
+    verticalAccuracyMeters?: number; // Vertical accuracy (Android API 26+)
+    speedAccuracyMetersPerSecond?: number; // Speed accuracy (Android API 26+)
+    bearingAccuracyDegrees?: number; // Bearing accuracy (Android API 26+)
+    elapsedRealtimeNanos?: number; // Elapsed realtime in nanoseconds
+    provider?: string; // Location provider (gps, network, passive, etc.)
+    isFromMockProvider?: boolean; // Whether from mock provider (Android API 18+)
+  }[];
   ```
 
 - **Throws:**
@@ -361,9 +399,21 @@ Clears all stored location data for a specific trip.
 
 ```typescript
 interface Coords {
-  latitude: string;
-  longitude: string;
-  timestamp: number;
+  latitude: string; // Latitude in decimal degrees
+  longitude: string; // Longitude in decimal degrees
+  timestamp: number; // Timestamp in milliseconds since Unix epoch
+  
+  // Extended location properties (optional, available when provided by location provider)
+  accuracy?: number; // Horizontal accuracy in meters
+  altitude?: number; // Altitude in meters above sea level
+  speed?: number; // Speed in meters per second
+  bearing?: number; // Bearing in degrees (0-360)
+  verticalAccuracyMeters?: number; // Vertical accuracy in meters (Android API 26+)
+  speedAccuracyMetersPerSecond?: number; // Speed accuracy in meters per second (Android API 26+)
+  bearingAccuracyDegrees?: number; // Bearing accuracy in degrees (Android API 26+)
+  elapsedRealtimeNanos?: number; // Elapsed realtime in nanoseconds since system boot
+  provider?: string; // Location provider (gps, network, passive, etc.)
+  isFromMockProvider?: boolean; // Whether the location is from a mock provider (Android API 18+)
 }
 
 interface TrackingStatus {
