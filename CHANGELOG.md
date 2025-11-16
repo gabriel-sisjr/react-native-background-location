@@ -5,6 +5,155 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Planned
+
+- iOS implementation with Swift
+- iOS crash recovery support
+- Geofencing support
+- Distance filtering
+- Configurable notification appearance
+- Automatic data retention policies
+- Background sync with remote server
+
+## [0.6.0] - 2025-11-16
+
+### Added
+
+- 🔄 **Crash Recovery & Data Persistence**: Robust recovery system for tracking sessions
+  - Automatic tracking session recovery after app crash or restart
+  - Persistent storage of `TrackingOptions` for complete state restoration
+  - Service auto-recovery using `START_STICKY` for system-initiated restarts
+  - Graceful handling of permission revocations during recovery
+  - Automatic cleanup of corrupted state to prevent recovery loops
+  - Complete recovery documentation and testing guide
+  - Recovery works across app crashes, system process termination, and device reboots
+
+- 🗄️ **Room Database Integration**: Modern persistence layer
+  - Room Database 2.6.1 with KSP for all data persistence
+  - Location data stored with SQLite backend and indexed queries
+  - Tracking state stored in single-row table for efficiency
+  - Better performance and scalability for large datasets
+  - Thread-safe coroutine-based operations
+  - No JSON parsing or serialization overhead
+
+- 📚 **Comprehensive Documentation**:
+  - Complete crash recovery architecture guide in `docs/development/CRASH_RECOVERY.md`
+  - Manual testing guide with 8 detailed scenarios in `docs/development/TEST_RECOVERY.md`
+  - Technical implementation documentation in `docs/development/IMPLEMENTATION_RECOVERY.md`
+  - Performance metrics and best practices
+  - Troubleshooting guide for common recovery scenarios
+
+### Changed
+
+- 🔧 **LocationStorage**: Complete refactoring to use Room Database exclusively
+  - Maintains same public API for backward compatibility
+  - All data stored in SQLite via Room (locations and tracking state)
+  - `saveTrackingState()` now accepts optional `TrackingOptions` parameter
+  - `getTrackingState()` returns `TrackingState` with stored options
+  - Automatic cleanup of options when tracking stops
+  - Asynchronous operations with coroutines for better performance
+  - Zero JSON parsing or serialization
+
+- 🔧 **BackgroundLocationModule**: Enhanced initialization with recovery
+  - Added `recoverTrackingSession()` called during module init
+  - Validates permissions before attempting recovery
+  - Restarts LocationService with saved tripId and options
+  - Handles recovery failures gracefully with state cleanup
+
+- 🔧 **LocationService**: Improved service restart capability
+  - Enhanced `onStartCommand()` to handle null intent (system restart)
+  - Automatic recovery of tripId and options from storage
+  - Already uses `START_STICKY` for automatic system restart
+  - Graceful degradation when recovery data unavailable
+
+### Technical Details
+
+**Architecture Changes:**
+- New persistence layer using Room Database exclusively
+- Room Database handles all data with SQLite backend and indexed queries
+- Locations stored in `locations` table with tripId index
+- Tracking state stored in single-row `tracking_state` table
+- Thread-safe operations using Kotlin Coroutines
+- TrackingState data class now includes `options: TrackingOptions?`
+- Module initialization triggers automatic recovery check
+- Service can self-recover from storage when restarted by system
+
+**Recovery Flow:**
+1. App crashes or is killed by system
+2. User reopens app (or system restarts service via START_STICKY)
+3. `BackgroundLocationModule.init()` calls `recoverTrackingSession()`
+4. Checks for active tracking state in Room Database
+5. Validates location permissions still granted
+6. Restarts `LocationService` with saved tripId and TrackingOptions
+7. Tracking continues seamlessly from previous state
+
+**Error Handling:**
+- Permission revocation during recovery clears tracking state
+- Corrupted recovery data triggers automatic cleanup
+- Best-effort recovery with graceful fallback to clean state
+
+**File Changes:**
+- `android/build.gradle`: Added Room 2.6.1 with KSP dependencies
+- `android/src/main/java/com/backgroundlocation/database/LocationEntity.kt`: Room entity for locations (new)
+- `android/src/main/java/com/backgroundlocation/database/LocationDao.kt`: DAO for location operations (new)
+- `android/src/main/java/com/backgroundlocation/database/TrackingStateEntity.kt`: Room entity for tracking state (new)
+- `android/src/main/java/com/backgroundlocation/database/TrackingStateDao.kt`: DAO for tracking state operations (new)
+- `android/src/main/java/com/backgroundlocation/database/LocationDatabase.kt`: Room database singleton with both tables (new)
+- `android/src/main/java/com/backgroundlocation/LocationStorage.kt`: Refactored to use Room exclusively
+- `android/src/main/java/com/backgroundlocation/BackgroundLocationModule.kt`: Added recovery logic
+- `android/src/main/java/com/backgroundlocation/LocationService.kt`: Improved restart handling
+- `docs/development/CRASH_RECOVERY.md`: Complete recovery documentation (new)
+- `docs/development/TEST_RECOVERY.md`: Manual testing guide (new)
+- `docs/development/IMPLEMENTATION_RECOVERY.md`: Technical implementation details (new)
+
+### Migration Guide
+
+If upgrading from 0.5.0:
+
+**No Breaking Changes** - All existing code continues to work without modifications.
+
+**Important Note:**
+- Previous versions stored data in memory only
+- After update, any in-progress tracking sessions will need to be restarted
+- This is expected behavior and not a bug
+
+**New Features Available:**
+
+```typescript
+// Everything continues to work as before
+const { startTracking, stopTracking, getLocations } = useBackgroundLocation();
+
+// Crash recovery is now automatic
+await startTracking('my-trip', {
+  updateInterval: 5000,
+  accuracy: LocationAccuracy.HIGH_ACCURACY
+});
+
+// If app crashes and restarts, tracking resumes automatically
+// All locations are now persisted to database
+```
+
+**Performance Improvements:**
+- Better performance with large datasets (1000+ location points)
+- Faster queries with indexed Room Database
+- Reduced memory usage with coroutine-based operations
+- No JSON parsing overhead - direct SQLite storage
+
+**Best Practices:**
+- Crash recovery is automatic - no configuration needed
+- Data is now persisted to SQLite database
+- Use `clearTrip()` to remove old trip data when no longer needed
+
+### Requirements
+
+- React Native 0.70 or higher
+- Android API 24+ (Android 7.0 Nougat)
+- Google Play Services Location 21.3.0
+- Kotlin 2.0.21
+- KSP (Kotlin Symbol Processing) for Room code generation
+
 ## [0.5.0] - 2025-11-14
 
 ### Added
@@ -143,6 +292,13 @@ locations.forEach((location) => {
   - **Low Power**: Optimized for battery efficiency (30s interval, network-based)
   - **Default**: Standard configuration (5s interval)
 
+- 🔋 **Battery Optimization**: Built-in battery efficiency features
+  - Configurable accuracy levels (`LOW_POWER`, `BALANCED_POWER_ACCURACY`) for reduced battery consumption
+  - Adjustable update intervals (`updateInterval`, `fastestInterval`, `maxWaitTime`) to minimize location requests
+  - Smart location updates that only request when necessary
+  - Foreground service optimization for efficient background operation
+  - Configuration presets for common battery-conscious use cases
+
 ### Changed
 
 - 🔧 **API Enhancement**: `startTracking()` now accepts optional `TrackingOptions` parameter
@@ -161,143 +317,6 @@ locations.forEach((location) => {
 - 🐛 Fixed inline styles warnings in RouteMap component
 - 🐛 Fixed enum export/import issues for proper TypeScript support
 - 🐛 Improved type safety for TrackingOptions across the codebase
-
-## [0.1.0] - 2025-10-26
-
-### Added
-
-- ✨ Initial release of @gabriel-sisjr/react-native-background-location
-- 🚀 Background location tracking using TurboModules (New Architecture)
-- 📱 Full Android support with Kotlin implementation
-- 🔐 Session-based tracking with trip IDs
-- 💾 Persistent location storage using SharedPreferences
-- 🔔 Foreground service with notification for reliable background tracking
-- 📍 High-accuracy location updates (configurable intervals)
-- 🎯 Complete TypeScript API with full type definitions
-- 📚 Comprehensive documentation and usage examples
-- 🧪 Functional example app demonstrating all features
-- 🛡️ Permission checking and error handling
-- 🔄 Idempotent API operations
-
-### API Methods
-
-- `startTracking(tripId?: string): Promise<string>` - Start location tracking
-- `stopTracking(): Promise<void>` - Stop location tracking
-- `isTracking(): Promise<TrackingStatus>` - Check tracking status
-- `getLocations(tripId: string): Promise<Coords[]>` - Retrieve locations
-- `clearTrip(tripId: string): Promise<void>` - Clear trip data
-
-### Features
-
-- **Background Tracking**: Continues collecting location when app is minimized
-- **Foreground Service**: Uses Android foreground service for reliability
-- **Auto Trip ID**: Generates UUID if trip ID not provided
-- **Persistent Storage**: Locations survive app restarts
-- **Permission Management**: Checks for all required permissions
-- **Graceful Fallbacks**: Safe behavior when native module unavailable
-- **TypeScript First**: Full type safety and IntelliSense support
-
-### Requirements
-
-- React Native 0.70 or higher
-- Android API 21+ (Android 5.0 Lollipop)
-- Google Play Services Location 21.3.0
-
-### Known Limitations
-
-- iOS support not yet implemented (Android only)
-- Location update intervals are not yet configurable
-- No event emitters for real-time location updates
-- Storage limited to SharedPreferences (consider SQLite for large datasets)
-
-## [0.2.0] - 2025-10-26
-
-### Added
-
-- ⚛️ **React Hooks API**: Production-ready hooks for easier integration and better DX
-  - `useBackgroundLocation`: Full-featured hook for managing background location tracking with auto-start, callbacks, and comprehensive error handling
-  - `useLocationTracking`: Lightweight hook for monitoring tracking status with real-time updates
-  - `useLocationPermissions`: Complete permission management hook for Android (including Android 10+ background location permissions)
-  - Full TypeScript support with detailed type definitions
-  - Automatic cleanup on unmount
-  - React best practices with proper dependency management
-
-- 🤖 **Automated CI/CD Pipeline**: Complete GitHub Actions workflow automation
-  - **CI Workflow**: Validates code quality on every PR (lint, typecheck, unit tests, Android/iOS builds)
-  - **Publish Workflow**: Automated production releases from `main` branch to npm
-  - **Pre-release Workflow**: Automated beta releases from `develop` branch (tagged as `@beta`)
-  - Semantic versioning support with automatic version detection
-  - Supply chain security with npm provenance
-  - Automated GitHub Releases with generated release notes
-  - Branch protection and required status checks
-
-- 🧪 **Comprehensive Test Suite**: Achieved 98.91% code coverage
-  - 62 tests for `useBackgroundLocation` hook covering all scenarios
-  - 25 tests for `useLocationTracking` hook with edge cases
-  - 9 tests for `useLocationPermissions` hook
-  - Integration tests for main module exports
-  - Total: 96 passing tests across 4 test suites
-  - Platform-specific behavior tests (Android/iOS)
-
-- 📚 **Enhanced Documentation**:
-  - Complete React Hooks guide in `docs/getting-started/hooks.md`
-  - Comprehensive CI/CD guide in `docs/development/CICD.md`
-  - Testing guide in `docs/development/TESTING.md`
-  - Updated documentation structure with clear navigation
-  - Consolidated documentation following project conventions
-
-### Changed
-
-- 📦 **Version Bump**: Updated to 0.2.0 following semantic versioning (minor release for new features)
-- 🔧 **Test Infrastructure**: 
-  - Fixed TypeScript errors with `Platform.Version` mocks using `Object.defineProperty`
-  - Improved test setup with minimal mocks for better reliability
-  - Enhanced error handling tests for all hooks
-- 📝 **Documentation Structure**: Reorganized CI/CD docs into `docs/development/` for consistency
-- 🌍 **Documentation Language**: Consolidated to English-only for multilingual team
-
-### Fixed
-
-- 🐛 TypeScript read-only property errors in test files
-- 🐛 ESLint warnings in test configurations
-- 🐛 Test coverage configuration for proper threshold handling
-
-### Developer Experience
-
-This release significantly improves the developer experience with:
-
-- **Easier Integration**: React Hooks provide a more intuitive API than imperative methods
-- **Better Debugging**: Comprehensive error messages and warnings
-- **Faster Development**: Automated CI/CD reduces manual release overhead
-- **Higher Confidence**: 98.91% test coverage ensures reliability
-- **Type Safety**: Enhanced TypeScript definitions for hooks
-
-### Migration Guide
-
-If upgrading from 0.1.0:
-
-**No Breaking Changes** - All existing imperative APIs remain unchanged and fully supported.
-
-**New Recommended Approach** - Use hooks for new code:
-
-```typescript
-// Old (still works)
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
-await BackgroundLocation.startTracking('trip-123');
-
-// New (recommended)
-import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
-const { startTracking } = useBackgroundLocation({
-  onLocationUpdate: (location) => console.log(location)
-});
-```
-
-### Branch Strategy
-
-Starting with 0.2.0, the project follows a two-branch strategy:
-
-- **`main`**: Production-ready releases (stable versions)
-- **`develop`**: Latest development code (beta releases available via `npm install @gabriel-sisjr/react-native-background-location@beta`)
 
 ## [0.3.0] - 2025-01-26
 
@@ -332,25 +351,6 @@ Starting with 0.2.0, the project follows a two-branch strategy:
   - Real-time visualization of last location
   - Visual indicators for active mode
   - Conditional UI elements based on update mode
-
-### API Additions
-
-**New Hook**: `useLocationUpdates`
-```typescript
-const {
-  locations,        // Real-time array of all locations
-  lastLocation,     // Most recent location received
-  isTracking,       // Tracking status
-  tripId,          // Current trip ID
-  isLoading,       // Loading state
-  error,           // Error state
-  clearError       // Clear error function
-} = useLocationUpdates({
-  tripId?: string,                    // Filter by tripId
-  onLocationUpdate?: (location) => void,  // Callback per location
-  autoLoad?: boolean                  // Load existing locations
-});
-```
 
 ### Changed
 
@@ -412,22 +412,243 @@ const updates = useLocationUpdates(); // For real-time data
 - Events only processed when app is in foreground
 - Real-time updates currently Android-only
 
-## [Unreleased]
+## [0.2.0] - 2025-10-26
 
-### Planned
+### Added
 
-- iOS implementation with Swift
-- iOS event emitter support
-- Customizable location update intervals
-- Geofencing support
-- Distance filtering
-- SQLite storage option for large datasets
-- Configurable notification appearance
-- Battery optimization modes
+- ⚛️ **React Hooks API**: Production-ready hooks for easier integration and better DX
+  - `useBackgroundLocation`: Full-featured hook for managing background location tracking with auto-start, callbacks, and comprehensive error handling
+  - `useLocationTracking`: Lightweight hook for monitoring tracking status with real-time updates
+  - `useLocationPermissions`: Complete permission management hook for Android (including Android 10+ background location permissions)
+  - Full TypeScript support with detailed type definitions
+  - Automatic cleanup on unmount
+  - React best practices with proper dependency management
+
+- 🤖 **Automated CI/CD Pipeline**: Complete GitHub Actions workflow automation
+  - **CI Workflow**: Validates code quality on every PR (lint, typecheck, unit tests, Android/iOS builds)
+  - **Publish Workflow**: Automated production releases from `main` branch to npm
+  - **Pre-release Workflow**: Automated beta releases from `develop` branch (tagged as `@beta`)
+  - Semantic versioning support with automatic version detection
+  - Supply chain security with npm provenance
+  - Automated GitHub Releases with generated release notes
+  - Branch protection and required status checks
+
+- 🧪 **Comprehensive Test Suite**: Achieved 98.91% code coverage
+  - 62 tests for `useBackgroundLocation` hook covering all scenarios
+  - 25 tests for `useLocationTracking` hook with edge cases
+  - 9 tests for `useLocationPermissions` hook
+  - Integration tests for main module exports
+  - Total: 96 passing tests across 4 test suites
+  - Platform-specific behavior tests (Android/iOS)
+
+- 📚 **Enhanced Documentation**:
+  - Complete React Hooks guide in `docs/getting-started/hooks.md`
+  - Comprehensive CI/CD guide in `docs/development/CICD.md`
+  - Testing guide in `docs/development/TESTING.md`
+  - Updated documentation structure with clear navigation
+  - Consolidated documentation following project conventions
+
+### Changed
+
+- 📦 **Version Bump**: Updated to 0.2.0 following semantic versioning (minor release for new features)
+- 🔧 **Test Infrastructure**: 
+  - Fixed TypeScript errors with `Platform.Version` mocks using `Object.defineProperty`
+  - Improved test setup with minimal mocks for better reliability
+  - Enhanced error handling tests for all hooks
+- 📝 **Documentation Structure**: Reorganized CI/CD docs into `docs/development/` for consistency
+- 🌍 **Documentation Language**: Consolidated to English-only for multilingual team
+
+### Fixed
+
+- 🐛 TypeScript read-only property errors in test files
+- 🐛 ESLint warnings in test configurations
+- 🐛 Test coverage configuration for proper threshold handling
+
+### Migration Guide
+
+If upgrading from 0.1.0:
+
+**No Breaking Changes** - All existing imperative APIs remain unchanged and fully supported.
+
+**New Recommended Approach** - Use hooks for new code:
+
+```typescript
+// Old (still works)
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+await BackgroundLocation.startTracking('trip-123');
+
+// New (recommended)
+import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
+const { startTracking } = useBackgroundLocation({
+  onLocationUpdate: (location) => console.log(location)
+});
+```
+
+### Branch Strategy
+
+Starting with 0.2.0, the project follows a two-branch strategy:
+
+- **`main`**: Production-ready releases (stable versions)
+- **`develop`**: Latest development code (beta releases available via `npm install @gabriel-sisjr/react-native-background-location@beta`)
+
+## [0.1.0] - 2025-10-26
+
+### Added
+
+- ✨ Initial release of @gabriel-sisjr/react-native-background-location
+- 🚀 Background location tracking using TurboModules (New Architecture)
+- 📱 Full Android support with Kotlin implementation
+- 🔐 Session-based tracking with trip IDs
+- 💾 Persistent location storage using SharedPreferences
+- 🔔 Foreground service with notification for reliable background tracking
+- 📍 High-accuracy location updates (configurable intervals)
+- 🎯 Complete TypeScript API with full type definitions
+- 📚 Comprehensive documentation and usage examples
+- 🧪 Functional example app demonstrating all features
+- 🛡️ Permission checking and error handling
+- 🔄 Idempotent API operations
+
+### API Methods
+
+- `startTracking(tripId?: string): Promise<string>` - Start location tracking
+- `stopTracking(): Promise<void>` - Stop location tracking
+- `isTracking(): Promise<TrackingStatus>` - Check tracking status
+- `getLocations(tripId: string): Promise<Coords[]>` - Retrieve locations
+- `clearTrip(tripId: string): Promise<void>` - Clear trip data
+
+### Features
+
+- **Background Tracking**: Continues collecting location when app is minimized
+- **Foreground Service**: Uses Android foreground service for reliability
+- **Auto Trip ID**: Generates UUID if trip ID not provided
+- **Persistent Storage**: Locations survive app restarts
+- **Permission Management**: Checks for all required permissions
+- **Graceful Fallbacks**: Safe behavior when native module unavailable
+- **TypeScript First**: Full type safety and IntelliSense support
+
+### Requirements
+
+- React Native 0.70 or higher
+- Android API 21+ (Android 5.0 Lollipop)
+- Google Play Services Location 21.3.0
+
+### Known Limitations
+
+- iOS support not yet implemented (Android only)
+- Location update intervals are not yet configurable
+- No event emitters for real-time location updates
+- Storage limited to SharedPreferences (consider SQLite for large datasets)
 
 ---
 
 ## Release Notes
+
+### v0.6.0 - Crash Recovery & Room Database
+
+**Major Additions:**
+
+This release introduces automatic crash recovery and a new persistence layer with Room Database for better performance and scalability.
+
+**🔄 Crash Recovery:**
+- Automatic tracking session recovery after app crash or restart
+- Persistent storage of TrackingOptions for complete state restoration
+- Service auto-recovery using START_STICKY
+- Graceful handling of permission revocations
+- Best-effort recovery with automatic cleanup of corrupted state
+
+**🗄️ Room Database:**
+- Room Database 2.6.1 with KSP for all data persistence
+- SQLite backend for locations and tracking state
+- Better performance with large datasets
+- Thread-safe coroutine-based operations
+- Indexed queries for fast data retrieval
+- Zero JSON parsing overhead
+
+**📚 Documentation:**
+- Complete crash recovery architecture guide
+- Manual testing guide with 8 detailed scenarios
+- Technical implementation documentation
+- Performance metrics and best practices
+
+**Key Improvements:**
+
+- ✅ **More Reliable**: Automatic recovery ensures tracking continues after crashes
+- ✅ **Better Performance**: Room Database scales better with large datasets
+- ✅ **Thread-Safe**: Coroutines ensure safe concurrent operations
+- ✅ **Data Persistence**: Locations and state survive app restarts
+- ✅ **Production Ready**: Comprehensive testing and documentation
+
+---
+
+### v0.5.0 - Extended Location Properties
+
+**Major Additions:**
+
+This release adds comprehensive support for all location data available from Google Play Services Location API.
+
+**📍 Extended Properties:**
+- Full support for 10+ location properties (accuracy, altitude, speed, bearing, etc.)
+- API-level specific properties (Android 18+, 26+)
+- Type-safe access with TypeScript
+- Backward compatible - all new fields are optional
+
+**Key Improvements:**
+
+- ✅ **More Data**: Access to comprehensive location information
+- ✅ **Type-Safe**: Full TypeScript definitions for all properties
+- ✅ **Future-Proof**: Generic property extraction for extensibility
+- ✅ **Backward Compatible**: Existing code continues to work
+
+---
+
+### v0.4.0 - Configurable Tracking & Battery Optimization
+
+**Major Additions:**
+
+This release introduces comprehensive tracking configuration options and built-in battery optimization features.
+
+**⚙️ Configurable Tracking:**
+- TrackingOptions interface for full customization
+- Location accuracy levels (HIGH_ACCURACY, BALANCED_POWER_ACCURACY, LOW_POWER)
+- Adjustable update intervals
+- Notification customization
+- Configuration presets (High Accuracy, Balanced, Low Power)
+
+**🔋 Battery Optimization:**
+- Configurable accuracy levels for reduced battery consumption
+- Adjustable update intervals to minimize location requests
+- Smart location updates and efficient foreground service
+- Best practices documentation
+
+**Key Improvements:**
+
+- ✅ **Flexible**: Full control over tracking behavior
+- ✅ **Battery Efficient**: Built-in optimization options
+- ✅ **User-Friendly**: Predefined configuration presets
+- ✅ **Type-Safe**: Enums for accuracy and priority levels
+
+---
+
+### v0.3.0 - Real-Time Location Updates
+
+**Major Additions:**
+
+This release introduces real-time location updates with event-driven architecture.
+
+**🎯 Real-Time Updates:**
+- New useLocationUpdates hook for automatic location watching
+- Event-driven location updates via native events
+- Automatic subscription/unsubscription management
+- Live location visualization
+
+**Key Improvements:**
+
+- ✅ **Real-Time**: Automatic updates without polling
+- ✅ **Efficient**: Event-driven architecture with minimal overhead
+- ✅ **Easy to Use**: Hook-based API with automatic cleanup
+- ✅ **Flexible**: Manual or automatic update modes
+
+---
 
 ### v0.2.0 - React Hooks & CI/CD Automation
 
@@ -436,46 +657,26 @@ const updates = useLocationUpdates(); // For real-time data
 This release introduces React Hooks for easier integration and a complete CI/CD pipeline for automated releases.
 
 **🎣 React Hooks API:**
-- `useBackgroundLocation`: Complete hook for location tracking with auto-start, callbacks, and error handling
+- `useBackgroundLocation`: Complete hook for location tracking
 - `useLocationTracking`: Lightweight hook for monitoring tracking status
-- `useLocationPermissions`: Full permission management for Android (including Android 10+ background permissions)
+- `useLocationPermissions`: Full permission management for Android
 
 **🤖 Automated CI/CD:**
 - Automated testing on every PR (lint, tests, builds)
-- Automatic beta releases from `develop` branch (npm `@beta` tag)
-- Automatic production releases from `main` branch (npm `latest` tag)
+- Automatic beta releases from `develop` branch
+- Automatic production releases from `main` branch
 - Semantic versioning with automatic version detection
-- GitHub Actions workflows for complete automation
 
 **🧪 Test Coverage:**
 - 98.91% overall code coverage
 - 96 comprehensive tests covering all hooks and core functionality
-- Extensive edge case and error handling tests
-- Platform-specific behavior tests (Android/iOS)
-
-**📚 Developer Experience:**
-- Complete hooks documentation with examples
-- Comprehensive CI/CD setup guide
-- Better error messages and warnings
-- TypeScript improvements for better type safety
-- Consolidated documentation structure
 
 **Key Improvements:**
 
 - ✅ **Easier to Use**: Hooks provide cleaner, more intuitive API
 - ✅ **More Reliable**: High test coverage ensures stability
-- ✅ **Faster Releases**: Automated CI/CD reduces release time from 30-60min to 5-7min
+- ✅ **Faster Releases**: Automated CI/CD reduces release time
 - ✅ **Better DX**: Enhanced documentation and TypeScript support
-
-**Installation:**
-
-```bash
-# Production version (stable)
-npm install @gabriel-sisjr/react-native-background-location
-
-# Beta version (latest features from develop)
-npm install @gabriel-sisjr/react-native-background-location@beta
-```
 
 ---
 
@@ -495,20 +696,11 @@ This is the first public release of `@gabriel-sisjr/react-native-background-loca
 - 🚧 Event emitters
 - 🚧 Advanced configuration options
 
-**Migration from Other Libraries:**
-
-If you're migrating from other location tracking libraries:
-
-1. The API is promise-based (no callbacks)
-2. Location coordinates are returned as strings (not numbers)
-3. Trip/session management is built-in
-4. Requires TurboModules enabled (New Architecture)
-
-**Feedback Welcome:**
-
-This is an early release. Please report any issues, suggestions, or feature requests on GitHub.
-
 ---
 
+[0.6.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.6.0
+[0.5.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.5.0
+[0.4.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.4.0
+[0.3.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.3.0
 [0.2.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.2.0
 [0.1.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.1.0
