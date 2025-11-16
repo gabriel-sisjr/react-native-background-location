@@ -21,6 +21,15 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   init {
     // Set the React Context in LocationService for event emission
     LocationService.setReactContext(reactContext)
+    
+    // Attempt to recover tracking session if app crashed/restarted
+    recoverTrackingSession()
+  }
+  
+  override fun initialize() {
+    super.initialize()
+    // Re-set the React Context when module is initialized
+    LocationService.setReactContext(reactApplicationContext)
   }
 
   override fun getName(): String = NAME
@@ -59,9 +68,12 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       // Parse options if provided
       val trackingOptions = parseTrackingOptions(options)
 
-      // Save tracking state
-      storage.saveTrackingState(effectiveTripId, true)
+      // Save tracking state with options for recovery
+      storage.saveTrackingState(effectiveTripId, true, trackingOptions)
 
+      // Ensure React Context is set before starting service
+      LocationService.setReactContext(reactApplicationContext)
+      
       // Start the foreground service with options
       val context = reactApplicationContext
       LocationService.startService(context, effectiveTripId, trackingOptions)
@@ -161,6 +173,44 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       promise.resolve(null)
     } catch (e: Exception) {
       promise.reject("CLEAR_TRIP_ERROR", "Failed to clear trip: ${e.message}", e)
+    }
+  }
+
+  /**
+   * Recovers tracking session after app restart/crash
+   * Restarts the LocationService if tracking was active
+   */
+  private fun recoverTrackingSession() {
+    try {
+      val trackingState = storage.getTrackingState()
+      
+      // If tracking was active and we have both tripId and options
+      if (trackingState.isActive && trackingState.tripId != null) {
+        // Check if we still have location permissions
+        if (!hasLocationPermissions()) {
+          // Clear tracking state if permissions were revoked
+          storage.saveTrackingState(null, false)
+          return
+        }
+        
+        // Ensure React Context is set before restarting service
+        LocationService.setReactContext(reactApplicationContext)
+        
+        // Restart the service with saved options
+        val options = trackingState.options ?: TrackingOptions()
+        val context = reactApplicationContext
+        LocationService.startService(context, trackingState.tripId, options)
+      }
+    } catch (e: Exception) {
+      // Log error but don't crash - recovery is best-effort
+      e.printStackTrace()
+      
+      // Clear tracking state if recovery fails
+      try {
+        storage.saveTrackingState(null, false)
+      } catch (clearError: Exception) {
+        clearError.printStackTrace()
+      }
     }
   }
 
