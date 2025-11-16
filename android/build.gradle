@@ -81,7 +81,7 @@ dependencies {
   // Google Play Services for Location
   implementation "com.google.android.gms:play-services-location:21.3.0"
   
-  // Room (persistencia do modulo de localização) via KSP
+  // Room
   def room = "2.6.1"
   implementation("androidx.room:room-runtime:$room")
   implementation("androidx.room:room-ktx:$room")
