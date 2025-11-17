@@ -38,20 +38,34 @@ class LocationService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    currentTripId = intent?.getStringExtra(EXTRA_TRIP_ID)
+    android.util.Log.d("LocationService", "onStartCommand called")
+    // Try to get tripId from intent
+    var tripId = intent?.getStringExtra(EXTRA_TRIP_ID)
     
     // Parse tracking options from Bundle
     val optionsBundle = intent?.getBundleExtra(EXTRA_TRACKING_OPTIONS)
     trackingOptions = if (optionsBundle != null) {
       parseTrackingOptionsFromBundle(optionsBundle)
     } else {
-      TrackingOptions()
+      // If intent is null (service restarted by system), try to recover from storage
+      if (intent == null) {
+        val trackingState = storage.getTrackingState()
+        if (trackingState.isActive && trackingState.tripId != null) {
+          tripId = trackingState.tripId
+          trackingState.options?.let { trackingOptions = it }
+        }
+      }
+      trackingOptions
     }
     
-    if (currentTripId == null) {
+    if (tripId == null) {
+      // No valid tripId - stop the service
       stopSelf()
       return START_NOT_STICKY
     }
+    
+    currentTripId = tripId
+    android.util.Log.d("LocationService", "Starting location tracking for tripId: $tripId")
 
     // Create notification channel with options
     createNotificationChannel()
@@ -60,9 +74,13 @@ class LocationService : Service() {
     val notification = createNotification()
     startForeground(NOTIFICATION_ID, notification)
 
+    // Check last known location to verify GPS is working
+    checkLastKnownLocation()
+    
     // Start location updates
     startLocationUpdates()
 
+    // Return START_STICKY so the service is restarted if killed by system
     return START_STICKY
   }
 
@@ -85,6 +103,24 @@ class LocationService : Service() {
   }
 
   @SuppressLint("MissingPermission")
+  private fun checkLastKnownLocation() {
+    try {
+      android.util.Log.d("LocationService", "Checking last known location...")
+      fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+        if (location != null) {
+          android.util.Log.d("LocationService", "Last known location: lat=${location.latitude}, lng=${location.longitude}")
+        } else {
+          android.util.Log.w("LocationService", "Last known location is NULL - GPS may not have a fix yet")
+        }
+      }.addOnFailureListener { e ->
+        android.util.Log.e("LocationService", "Failed to get last known location", e)
+      }
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Exception checking last known location", e)
+    }
+  }
+  
+  @SuppressLint("MissingPermission")
   private fun startLocationUpdates() {
     val priority = when (trackingOptions.getAccuracyOrDefault()) {
       LocationAccuracy.HIGH_ACCURACY -> Priority.PRIORITY_HIGH_ACCURACY
@@ -94,30 +130,51 @@ class LocationService : Service() {
       LocationAccuracy.PASSIVE -> Priority.PRIORITY_PASSIVE
     }
 
+    val updateInterval = trackingOptions.getUpdateIntervalOrDefault()
+    val fastestInterval = trackingOptions.getFastestIntervalOrDefault()
+    val maxWaitTime = trackingOptions.getMaxWaitTimeOrDefault()
+    
+    android.util.Log.d("LocationService", "Starting location updates with:")
+    android.util.Log.d("LocationService", "  Priority: $priority")
+    android.util.Log.d("LocationService", "  Update Interval: ${updateInterval}ms")
+    android.util.Log.d("LocationService", "  Fastest Interval: ${fastestInterval}ms")
+    android.util.Log.d("LocationService", "  Max Wait Time: ${maxWaitTime}ms")
+
     val locationRequest = LocationRequest.Builder(
       priority,
-      trackingOptions.getUpdateIntervalOrDefault()
+      updateInterval
     ).apply {
-      setMinUpdateIntervalMillis(trackingOptions.getFastestIntervalOrDefault())
-      setMaxUpdateDelayMillis(trackingOptions.getMaxWaitTimeOrDefault())
+      setMinUpdateIntervalMillis(fastestInterval)
+      setMaxUpdateDelayMillis(maxWaitTime)
       setWaitForAccurateLocation(trackingOptions.getWaitForAccurateLocationOrDefault())
     }.build()
 
     try {
+      android.util.Log.d("LocationService", "Requesting location updates...")
       fusedLocationClient.requestLocationUpdates(
         locationRequest,
         locationCallback,
         Looper.getMainLooper()
-      )
+      ).addOnSuccessListener {
+        android.util.Log.d("LocationService", "Location updates request SUCCESS")
+      }.addOnFailureListener { e ->
+        android.util.Log.e("LocationService", "Location updates request FAILED", e)
+        stopSelf()
+      }
     } catch (e: SecurityException) {
+      android.util.Log.e("LocationService", "SecurityException when requesting location updates", e)
       e.printStackTrace()
       stopSelf()
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Exception when requesting location updates", e)
+      e.printStackTrace()
     }
   }
 
   private fun setupLocationCallback() {
     locationCallback = object : LocationCallback() {
       override fun onLocationResult(locationResult: LocationResult) {
+        android.util.Log.d("LocationService", "Received ${locationResult.locations.size} location(s)")
         locationResult.locations.forEach { location ->
           handleLocation(location)
         }
@@ -126,6 +183,7 @@ class LocationService : Service() {
   }
 
   private fun handleLocation(location: Location) {
+    android.util.Log.d("LocationService", "Handling location: lat=${location.latitude}, lng=${location.longitude}, tripId=$currentTripId")
     currentTripId?.let { tripId ->
       // Extract all available location data
       val accuracy = if (location.hasAccuracy()) location.accuracy else null
@@ -183,17 +241,29 @@ class LocationService : Service() {
    * Sends a location update event to React Native with extended location data
    */
   private fun sendLocationUpdateEvent(tripId: String, location: Location) {
-    reactContext?.let { context ->
-      try {
-        val eventData = createLocationMap(tripId, location)
-        
-        context
-          .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-          .emit("onLocationUpdate", eventData)
-      } catch (e: Exception) {
-        // React Native context may not be available yet
-        e.printStackTrace()
+    val context = reactContext
+    if (context == null) {
+      android.util.Log.w("LocationService", "React context not available - cannot emit location update event")
+      return
+    }
+    
+    try {
+      // Check if the catalyst instance is active
+      if (!context.hasActiveReactInstance()) {
+        android.util.Log.w("LocationService", "React instance not active - skipping location update event")
+        return
       }
+      
+      val eventData = createLocationMap(tripId, location)
+      
+      context
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onLocationUpdate", eventData)
+        
+      android.util.Log.d("LocationService", "Location update event emitted for tripId: $tripId")
+    } catch (e: Exception) {
+      // React Native context may not be available yet or JS thread might be busy
+      android.util.Log.e("LocationService", "Failed to emit location update event", e)
     }
   }
   
@@ -325,6 +395,7 @@ class LocationService : Service() {
      * Sets the React Context for event emission
      */
     fun setReactContext(context: ReactContext?) {
+      android.util.Log.d("LocationService", "Setting React context: ${context != null}")
       serviceInstance?.reactContext = context
     }
 

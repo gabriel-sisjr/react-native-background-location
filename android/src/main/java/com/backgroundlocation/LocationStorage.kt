@@ -1,26 +1,33 @@
 package com.backgroundlocation
 
 import android.content.Context
-import android.content.SharedPreferences
+import com.backgroundlocation.database.LocationDatabase
+import com.backgroundlocation.database.LocationEntity
+import com.backgroundlocation.database.TrackingStateEntity
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
-import com.facebook.react.bridge.WritableMap
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
- * Handles persistent storage of location data per trip
- * Uses SharedPreferences for simplicity and reliability
+ * Handles persistent storage of location data and tracking state using Room Database
+ * Thread-safe implementation with coroutines
  */
 class LocationStorage(context: Context) {
   
-  private val prefs: SharedPreferences = context.getSharedPreferences(
-    PREFS_NAME,
-    Context.MODE_PRIVATE
-  )
-
+  private val database = LocationDatabase.getInstance(context)
+  private val locationDao = database.locationDao()
+  private val trackingStateDao = database.trackingStateDao()
+  
+  // Coroutine scope for database operations
+  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+  
   /**
    * Saves a location point for a specific trip with extended location data
+   * Runs asynchronously on IO thread
    */
   fun saveLocation(
     tripId: String,
@@ -38,130 +45,154 @@ class LocationStorage(context: Context) {
     provider: String? = null,
     isFromMockProvider: Boolean? = null
   ) {
-    val key = getTripKey(tripId)
-    val existingData = prefs.getString(key, "[]") ?: "[]"
-    
-    try {
-      val jsonArray = JSONArray(existingData)
-      val locationObj = JSONObject().apply {
-        put("latitude", latitude.toString())
-        put("longitude", longitude.toString())
-        put("timestamp", timestamp)
-        
-        // Add optional fields if available
-        accuracy?.let { put("accuracy", it.toDouble()) }
-        altitude?.let { put("altitude", it) }
-        speed?.let { put("speed", it.toDouble()) }
-        bearing?.let { put("bearing", it.toDouble()) }
-        verticalAccuracyMeters?.let { put("verticalAccuracyMeters", it.toDouble()) }
-        speedAccuracyMetersPerSecond?.let { put("speedAccuracyMetersPerSecond", it.toDouble()) }
-        bearingAccuracyDegrees?.let { put("bearingAccuracyDegrees", it.toDouble()) }
-        elapsedRealtimeNanos?.let { put("elapsedRealtimeNanos", it) }
-        provider?.let { put("provider", it) }
-        isFromMockProvider?.let { put("isFromMockProvider", it) }
+    scope.launch {
+      try {
+        val entity = LocationEntity(
+          tripId = tripId,
+          latitude = latitude,
+          longitude = longitude,
+          timestamp = timestamp,
+          accuracy = accuracy,
+          altitude = altitude,
+          speed = speed,
+          bearing = bearing,
+          verticalAccuracyMeters = verticalAccuracyMeters,
+          speedAccuracyMetersPerSecond = speedAccuracyMetersPerSecond,
+          bearingAccuracyDegrees = bearingAccuracyDegrees,
+          elapsedRealtimeNanos = elapsedRealtimeNanos,
+          provider = provider,
+          isFromMockProvider = isFromMockProvider
+        )
+        locationDao.insert(entity)
+      } catch (e: Exception) {
+        e.printStackTrace()
       }
-      jsonArray.put(locationObj)
-      
-      prefs.edit().putString(key, jsonArray.toString()).apply()
-    } catch (e: Exception) {
-      e.printStackTrace()
     }
   }
-
+  
   /**
    * Retrieves all locations for a specific trip with extended location data
+   * Blocking call - returns immediately with data from database
    */
   fun getLocations(tripId: String): WritableArray {
-    val key = getTripKey(tripId)
-    val data = prefs.getString(key, "[]") ?: "[]"
     val result = Arguments.createArray()
     
-    try {
-      val jsonArray = JSONArray(data)
-      for (i in 0 until jsonArray.length()) {
-        val locationObj = jsonArray.getJSONObject(i)
+    return try {
+      // Run blocking to return synchronously (required for React Native bridge)
+      val locations = runBlocking {
+        locationDao.getLocationsByTripId(tripId)
+      }
+      
+      locations.forEach { entity ->
         val location = Arguments.createMap().apply {
-          putString("latitude", locationObj.getString("latitude"))
-          putString("longitude", locationObj.getString("longitude"))
-          putDouble("timestamp", locationObj.getDouble("timestamp"))
+          putString("latitude", entity.latitude.toString())
+          putString("longitude", entity.longitude.toString())
+          putDouble("timestamp", entity.timestamp.toDouble())
           
           // Add optional fields if present
-          if (locationObj.has("accuracy")) {
-            putDouble("accuracy", locationObj.getDouble("accuracy"))
-          }
-          if (locationObj.has("altitude")) {
-            putDouble("altitude", locationObj.getDouble("altitude"))
-          }
-          if (locationObj.has("speed")) {
-            putDouble("speed", locationObj.getDouble("speed"))
-          }
-          if (locationObj.has("bearing")) {
-            putDouble("bearing", locationObj.getDouble("bearing"))
-          }
-          if (locationObj.has("verticalAccuracyMeters")) {
-            putDouble("verticalAccuracyMeters", locationObj.getDouble("verticalAccuracyMeters"))
-          }
-          if (locationObj.has("speedAccuracyMetersPerSecond")) {
-            putDouble("speedAccuracyMetersPerSecond", locationObj.getDouble("speedAccuracyMetersPerSecond"))
-          }
-          if (locationObj.has("bearingAccuracyDegrees")) {
-            putDouble("bearingAccuracyDegrees", locationObj.getDouble("bearingAccuracyDegrees"))
-          }
-          if (locationObj.has("elapsedRealtimeNanos")) {
-            putDouble("elapsedRealtimeNanos", locationObj.getDouble("elapsedRealtimeNanos"))
-          }
-          if (locationObj.has("provider")) {
-            putString("provider", locationObj.getString("provider"))
-          }
-          if (locationObj.has("isFromMockProvider")) {
-            putBoolean("isFromMockProvider", locationObj.getBoolean("isFromMockProvider"))
-          }
+          entity.accuracy?.let { putDouble("accuracy", it.toDouble()) }
+          entity.altitude?.let { putDouble("altitude", it) }
+          entity.speed?.let { putDouble("speed", it.toDouble()) }
+          entity.bearing?.let { putDouble("bearing", it.toDouble()) }
+          entity.verticalAccuracyMeters?.let { putDouble("verticalAccuracyMeters", it.toDouble()) }
+          entity.speedAccuracyMetersPerSecond?.let { putDouble("speedAccuracyMetersPerSecond", it.toDouble()) }
+          entity.bearingAccuracyDegrees?.let { putDouble("bearingAccuracyDegrees", it.toDouble()) }
+          entity.elapsedRealtimeNanos?.let { putDouble("elapsedRealtimeNanos", it.toDouble()) }
+          entity.provider?.let { putString("provider", it) }
+          entity.isFromMockProvider?.let { putBoolean("isFromMockProvider", it) }
         }
         result.pushMap(location)
       }
+      
+      result
     } catch (e: Exception) {
       e.printStackTrace()
+      result
     }
-    
-    return result
   }
-
+  
   /**
    * Clears all location data for a specific trip
    */
   fun clearTrip(tripId: String) {
-    val key = getTripKey(tripId)
-    prefs.edit().remove(key).apply()
-  }
-
-  /**
-   * Saves the current tracking state
-   */
-  fun saveTrackingState(tripId: String?, isActive: Boolean) {
-    prefs.edit().apply {
-      putBoolean(KEY_IS_TRACKING, isActive)
-      putString(KEY_CURRENT_TRIP_ID, tripId)
-      apply()
+    scope.launch {
+      try {
+        locationDao.deleteLocationsByTripId(tripId)
+      } catch (e: Exception) {
+        e.printStackTrace()
+      }
     }
   }
-
+  
+  /**
+   * Saves the current tracking state along with tracking options
+   * Uses Room Database for persistence
+   */
+  fun saveTrackingState(tripId: String?, isActive: Boolean, options: TrackingOptions? = null) {
+    scope.launch {
+      try {
+        val entity = TrackingStateEntity(
+          id = 1,
+          isActive = isActive,
+          tripId = tripId,
+          updateInterval = options?.updateInterval,
+          fastestInterval = options?.fastestInterval,
+          maxWaitTime = options?.maxWaitTime,
+          accuracy = options?.accuracy?.value,
+          waitForAccurateLocation = options?.waitForAccurateLocation,
+          notificationTitle = options?.notificationTitle,
+          notificationText = options?.notificationText,
+          notificationChannelName = options?.notificationChannelName,
+          notificationPriority = options?.notificationPriority
+        )
+        trackingStateDao.upsert(entity)
+      } catch (e: Exception) {
+        e.printStackTrace()
+      }
+    }
+  }
+  
   /**
    * Gets the current tracking state
+   * Blocking call - returns immediately with data from Room Database
    */
   fun getTrackingState(): TrackingState {
-    val isActive = prefs.getBoolean(KEY_IS_TRACKING, false)
-    val tripId = prefs.getString(KEY_CURRENT_TRIP_ID, null)
-    return TrackingState(isActive, tripId)
+    return try {
+      runBlocking {
+        val entity = trackingStateDao.getTrackingState()
+        
+        if (entity == null) {
+          TrackingState(false, null, null)
+        } else {
+          val options = if (entity.updateInterval != null || entity.accuracy != null) {
+            TrackingOptions(
+              updateInterval = entity.updateInterval,
+              fastestInterval = entity.fastestInterval,
+              maxWaitTime = entity.maxWaitTime,
+              accuracy = entity.accuracy?.let { LocationAccuracy.fromString(it) },
+              waitForAccurateLocation = entity.waitForAccurateLocation,
+              notificationTitle = entity.notificationTitle,
+              notificationText = entity.notificationText,
+              notificationChannelName = entity.notificationChannelName,
+              notificationPriority = entity.notificationPriority
+            )
+          } else null
+          
+          TrackingState(entity.isActive, entity.tripId, options)
+        }
+      }
+    } catch (e: Exception) {
+      e.printStackTrace()
+      TrackingState(false, null, null)
+    }
   }
-
-  private fun getTripKey(tripId: String): String = "trip_$tripId"
-
-  companion object {
-    private const val PREFS_NAME = "BackgroundLocationPrefs"
-    private const val KEY_IS_TRACKING = "is_tracking"
-    private const val KEY_CURRENT_TRIP_ID = "current_trip_id"
-  }
-
-  data class TrackingState(val isActive: Boolean, val tripId: String?)
+  
+  /**
+   * Data class for tracking state
+   */
+  data class TrackingState(
+    val isActive: Boolean,
+    val tripId: String?,
+    val options: TrackingOptions? = null
+  )
 }
-

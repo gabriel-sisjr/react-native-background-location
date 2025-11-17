@@ -12,6 +12,7 @@ buildscript {
     classpath "com.android.tools.build:gradle:8.7.2"
     // noinspection DifferentKotlinGradleVersion
     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:${getExtOrDefault('kotlinVersion')}"
+    classpath "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:2.1.20-1.0.32"
   }
 }
 
@@ -19,6 +20,7 @@ buildscript {
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 apply plugin: "kotlin-parcelize"
+apply plugin: "com.google.devtools.ksp"
 
 apply plugin: "com.facebook.react"
 
@@ -78,4 +80,10 @@ dependencies {
   
   // Google Play Services for Location
   implementation "com.google.android.gms:play-services-location:21.3.0"
+  
+  // Room
+  def room = "2.6.1"
+  implementation("androidx.room:room-runtime:$room")
+  implementation("androidx.room:room-ktx:$room")
+  ksp("androidx.room:room-compiler:$room")
 }

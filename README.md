@@ -24,11 +24,13 @@ A React Native library for tracking location in the background using TurboModule
 
 - ✅ **Background location tracking** - Continues tracking when app is in background
 - ✅ **Real-time location updates** - Automatic event-driven location watching
+- ✅ **Crash recovery** - Automatic recovery of tracking sessions after app crash or restart
+- ✅ **Battery optimization** - Configurable accuracy levels and update intervals for efficient battery usage
 - ✅ **TurboModule** - Built with React Native's New Architecture for better performance
 - ✅ **Session-based tracking** - Organize location data by trip/session IDs
 - ✅ **TypeScript support** - Fully typed API
 - ✅ **Android support** - Native Kotlin implementation (iOS coming soon)
-- ✅ **Persistent storage** - Locations are stored and survive app restarts
+- ✅ **Persistent storage** - Locations are stored in Room Database and survive app restarts
 - ✅ **Foreground service** - Uses Android foreground service for reliable tracking
 
 ## Installation
@@ -63,29 +65,6 @@ yarn add @gabriel-sisjr/react-native-background-location
     <!-- Your app configuration -->
   </application>
 </manifest>
-```
-
-2. **Request permissions at runtime:** _(not recommended, should use hook instead)_
-
-```typescript
-import { PermissionsAndroid, Platform } from 'react-native';
-
-const requestLocationPermissions = async () => {
-  if (Platform.OS === 'android') {
-    const granted = await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-      PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
-    ]);
-
-    return (
-      granted['android.permission.ACCESS_FINE_LOCATION'] === 'granted' &&
-      granted['android.permission.ACCESS_COARSE_LOCATION'] === 'granted' &&
-      granted['android.permission.ACCESS_BACKGROUND_LOCATION'] === 'granted'
-    );
-  }
-  return true;
-};
 ```
 
 ### iOS
@@ -556,14 +535,24 @@ See the [example app](example/src/App.tsx) for complete implementation examples.
 
 ## Battery Optimization
 
-⚠️ **Important:** Background location tracking can significantly impact battery life. Consider:
+The library includes built-in battery optimization features:
 
-- Only tracking when necessary
-- Stopping tracking when done
-- Informing users about battery usage
-- Testing on real devices (not emulators)
+- **Configurable accuracy levels** - Use `LocationAccuracy.LOW_POWER` or `BALANCED_POWER_ACCURACY` for better battery efficiency
+- **Adjustable update intervals** - Increase intervals to reduce battery consumption
+- **Smart location updates** - Only requests location when necessary
+- **Foreground service optimization** - Efficient service implementation
 
-On Android, some manufacturers (Xiaomi, Huawei, etc.) have aggressive battery optimization that may kill background services. Users may need to whitelist your app in battery settings.
+### Best Practices
+
+- Use `LocationAccuracy.LOW_POWER` for long-term tracking
+- Increase `updateInterval` when high-frequency updates aren't needed
+- Stop tracking when not in use
+- Inform users about battery usage
+- Test on real devices (emulator GPS simulation is unreliable)
+
+### Android Battery Optimization
+
+Some Android manufacturers (Xiaomi, Huawei, etc.) have aggressive battery optimization that may kill background services. Users may need to whitelist your app in battery settings for optimal performance.
 
 ## Simulator/Emulator Support
 
@@ -714,12 +703,9 @@ Make sure your `tsconfig.json` includes:
 ## Roadmap
 
 - [ ] iOS implementation with Swift
-- [ ] Customizable location update intervals
 - [ ] Geofencing support
 - [ ] Distance filtering for GPS coordinates
-- [ ] SQLite storage option for large datasets
 - [ ] Configurable notification appearance
-- [ ] Battery optimization modes
 - [ ] Web support (Geolocation API)
 
 ## Contributing
