@@ -45,7 +45,9 @@ yarn add @gabriel-sisjr/react-native-background-location
 
 ### Android
 
-1. **Add permissions to your `android/app/src/main/AndroidManifest.xml`:**
+#### 1. Add Permissions to AndroidManifest.xml
+
+Edit `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -67,9 +69,75 @@ yarn add @gabriel-sisjr/react-native-background-location
 </manifest>
 ```
 
+#### 2. Request Permissions (Critical for Android 11+)
+
+> **⚠️ IMPORTANT:** On Android 11 (API 30) and higher, you **MUST** request background location permission **separately** from foreground permissions. Requesting them together will **silently fail**.
+
+```typescript
+import { PermissionsAndroid, Platform, Alert } from 'react-native';
+
+async function requestLocationPermissions(): Promise<boolean> {
+  if (Platform.OS !== 'android') {
+    return true;
+  }
+
+  try {
+    // Step 1: Request foreground permissions FIRST
+    const foregroundPermissions = await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+    ]);
+
+    const foregroundGranted =
+      foregroundPermissions['android.permission.ACCESS_FINE_LOCATION'] === 'granted' ||
+      foregroundPermissions['android.permission.ACCESS_COARSE_LOCATION'] === 'granted';
+
+    if (!foregroundGranted) {
+      return false;
+    }
+
+    // Step 2: For Android 10+, request background permission SEPARATELY
+    // On Android 11+, this MUST be a separate request with user education
+    if (Platform.Version >= 29) {
+      // Show rationale before requesting (required for good UX and Play Store compliance)
+      await new Promise<void>((resolve) => {
+        Alert.alert(
+          'Background Location Required',
+          'To track your location when the app is in the background, please select "Allow all the time" on the next screen.',
+          [{ text: 'Continue', onPress: () => resolve() }]
+        );
+      });
+
+      const backgroundPermission = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
+      );
+
+      return backgroundPermission === 'granted';
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Permission request failed:', error);
+    return false;
+  }
+}
+```
+
+**Why this matters:**
+- Android 11+ requires a two-step permission flow
+- The system shows different UI for background location
+- Requesting all permissions together silently fails for background
+- Users must explicitly choose "Allow all the time" in system settings
+
 ### iOS
 
-iOS support is coming in a future release.
+iOS support is not yet available. For cross-platform apps, consider:
+
+- Using this library for Android with platform-specific code
+- Using [`react-native-geolocation-service`](https://github.com/Agontuk/react-native-geolocation-service) or [`expo-location`](https://docs.expo.dev/versions/latest/sdk/location/) for iOS
+- Abstracting location calls behind a wrapper service
+
+The iOS implementation (when available) will maintain API compatibility with the current TypeScript interface.
 
 ## Usage
 
@@ -410,6 +478,7 @@ interface TrackingOptions {
   notificationText?: string; // Notification text for foreground service (default: "Tracking your location in background")
   notificationChannelName?: string; // Notification channel name (Android) (default: "Background Location")
   notificationPriority?: NotificationPriority; // Notification priority (Android) (default: NotificationPriority.LOW)
+  foregroundOnly?: boolean; // Track only while app is visible (default: false) - does not require background permission
 }
 ```
 
@@ -533,6 +602,166 @@ The example app includes predefined configuration presets that you can use as a 
 
 See the [example app](example/src/App.tsx) for complete implementation examples.
 
+## Foreground-Only Mode
+
+For apps that don't need background tracking or when background permission is denied, you can use foreground-only mode:
+
+```typescript
+const tripId = await BackgroundLocation.startTracking(undefined, {
+  foregroundOnly: true,
+  // Other options...
+});
+```
+
+**When to use:**
+- Privacy-focused apps where users prefer not to grant background permission
+- Development and testing without background permission setup
+- Fallback when background permission is denied
+- Apps that only need tracking while actively used
+
+**Behavior:**
+- Tracking only works while the app is in foreground or visible
+- Does not require `ACCESS_BACKGROUND_LOCATION` permission
+- Foreground service still runs (with notification) for reliability
+- Tracking pauses when app goes to background
+
+## Crash Recovery & Session Persistence
+
+The library automatically persists tracking state and location data. Here's how to handle app restarts and crashes:
+
+### How It Works
+
+1. **Tracking state** is stored in SharedPreferences and survives app restarts
+2. **Location data** is stored in Room database and persists across sessions
+3. **Foreground service** continues running briefly after app crash (until system kills it)
+
+### Resuming After App Restart
+
+Always check for active sessions when your app starts:
+
+```typescript
+import { useEffect, useState } from 'react';
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+
+function App() {
+  const [tripId, setTripId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      const status = await BackgroundLocation.isTracking();
+
+      if (status.active && status.tripId) {
+        // Active session found - the service is still running
+        console.log('Resuming active session:', status.tripId);
+        setTripId(status.tripId);
+      } else if (status.tripId && !status.active) {
+        // Trip ID exists but service stopped (crash/kill scenario)
+        // Option 1: Resume tracking
+        const resumedId = await BackgroundLocation.startTracking(status.tripId);
+        setTripId(resumedId);
+
+        // Option 2: Just recover the data
+        const locations = await BackgroundLocation.getLocations(status.tripId);
+        console.log('Recovered locations:', locations.length);
+      }
+    };
+
+    checkActiveSession();
+  }, []);
+
+  // ... rest of your app
+}
+```
+
+### Best Practices
+
+1. **Always check on startup**: Call `isTracking()` when your app initializes
+2. **Persist tripId externally**: Store the tripId in your app's state management or AsyncStorage
+3. **Handle orphaned data**: Decide whether to resume tracking or just recover locations
+4. **Clean up old trips**: Call `clearTrip()` after uploading data to your server
+
+## Coordinate Format
+
+> **Note:** Coordinates (`latitude`, `longitude`) are returned as **strings**, not numbers.
+
+This design choice preserves maximum precision without floating-point rounding issues. Always parse when using with map libraries:
+
+```typescript
+// ✅ Correct: Parse coordinates for map libraries
+<Marker
+  coordinate={{
+    latitude: parseFloat(location.latitude),
+    longitude: parseFloat(location.longitude),
+  }}
+/>
+
+// ✅ Helper function for convenience
+const toNumericCoords = (loc: Coords) => ({
+  latitude: parseFloat(loc.latitude),
+  longitude: parseFloat(loc.longitude),
+});
+
+// Usage with react-native-maps
+<Polyline coordinates={locations.map(toNumericCoords)} />
+
+// ❌ Wrong: Using strings directly will cause errors
+<Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }} />
+```
+
+## Memory Management
+
+The `locations` array grows with each collected point. For long tracking sessions, implement these strategies:
+
+### Memory Considerations
+
+- **Typical memory usage**: ~500 bytes per location point
+- **1-hour trip at 5s intervals**: ~720 points ≈ 360KB
+- **8-hour trip at 5s intervals**: ~5,760 points ≈ 2.8MB
+
+### Strategies for Long Trips
+
+```typescript
+// Strategy 1: Upload and clear periodically
+const UPLOAD_THRESHOLD = 100; // Upload every 100 points
+
+useLocationUpdates({
+  onLocationUpdate: async (location) => {
+    const locations = await BackgroundLocation.getLocations(tripId);
+
+    if (locations.length >= UPLOAD_THRESHOLD) {
+      await uploadToServer(tripId, locations);
+      await BackgroundLocation.clearTrip(tripId);
+      // Tracking continues with fresh storage
+    }
+  },
+});
+
+// Strategy 2: Display only recent locations
+function LocationList({ locations }: { locations: Coords[] }) {
+  const recentLocations = locations.slice(-50); // Show last 50 only
+
+  return (
+    <FlatList
+      data={recentLocations}
+      renderItem={({ item }) => <LocationItem location={item} />}
+    />
+  );
+}
+
+// Strategy 3: Virtualized list for all locations
+import { FlashList } from '@shopify/flash-list';
+
+function AllLocations({ locations }: { locations: Coords[] }) {
+  return (
+    <FlashList
+      data={locations}
+      renderItem={({ item }) => <LocationItem location={item} />}
+      estimatedItemSize={80}
+    />
+  );
+}
+```
+
 ## Battery Optimization
 
 The library includes built-in battery optimization features:
@@ -550,9 +779,152 @@ The library includes built-in battery optimization features:
 - Inform users about battery usage
 - Test on real devices (emulator GPS simulation is unreliable)
 
-### Android Battery Optimization
+### Android Manufacturer-Specific Battery Optimization
 
-Some Android manufacturers (Xiaomi, Huawei, etc.) have aggressive battery optimization that may kill background services. Users may need to whitelist your app in battery settings for optimal performance.
+Many Android manufacturers implement aggressive battery optimization that can kill background services. This is **not a library bug** but a platform behavior.
+
+**Affected manufacturers:**
+- **Xiaomi (MIUI)**: Auto-start permissions, battery saver
+- **Huawei (EMUI/HarmonyOS)**: App launch management, power-intensive prompt
+- **Samsung (OneUI)**: Sleeping apps, deep sleeping apps
+- **Oppo (ColorOS)**: Battery optimization, auto-start
+- **Vivo (FuntouchOS)**: Background app management
+- **OnePlus (OxygenOS)**: Battery optimization, deep optimization
+- **Realme (Realme UI)**: App battery management
+
+**Recommended approach:**
+
+```typescript
+import { Linking, Alert, Platform } from 'react-native';
+
+function promptBatteryOptimization() {
+  if (Platform.OS !== 'android') return;
+
+  Alert.alert(
+    'Keep Tracking Active',
+    'To ensure reliable location tracking, please disable battery optimization for this app.\n\n' +
+    '1. Tap "Open Settings"\n' +
+    '2. Find this app\n' +
+    '3. Select "Don\'t optimize" or "No restrictions"',
+    [
+      { text: 'Later', style: 'cancel' },
+      {
+        text: 'Open Settings',
+        onPress: () => {
+          // Opens battery optimization settings (may vary by manufacturer)
+          Linking.openSettings();
+        },
+      },
+    ]
+  );
+}
+
+// Show this prompt after starting tracking for the first time
+// or when users report tracking issues
+```
+
+**Manufacturer-specific settings paths:**
+- **Xiaomi**: Settings → Apps → Manage apps → [App] → Autostart + Battery saver
+- **Huawei**: Settings → Battery → App launch → [App] → Manage manually
+- **Samsung**: Settings → Battery → Background usage limits → Never sleeping apps
+- **Oppo/Realme**: Settings → Battery → [App] → Allow background activity
+
+For a comprehensive database of manufacturer-specific instructions, see [dontkillmyapp.com](https://dontkillmyapp.com/).
+
+## Google Play Store Compliance
+
+Apps using background location must comply with Google Play's policies. **Non-compliance will result in app rejection or removal.**
+
+### Required Steps
+
+#### 1. Privacy Policy
+
+Your privacy policy **must** explicitly mention:
+- That you collect location data
+- Whether it's collected in the background
+- How the data is used
+- How long it's retained
+- How users can request deletion
+
+#### 2. In-App Disclosure (Required Before Permission Request)
+
+Google requires a prominent disclosure **before** requesting background location:
+
+```typescript
+async function showLocationDisclosure(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Location Access',
+      'This app collects location data to track your trips even when the app is closed or not in use.\n\n' +
+      'This data is used to:\n' +
+      '• Record your travel routes\n' +
+      '• Calculate trip distances\n' +
+      '• [Your specific use case]\n\n' +
+      'You can stop tracking at any time from the app.',
+      [
+        { text: 'Deny', onPress: () => resolve(false), style: 'cancel' },
+        { text: 'Accept', onPress: () => resolve(true) },
+      ]
+    );
+  });
+}
+
+// Use BEFORE requesting permissions
+const userAccepted = await showLocationDisclosure();
+if (userAccepted) {
+  await requestLocationPermissions();
+}
+```
+
+#### 3. Play Console Declarations
+
+In the Google Play Console, you must:
+
+1. **Data Safety Form**: Declare location data collection
+   - Go to: App content → Data safety
+   - Declare: Location data is collected
+   - Specify: Collected in background
+
+2. **Permissions Declaration Form**:
+   - Go to: App content → Sensitive app permissions
+   - Fill out the "Background location access" form
+   - Provide a video demonstrating the core feature
+   - Explain why background access is essential
+
+#### 4. Manifest Metadata (Recommended)
+
+Add metadata explaining background location usage:
+
+```xml
+<manifest>
+  <application>
+    <!-- Explain background location usage for reviewers -->
+    <meta-data
+      android:name="com.google.android.gms.permission.AD_ID"
+      android:value="false" />
+  </application>
+</manifest>
+```
+
+### Common Rejection Reasons
+
+| Reason | Solution |
+|--------|----------|
+| No in-app disclosure | Add prominent disclosure dialog before permission request |
+| Disclosure not prominent | Make it a blocking modal, not a toast or small text |
+| Missing privacy policy | Add privacy policy link in app and Play listing |
+| Video doesn't show feature | Record video of actual background tracking in use |
+| Background not essential | Justify why foreground-only won't work |
+
+### Foreground-Only Alternative
+
+If background location isn't essential, consider using `foregroundOnly: true` to avoid the stricter review process:
+
+```typescript
+await BackgroundLocation.startTracking(undefined, {
+  foregroundOnly: true,
+});
+```
 
 ## Simulator/Emulator Support
 
@@ -626,15 +998,38 @@ Real-time location updates with automatic event-driven updates.
 const {
   locations,            // Array of locations (updates automatically)
   lastLocation,         // Most recent location
+  lastWarning,          // Last warning event (SERVICE_TIMEOUT, TASK_REMOVED, etc.)
   isTracking,           // Tracking status
   tripId,               // Current trip ID
   isLoading,            // Loading state
   error,                // Error state
   clearError,           // Clear error
+  clearLocations,       // Clear all locations for current trip
 } = useLocationUpdates({
-  tripId?: string,                          // Filter by tripId
-  onLocationUpdate?: (location) => void,    // Callback per update
-  autoLoad?: boolean                         // Auto-load existing data
+  tripId?: string,                                    // Filter by tripId
+  onLocationUpdate?: (location) => void,              // Callback per update
+  onLocationWarning?: (warning) => void,              // Callback for warnings
+  autoLoad?: boolean,                                 // Auto-load existing data (default: true)
+});
+
+// Handle service warnings (important for Android 14+/15+)
+useLocationUpdates({
+  onLocationWarning: (warning) => {
+    switch (warning.type) {
+      case 'SERVICE_TIMEOUT':
+        // Android 15+ foreground service timeout - service is restarting
+        console.log('Service restarting due to timeout');
+        break;
+      case 'TASK_REMOVED':
+        // App was swiped from recents - tracking continues
+        console.log('App removed from recents, tracking continues');
+        break;
+      case 'LOCATION_UNAVAILABLE':
+        // GPS signal lost
+        Alert.alert('Location Unavailable', 'Please check GPS settings');
+        break;
+    }
+  },
 });
 ```
 
@@ -648,6 +1043,12 @@ See the **[Hooks Guide](docs/getting-started/hooks.md)** for complete documentat
 - **[Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md)** - Detailed integration steps for existing apps
 - **[Hooks Guide](docs/getting-started/hooks.md)** - Complete hooks documentation
 - **[Real-Time Updates Guide](docs/getting-started/REAL_TIME_UPDATES.md)** - Automatic location watching with useLocationUpdates
+
+### Production Guides
+
+- **[Google Play Compliance](docs/production/GOOGLE_PLAY_COMPLIANCE.md)** - Required steps for Play Store approval
+- **[Battery Optimization](docs/production/BATTERY_OPTIMIZATION.md)** - Handling manufacturer battery restrictions
+- **[Crash Recovery](docs/production/CRASH_RECOVERY.md)** - Session persistence and recovery strategies
 
 ### Development
 

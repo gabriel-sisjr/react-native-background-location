@@ -60,7 +60,19 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
         );
       }
 
-      const allGranted = fineLocation && coarseLocation && backgroundLocation;
+      // Check notification permission for Android 13+
+      let notificationPermission = true;
+      if (Platform.Version >= 33) {
+        notificationPermission = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+        );
+      }
+
+      const allGranted =
+        fineLocation &&
+        coarseLocation &&
+        backgroundLocation &&
+        notificationPermission;
 
       setPermissionStatus({
         hasPermission: allGranted,
@@ -141,6 +153,40 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
         if (!backgroundGranted) {
           const canRequestAgain =
             backgroundResult !== PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
+
+          setPermissionStatus({
+            hasPermission: false,
+            status: canRequestAgain
+              ? LocationPermissionStatus.DENIED
+              : LocationPermissionStatus.BLOCKED,
+            canRequestAgain,
+          });
+
+          return false;
+        }
+      }
+
+      // Step 3: Request notification permission for Android 13+
+      let notificationGranted = true;
+      if (Platform.Version >= 33) {
+        const notificationResult = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          {
+            title: 'Notification Permission',
+            message:
+              'This app needs notification permission to show location tracking status.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+
+        notificationGranted =
+          notificationResult === PermissionsAndroid.RESULTS.GRANTED;
+
+        if (!notificationGranted) {
+          const canRequestAgain =
+            notificationResult !== PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
 
           setPermissionStatus({
             hasPermission: false,

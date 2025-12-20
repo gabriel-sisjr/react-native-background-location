@@ -36,6 +36,12 @@ android {
   defaultConfig {
     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
+
+    // Export Room schemas for migration testing and validation
+    ksp {
+      arg("room.schemaLocation", "$projectDir/schemas")
+      arg("room.incremental", "true")
+    }
   }
 
   buildFeatures {
@@ -77,10 +83,16 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  
+
   // Google Play Services for Location
   implementation "com.google.android.gms:play-services-location:21.3.0"
-  
+
+  // LocalBroadcastManager for event broadcasting
+  implementation "androidx.localbroadcastmanager:localbroadcastmanager:1.1.0"
+
+  // WorkManager for safe recovery on Android 12+
+  implementation "androidx.work:work-runtime-ktx:2.9.0"
+
   // Room
   def room = "2.6.1"
   implementation("androidx.room:room-runtime:$room")

@@ -63,40 +63,63 @@ yarn android
 
 ## Step 3: Request Permissions
 
-Create a utility function to request permissions:
+> **⚠️ Critical for Android 11+:** Background location must be requested **separately** from foreground permissions. Requesting them together will silently fail on Android 11 and above.
+
+Create a utility function to request permissions with proper sequencing:
 
 ```typescript
 // utils/permissions.ts
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, Alert, Linking } from 'react-native';
 
+/**
+ * Request location permissions with proper Android 11+ sequencing
+ */
 export const requestLocationPermissions = async (): Promise<boolean> => {
   if (Platform.OS !== 'android') {
     return true; // iOS permissions to be implemented
   }
 
   try {
-    // First request foreground permissions
-    const foregroundGranted = await PermissionsAndroid.requestMultiple([
+    // Step 1: Request foreground permissions FIRST
+    const foregroundResult = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
     ]);
 
-    const foregroundPermissionsGranted =
-      foregroundGranted['android.permission.ACCESS_FINE_LOCATION'] === 'granted' &&
-      foregroundGranted['android.permission.ACCESS_COARSE_LOCATION'] === 'granted';
+    const foregroundGranted =
+      foregroundResult['android.permission.ACCESS_FINE_LOCATION'] === 'granted' ||
+      foregroundResult['android.permission.ACCESS_COARSE_LOCATION'] === 'granted';
 
-    if (!foregroundPermissionsGranted) {
+    if (!foregroundGranted) {
       return false;
     }
 
-    // Then request background permission (required for Android 10+)
-    // Note: On Android 11+, this should be requested in a separate step after foreground
+    // Step 2: Request background permission SEPARATELY (Android 10+)
+    // On Android 11+, this MUST be a separate request
     if (Platform.Version >= 29) {
-      const backgroundGranted = await PermissionsAndroid.request(
+      // Show explanation before requesting (required for good UX and Play Store)
+      const shouldProceed = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Background Location Required',
+          'To track your location when the app is closed or in the background, ' +
+          'please select "Allow all the time" on the next screen.\n\n' +
+          'This is required for trip tracking to work properly.',
+          [
+            { text: 'Cancel', onPress: () => resolve(false), style: 'cancel' },
+            { text: 'Continue', onPress: () => resolve(true) },
+          ]
+        );
+      });
+
+      if (!shouldProceed) {
+        return false;
+      }
+
+      const backgroundResult = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
       );
 
-      return backgroundGranted === 'granted';
+      return backgroundResult === 'granted';
     }
 
     return true;
@@ -104,6 +127,42 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
     console.error('Error requesting location permissions:', error);
     return false;
   }
+};
+
+/**
+ * Check current permission status
+ */
+export const checkLocationPermissions = async (): Promise<{
+  foreground: boolean;
+  background: boolean;
+}> => {
+  if (Platform.OS !== 'android') {
+    return { foreground: true, background: true };
+  }
+
+  const fine = await PermissionsAndroid.check(
+    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+  );
+  const coarse = await PermissionsAndroid.check(
+    PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+  );
+  const background = Platform.Version >= 29
+    ? await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
+      )
+    : true;
+
+  return {
+    foreground: fine || coarse,
+    background,
+  };
+};
+
+/**
+ * Open app settings for manual permission grant
+ */
+export const openAppSettings = () => {
+  Linking.openSettings();
 };
 ```
 
@@ -407,23 +466,168 @@ Ensure autolinking is working:
 npx react-native config
 ```
 
+## Step 7: Handle Crash Recovery
+
+The library persists tracking state across app restarts. Always check for active sessions:
+
+```typescript
+// App.tsx or your root component
+import { useEffect, useState } from 'react';
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+
+export default function App() {
+  const [recoveredTripId, setRecoveredTripId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const recoverSession = async () => {
+      try {
+        const status = await BackgroundLocation.isTracking();
+
+        if (status.active && status.tripId) {
+          // Active session - service is still running
+          console.log('Active session found:', status.tripId);
+          setRecoveredTripId(status.tripId);
+        } else if (status.tripId && !status.active) {
+          // Trip exists but service stopped (app was killed)
+          console.log('Orphaned trip found:', status.tripId);
+
+          // Option A: Resume tracking
+          await BackgroundLocation.startTracking(status.tripId);
+          setRecoveredTripId(status.tripId);
+
+          // Option B: Just recover data without resuming
+          // const locations = await BackgroundLocation.getLocations(status.tripId);
+          // await uploadLocations(status.tripId, locations);
+          // await BackgroundLocation.clearTrip(status.tripId);
+        }
+      } catch (error) {
+        console.error('Session recovery failed:', error);
+      }
+    };
+
+    recoverSession();
+  }, []);
+
+  // Pass recoveredTripId to your tracking components
+}
+```
+
+## Step 8: Google Play Compliance (Required)
+
+Before publishing to Google Play, you **must** complete these steps:
+
+### 8.1 In-App Disclosure
+
+Show a prominent disclosure **before** requesting permissions:
+
+```typescript
+async function showLocationDisclosure(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Location Tracking',
+      'This app collects location data to track your trips even when the app is ' +
+      'closed or not in use.\n\n' +
+      'Your location data is used to:\n' +
+      '• Record your travel routes\n' +
+      '• Calculate trip statistics\n' +
+      '• [Add your specific use cases]\n\n' +
+      'You can stop tracking at any time from the app.',
+      [
+        { text: 'Deny', onPress: () => resolve(false), style: 'cancel' },
+        { text: 'Accept', onPress: () => resolve(true) },
+      ]
+    );
+  });
+}
+
+// Use BEFORE requesting permissions
+const handleStartTracking = async () => {
+  const accepted = await showLocationDisclosure();
+  if (!accepted) return;
+
+  const hasPermission = await requestLocationPermissions();
+  if (!hasPermission) return;
+
+  await BackgroundLocation.startTracking();
+};
+```
+
+### 8.2 Privacy Policy
+
+Your privacy policy **must** mention:
+- That you collect location data
+- Whether it's collected in the background
+- How the data is used
+- Retention period
+- How users can request deletion
+
+### 8.3 Play Console Declarations
+
+1. **Data Safety Form**: App content → Data safety → Declare location collection
+2. **Permissions Declaration**: App content → Sensitive app permissions → Background location
+
+See [Google Play Compliance Guide](../production/GOOGLE_PLAY_COMPLIANCE.md) for complete details.
+
 ## Production Checklist
 
-- [ ] Permissions requested correctly
-- [ ] Error handling implemented
-- [ ] Battery usage disclosed to users
-- [ ] Tracking stopped when not needed
+### Permissions & Compliance
+- [ ] Android 11+ two-step permission flow implemented
+- [ ] In-app disclosure shown before permission request
+- [ ] Permission denial handled gracefully
+- [ ] Settings redirect for blocked permissions
+- [ ] Privacy policy updated with location disclosure
+- [ ] Play Console data safety form completed
+- [ ] Play Console permissions declaration submitted
+
+### Functionality
+- [ ] Crash recovery implemented (`isTracking()` on startup)
+- [ ] Error handling for all tracking operations
 - [ ] Location data uploaded to server
-- [ ] Old data cleared after upload
-- [ ] App handles being closed/reopened
-- [ ] Tested on multiple Android versions
+- [ ] Old data cleared after upload (`clearTrip()`)
+- [ ] Tracking stops when no longer needed
+
+### User Experience
+- [ ] Battery usage disclosed to users
+- [ ] Foreground notification is clear and helpful
+- [ ] Loading states shown during operations
+- [ ] Errors displayed to users with recovery options
+
+### Testing
+- [ ] Tested on real device (not emulator)
+- [ ] Tested on Android 10, 11, 12, 13, 14, 15
 - [ ] Tested with battery optimization enabled
-- [ ] Privacy policy updated
+- [ ] Tested app restart during tracking
+- [ ] Tested app kill (swipe from recents)
+- [ ] Tested device reboot during tracking
+- [ ] Tested poor GPS conditions (indoors)
+
+### Performance
+- [ ] Long trip memory management implemented
+- [ ] Coordinate parsing for map libraries
+- [ ] Optional properties handled correctly
+
+## Troubleshooting
+
+### Background location not working on Android 11+
+1. Verify you're requesting permissions in two steps
+2. Check that background permission is granted (not just foreground)
+3. Verify foreground service notification is visible
+
+### Tracking stops on certain devices
+1. Check battery optimization settings
+2. See [Battery Optimization Guide](../production/BATTERY_OPTIMIZATION.md)
+3. Prompt users to whitelist your app
+
+### Location updates are infrequent
+1. Verify `updateInterval` setting
+2. Check if in low-power mode
+3. Ensure GPS has clear sky view
 
 ## Support
 
 For issues or questions:
 - [GitHub Issues](https://github.com/gabriel-sisjr/react-native-background-location/issues)
-- [Documentation](README.md)
-- [API Reference](README.md#api-reference)
+- [Full Documentation](../../README.md)
+- [API Reference](../../README.md#api-reference)
+- [Hooks Guide](./hooks.md)
 

@@ -104,9 +104,23 @@ useLocationUpdates({
 | `isTracking` | `boolean` | Whether tracking is active |
 | `locations` | `Coords[]` | Array with all received locations |
 | `lastLocation` | `Coords \| null` | Last location received |
+| `lastWarning` | `LocationWarningEvent \| null` | Last warning event (Android 14+/15+) |
 | `isLoading` | `boolean` | Whether data is being loaded |
 | `error` | `Error \| null` | Last error that occurred |
 | `clearError` | `() => void` | Function to clear the error state |
+| `clearLocations` | `() => Promise<void>` | Clear all locations for current trip |
+
+### `onLocationWarning` Callback
+
+Handle service warnings (important for Android 14+ and especially Android 15+):
+
+```typescript
+useLocationUpdates({
+  onLocationWarning: (warning) => {
+    console.log(`Warning [${warning.type}]: ${warning.message}`);
+  },
+});
+```
 
 ## Complete Example
 
@@ -389,6 +403,159 @@ useLocationUpdates({
 1. **Always check for undefined** before using optional properties
 2. **Format values appropriately** (convert m/s to km/h, nanoseconds to milliseconds)
 3. **Handle API-level differences** (some properties require Android API 18+ or 26+)
+
+## Handling Service Warnings
+
+Android 14+ and especially Android 15+ have stricter foreground service time limits. The hook provides warnings to help you handle these situations:
+
+### Warning Types
+
+| Type | Description | When It Occurs |
+|------|-------------|----------------|
+| `SERVICE_TIMEOUT` | Foreground service timeout reached | Android 15+: ~6 hour limit for location services |
+| `TASK_REMOVED` | App was swiped from recents | User action, tracking continues |
+| `LOCATION_UNAVAILABLE` | GPS signal lost or disabled | Poor signal, location services off |
+
+### Example: Handling All Warnings
+
+```typescript
+import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
+
+function RobustTrackingScreen() {
+  const {
+    locations,
+    lastLocation,
+    lastWarning,
+  } = useLocationUpdates({
+    onLocationWarning: (warning) => {
+      switch (warning.type) {
+        case 'SERVICE_TIMEOUT':
+          // Android 15+ foreground service timeout
+          // The service automatically restarts, but you may want to inform the user
+          console.log('Service restarting due to Android timeout policy');
+          // Optionally: Show subtle notification to user
+          break;
+
+        case 'TASK_REMOVED':
+          // User swiped app from recents
+          // Tracking continues in background, but React context is gone
+          console.log('App removed from recents - tracking continues');
+          // No action needed - tracking persists
+          break;
+
+        case 'LOCATION_UNAVAILABLE':
+          // GPS signal lost
+          Alert.alert(
+            'Location Unavailable',
+            'GPS signal is weak. Please ensure:\n' +
+            '• Location services are enabled\n' +
+            '• You have a clear view of the sky\n' +
+            '• Airplane mode is disabled',
+            [{ text: 'OK' }]
+          );
+          break;
+      }
+    },
+  });
+
+  return (
+    <View>
+      {/* Show warning banner when active */}
+      {lastWarning && lastWarning.type === 'LOCATION_UNAVAILABLE' && (
+        <View style={styles.warningBanner}>
+          <Text style={styles.warningText}>
+            ⚠️ {lastWarning.message}
+          </Text>
+        </View>
+      )}
+
+      {/* Rest of your UI */}
+    </View>
+  );
+}
+```
+
+## Memory Management
+
+The `locations` array grows unbounded. For long tracking sessions, implement cleanup strategies:
+
+### Memory Estimates
+
+| Duration | Interval | Points | Memory |
+|----------|----------|--------|--------|
+| 1 hour | 5 sec | ~720 | ~360 KB |
+| 4 hours | 5 sec | ~2,880 | ~1.4 MB |
+| 8 hours | 5 sec | ~5,760 | ~2.8 MB |
+| 24 hours | 5 sec | ~17,280 | ~8.6 MB |
+
+### Strategy: Periodic Upload and Clear
+
+```typescript
+const BATCH_SIZE = 100;
+
+function TrackingWithUpload() {
+  const { tripId, clearLocations } = useLocationUpdates({
+    onLocationUpdate: async () => {
+      if (!tripId) return;
+
+      const locations = await BackgroundLocation.getLocations(tripId);
+
+      if (locations.length >= BATCH_SIZE) {
+        try {
+          await uploadToServer(tripId, locations);
+          await clearLocations();
+          console.log('Uploaded and cleared', locations.length, 'locations');
+        } catch (error) {
+          console.error('Upload failed, will retry:', error);
+        }
+      }
+    },
+  });
+
+  return <TrackingUI />;
+}
+```
+
+### Strategy: Display Recent Only
+
+```typescript
+function LocationDisplay({ locations }: { locations: Coords[] }) {
+  // Only show last 50 locations in the UI
+  const recentLocations = locations.slice(-50);
+
+  return (
+    <FlatList
+      data={recentLocations}
+      keyExtractor={(_, i) => i.toString()}
+      renderItem={({ item }) => <LocationItem location={item} />}
+    />
+  );
+}
+```
+
+## Coordinate Format
+
+> **Important:** Coordinates are returned as **strings** for precision.
+
+Always parse for map libraries:
+
+```typescript
+// ✅ Correct
+const numericCoord = {
+  latitude: parseFloat(location.latitude),
+  longitude: parseFloat(location.longitude),
+};
+
+// ✅ Helper
+const toNumeric = (loc: Coords) => ({
+  latitude: parseFloat(loc.latitude),
+  longitude: parseFloat(loc.longitude),
+});
+
+// Usage
+<Marker coordinate={toNumeric(lastLocation)} />
+<Polyline coordinates={locations.map(toNumeric)} />
+```
 
 ## Frequently Asked Questions
 

@@ -16,7 +16,13 @@ interface LocationDao {
    */
   @Insert
   suspend fun insert(location: LocationEntity): Long
-  
+
+  /**
+   * Batch insert multiple locations for performance
+   */
+  @Insert
+  suspend fun insertAll(locations: List<LocationEntity>): List<Long>
+
   /**
    * Get all locations for a specific trip
    */

@@ -6,6 +6,7 @@ import type {
   UseLocationUpdatesResult,
   Coords,
   LocationUpdateEvent,
+  LocationWarningEvent,
 } from '../types';
 import { extractDefinedProperties } from '../utils/objectUtils';
 
@@ -65,12 +66,20 @@ const isNativeModuleAvailable = () => {
 export function useLocationUpdates(
   options: UseLocationUpdatesOptions = {}
 ): UseLocationUpdatesResult {
-  const { tripId: providedTripId, onLocationUpdate, autoLoad = true } = options;
+  const {
+    tripId: providedTripId,
+    onLocationUpdate,
+    onLocationWarning,
+    autoLoad = true,
+  } = options;
 
   const [tripId, setTripId] = useState<string | null>(providedTripId || null);
   const [isTracking, setIsTracking] = useState(false);
   const [locations, setLocations] = useState<Coords[]>([]);
   const [lastLocation, setLastLocation] = useState<Coords | null>(null);
+  const [lastWarning, setLastWarning] = useState<LocationWarningEvent | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const wasClearedRef = useRef(false);
@@ -253,6 +262,33 @@ export function useLocationUpdates(
   }, [tripId, onLocationUpdate]);
 
   /**
+   * Listen for location warning events (SERVICE_TIMEOUT, TASK_REMOVED, etc.)
+   */
+  useEffect(() => {
+    if (!isNativeModuleAvailable()) {
+      return;
+    }
+
+    const eventEmitter = new NativeEventEmitter();
+
+    const warningSubscription = eventEmitter.addListener(
+      'onLocationWarning',
+      (event: any) => {
+        const warningEvent = event as LocationWarningEvent;
+        // Only process warnings for the trip we're watching (or all if no specific trip)
+        if (!tripId || warningEvent.tripId === tripId) {
+          setLastWarning(warningEvent);
+          onLocationWarning?.(warningEvent);
+        }
+      }
+    );
+
+    return () => {
+      warningSubscription.remove();
+    };
+  }, [tripId, onLocationWarning]);
+
+  /**
    * Reset state when trip changes
    */
   useEffect(() => {
@@ -271,6 +307,7 @@ export function useLocationUpdates(
     isTracking,
     locations,
     lastLocation,
+    lastWarning,
     isLoading,
     error,
     clearError,

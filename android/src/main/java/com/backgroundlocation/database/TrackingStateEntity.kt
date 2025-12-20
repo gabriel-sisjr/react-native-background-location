@@ -24,6 +24,7 @@ data class TrackingStateEntity(
   val notificationTitle: String? = null,
   val notificationText: String? = null,
   val notificationChannelName: String? = null,
-  val notificationPriority: String? = null
+  val notificationPriority: String? = null,
+  val foregroundOnly: Boolean? = null
 )
 
