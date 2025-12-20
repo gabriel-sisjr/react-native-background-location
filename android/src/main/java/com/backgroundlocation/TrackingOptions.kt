@@ -12,7 +12,8 @@ data class TrackingOptions(
   val notificationTitle: String? = null,
   val notificationText: String? = null,
   val notificationChannelName: String? = null,
-  val notificationPriority: String? = null
+  val notificationPriority: String? = null,
+  val foregroundOnly: Boolean? = null
 ) {
   companion object {
     // Default values
@@ -24,6 +25,7 @@ data class TrackingOptions(
     const val DEFAULT_NOTIFICATION_TEXT = "Tracking your location in background"
     const val DEFAULT_NOTIFICATION_CHANNEL_NAME = "Background Location"
     const val DEFAULT_NOTIFICATION_PRIORITY = "LOW"
+    const val DEFAULT_FOREGROUND_ONLY = false
   }
 
   /**
@@ -70,5 +72,10 @@ data class TrackingOptions(
    * Gets the notification priority with default fallback
    */
   fun getNotificationPriorityOrDefault(): String = notificationPriority ?: DEFAULT_NOTIFICATION_PRIORITY
+
+  /**
+   * Gets foregroundOnly with default fallback
+   */
+  fun getForegroundOnlyOrDefault(): Boolean = foregroundOnly ?: DEFAULT_FOREGROUND_ONLY
 }
 

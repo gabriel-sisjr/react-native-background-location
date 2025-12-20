@@ -169,7 +169,7 @@ function TrackingScreen() {
 ### Options
 
 ```typescript
-interface UseLocationTrackingOptions {
+interface UseBackgroundLocationOptions {
   // Auto-start tracking when component mounts
   autoStart?: boolean;
 
@@ -177,8 +177,8 @@ interface UseLocationTrackingOptions {
   // ⚠️ Only provide this when resuming an interrupted session
   tripId?: string;
 
-  // Tracking configuration options
-  trackingOptions?: TrackingOptions;
+  // Tracking configuration options (intervals, accuracy, notification, etc.)
+  options?: TrackingOptions;
 
   // Callback when tracking starts
   onTrackingStart?: (tripId: string) => void;
@@ -190,6 +190,8 @@ interface UseLocationTrackingOptions {
   onError?: (error: Error) => void;
 }
 ```
+
+> **Note:** The options parameter is named `options` (not `trackingOptions`) to match the implementation.
 
 ### Return Values
 
@@ -404,6 +406,7 @@ function LiveMapScreen() {
   const {
     locations,
     lastLocation,
+    lastWarning,
     isTracking,
     tripId,
     isLoading,
@@ -414,12 +417,20 @@ function LiveMapScreen() {
     onLocationUpdate: (location) => {
       console.log('New location:', location);
     },
+    onLocationWarning: (warning) => {
+      console.log('Warning:', warning.type, warning.message);
+    },
   });
 
   return (
     <View>
       <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
       <Text>Locations: {locations.length}</Text>
+      {lastWarning && (
+        <Text style={{ color: 'orange' }}>
+          Warning: {lastWarning.message}
+        </Text>
+      )}
       {lastLocation && (
         <>
           <Text>
@@ -449,6 +460,9 @@ interface UseLocationUpdatesOptions {
   // Callback when a new location is received
   onLocationUpdate?: (location: Coords) => void;
 
+  // Callback when a service warning is emitted (Android 14+/15+)
+  onLocationWarning?: (warning: LocationWarningEvent) => void;
+
   // Whether to automatically load existing locations on mount
   autoLoad?: boolean;  // Default: true
 }
@@ -470,6 +484,9 @@ interface UseLocationUpdatesResult {
   // The most recent location received
   lastLocation: Coords | null;
 
+  // The most recent warning event (SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE)
+  lastWarning: LocationWarningEvent | null;
+
   // Whether data is being loaded
   isLoading: boolean;
 
@@ -483,6 +500,61 @@ interface UseLocationUpdatesResult {
   clearLocations: () => Promise<void>;
 }
 ```
+
+### Handling Service Warnings
+
+On Android 14+ and especially Android 15+, foreground services have stricter time limits. The hook provides warnings for these events:
+
+```typescript
+import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
+
+function TrackingWithWarnings() {
+  const { lastWarning } = useLocationUpdates({
+    onLocationWarning: (warning) => {
+      switch (warning.type) {
+        case 'SERVICE_TIMEOUT':
+          // Android 15+: foreground service hit time limit
+          // The service will automatically restart
+          console.log('Service restarting due to Android timeout');
+          break;
+
+        case 'TASK_REMOVED':
+          // User swiped app from recents
+          // Tracking continues but app context is gone
+          console.log('App removed from recents, tracking continues');
+          break;
+
+        case 'LOCATION_UNAVAILABLE':
+          // GPS signal lost or location services disabled
+          Alert.alert(
+            'Location Unavailable',
+            'Please ensure GPS is enabled and you have a clear view of the sky.'
+          );
+          break;
+      }
+    },
+  });
+
+  return (
+    <View>
+      {lastWarning && (
+        <View style={styles.warningBanner}>
+          <Text>{lastWarning.message}</Text>
+          <Text>{new Date(lastWarning.timestamp).toLocaleString()}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+```
+
+### Warning Types
+
+| Type | Description | Action |
+|------|-------------|--------|
+| `SERVICE_TIMEOUT` | Android 15+ foreground service timeout reached | Service auto-restarts, no action needed |
+| `TASK_REMOVED` | App swiped from recents | Tracking continues, inform user if needed |
+| `LOCATION_UNAVAILABLE` | GPS signal lost or disabled | Prompt user to check settings |
 
 ### Key Differences from useBackgroundLocation
 
@@ -829,23 +901,107 @@ if (location.elapsedRealtimeNanos !== undefined) {
 }
 ```
 
+## Coordinate Format
+
+> **Important:** Coordinates (`latitude`, `longitude`) are returned as **strings**, not numbers.
+
+Always parse coordinates when using with map libraries:
+
+```typescript
+// ✅ Correct: Parse for map libraries
+const numericCoords = {
+  latitude: parseFloat(location.latitude),
+  longitude: parseFloat(location.longitude),
+};
+
+// ✅ Helper function
+const toNumericCoords = (loc: Coords) => ({
+  latitude: parseFloat(loc.latitude),
+  longitude: parseFloat(loc.longitude),
+});
+
+// Usage with react-native-maps
+<Marker coordinate={toNumericCoords(location)} />
+<Polyline coordinates={locations.map(toNumericCoords)} />
+
+// ❌ Wrong: Strings will cause errors in map libraries
+<Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }} />
+```
+
+## Memory Management
+
+The `locations` array grows with each collected point. For long tracking sessions:
+
+### Memory Estimates
+
+| Duration | Interval | Points | Memory |
+|----------|----------|--------|--------|
+| 1 hour | 5 sec | ~720 | ~360 KB |
+| 4 hours | 5 sec | ~2,880 | ~1.4 MB |
+| 8 hours | 5 sec | ~5,760 | ~2.8 MB |
+
+### Strategies
+
+```typescript
+// Strategy 1: Upload and clear periodically
+const BATCH_SIZE = 100;
+
+useLocationUpdates({
+  onLocationUpdate: async (location) => {
+    const allLocations = await BackgroundLocation.getLocations(tripId);
+
+    if (allLocations.length >= BATCH_SIZE) {
+      await uploadToServer(tripId, allLocations);
+      await BackgroundLocation.clearTrip(tripId);
+      // Tracking continues with fresh storage
+    }
+  },
+});
+
+// Strategy 2: Display only recent locations
+function RecentLocations({ locations }: { locations: Coords[] }) {
+  const recent = locations.slice(-50); // Last 50 only
+  return <LocationList data={recent} />;
+}
+
+// Strategy 3: Use virtualized list
+import { FlashList } from '@shopify/flash-list';
+
+function AllLocations({ locations }: { locations: Coords[] }) {
+  return (
+    <FlashList
+      data={locations}
+      renderItem={({ item }) => <LocationItem location={item} />}
+      estimatedItemSize={80}
+    />
+  );
+}
+```
+
 ## TypeScript Support
 
 All hooks are fully typed. Import types and enums as needed:
 
 ```typescript
 import type {
+  // Hook result types
   UseLocationPermissionsResult,
   UseBackgroundLocationResult,
   UseLocationTrackingResult,
   UseLocationUpdatesOptions,
   UseLocationUpdatesResult,
+
+  // Data types
   PermissionState,
   TrackingOptions,
   Coords,
+  LocationUpdateEvent,
+  LocationWarningEvent,
+  LocationWarningType,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import {
+  // Enums
   LocationPermissionStatus,
   LocationAccuracy,
   NotificationPriority,

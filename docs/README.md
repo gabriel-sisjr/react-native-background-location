@@ -6,14 +6,30 @@ Complete documentation for `@gabriel-sisjr/react-native-background-location`.
 
 Start here if you're new to the library:
 
-- **[Quick Start Guide](getting-started/QUICKSTART.md)**  
+- **[Quick Start Guide](getting-started/QUICKSTART.md)**
   Get up and running in 5 minutes with basic examples.
 
-- **[Integration Guide](getting-started/INTEGRATION_GUIDE.md)**  
+- **[Integration Guide](getting-started/INTEGRATION_GUIDE.md)**
   Step-by-step guide to integrate into your existing React Native app.
 
-- **[React Hooks Guide](getting-started/hooks.md)**  
+- **[React Hooks Guide](getting-started/hooks.md)**
   Complete guide to using React Hooks for easier integration and better DX.
+
+- **[Real-Time Updates Guide](getting-started/REAL_TIME_UPDATES.md)**
+  Automatic location watching with `useLocationUpdates` hook.
+
+## 🚀 Production
+
+Essential guides before publishing your app:
+
+- **[Google Play Compliance](production/GOOGLE_PLAY_COMPLIANCE.md)**
+  Required steps for Play Store approval: disclosures, privacy policy, declarations.
+
+- **[Battery Optimization](production/BATTERY_OPTIMIZATION.md)**
+  Handling manufacturer-specific battery restrictions (Xiaomi, Huawei, Samsung, etc.).
+
+- **[Crash Recovery](production/CRASH_RECOVERY.md)**
+  Session persistence and recovery strategies for app restarts and crashes.
 
 ## 🛠 Development
 
@@ -71,7 +87,12 @@ docs/
 ├── getting-started/                    # New users start here
 │   ├── QUICKSTART.md                   # 5-minute setup guide
 │   ├── INTEGRATION_GUIDE.md            # Detailed integration
-│   └── hooks.md                        # React Hooks API guide
+│   ├── hooks.md                        # React Hooks API guide
+│   └── REAL_TIME_UPDATES.md            # useLocationUpdates guide
+├── production/                         # Before publishing
+│   ├── GOOGLE_PLAY_COMPLIANCE.md       # Play Store requirements
+│   ├── BATTERY_OPTIMIZATION.md         # Manufacturer-specific issues
+│   └── CRASH_RECOVERY.md               # Session persistence
 └── development/                        # For maintainers
     ├── CICD.md                         # CI/CD and automation
     ├── PUBLISHING.md                   # Release process

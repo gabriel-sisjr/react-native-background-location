@@ -14,6 +14,8 @@ export type {
   Coords,
   TrackingStatus,
   LocationUpdateEvent,
+  LocationWarningEvent,
+  LocationWarningType,
   TrackingOptions,
 } from './tracking';
 

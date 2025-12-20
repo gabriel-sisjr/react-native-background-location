@@ -2,7 +2,7 @@
  * Types and interfaces for React hooks
  */
 
-import type { Coords, TrackingOptions } from './tracking';
+import type { Coords, TrackingOptions, LocationWarningEvent } from './tracking';
 
 /**
  * Result type for useBackgroundLocation hook
@@ -114,6 +114,12 @@ export interface UseLocationUpdatesOptions {
   onLocationUpdate?: (location: Coords) => void;
 
   /**
+   * Callback when a warning is received from the location service
+   * Warnings include: SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE
+   */
+  onLocationWarning?: (warning: LocationWarningEvent) => void;
+
+  /**
    * Whether to automatically load existing locations on mount
    * @default true
    */
@@ -144,6 +150,12 @@ export interface UseLocationUpdatesResult {
    * The most recent location received
    */
   lastLocation: Coords | null;
+
+  /**
+   * The most recent warning from the location service
+   * Includes warnings like SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE
+   */
+  lastWarning: LocationWarningEvent | null;
 
   /**
    * Whether data is being loaded

@@ -87,3 +87,6 @@ nitrogen/
 
 # Jest
 coverage/
+
+# Misc
+*/.watchman-*

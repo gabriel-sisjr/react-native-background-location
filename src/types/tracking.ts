@@ -153,6 +153,40 @@ export interface LocationUpdateEvent {
 }
 
 /**
+ * Warning types emitted by the location service
+ */
+export type LocationWarningType =
+  | 'SERVICE_TIMEOUT'
+  | 'TASK_REMOVED'
+  | 'LOCATION_UNAVAILABLE';
+
+/**
+ * Warning event emitted by the location service
+ * Used for non-critical issues that don't stop tracking
+ */
+export interface LocationWarningEvent {
+  /**
+   * Trip identifier for this warning
+   */
+  tripId: string;
+  /**
+   * Type of warning
+   * - SERVICE_TIMEOUT: Android 15+ foreground service timeout reached, service is restarting
+   * - TASK_REMOVED: App was swiped from recents, tracking continues in background
+   * - LOCATION_UNAVAILABLE: GPS signal lost or location services disabled
+   */
+  type: LocationWarningType;
+  /**
+   * Human-readable description of the warning
+   */
+  message: string;
+  /**
+   * Timestamp when the warning was emitted
+   */
+  timestamp: number;
+}
+
+/**
  * Configuration options for location tracking
  */
 export interface TrackingOptions {
@@ -212,4 +246,13 @@ export interface TrackingOptions {
    * @default NotificationPriority.LOW
    */
   notificationPriority?: NotificationPriority;
+
+  /**
+   * Foreground-only mode (does not require background location permission)
+   * When enabled, tracking only works while the app is in foreground or visible.
+   * Useful for privacy-conscious users who don't want to grant background location permission.
+   * @default false
+   * @platform Android
+   */
+  foregroundOnly?: boolean;
 }

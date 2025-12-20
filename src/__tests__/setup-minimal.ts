@@ -20,6 +20,7 @@ jest.mock('react-native', () => ({
       ACCESS_COARSE_LOCATION: 'android.permission.ACCESS_COARSE_LOCATION',
       ACCESS_BACKGROUND_LOCATION:
         'android.permission.ACCESS_BACKGROUND_LOCATION',
+      POST_NOTIFICATIONS: 'android.permission.POST_NOTIFICATIONS',
     },
     RESULTS: {
       GRANTED: 'granted',
@@ -59,6 +60,13 @@ jest.mock('react-native', () => ({
 // Helper function for tests to simulate events
 (global as any).simulateLocationEvent = (data: any) => {
   const callback = mockEventCallbacks.onLocationUpdate;
+  if (callback) {
+    callback(data);
+  }
+};
+
+(global as any).simulateWarningEvent = (data: any) => {
+  const callback = mockEventCallbacks.onLocationWarning;
   if (callback) {
     callback(data);
   }
