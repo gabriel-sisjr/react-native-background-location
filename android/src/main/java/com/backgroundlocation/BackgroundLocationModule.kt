@@ -49,8 +49,15 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   // LifecycleEventListener implementation
   override fun onHostResume() {
     registerBroadcastReceiver()
-    // Safe place to attempt recovery on Android 12+
-    recoverTrackingSession()
+
+    // Schedule recovery via WorkManager on Android 12+ (safer for background restrictions)
+    // On older versions, recover directly
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      RecoveryWorker.scheduleRecovery(reactApplicationContext)
+    } else {
+      // Safe to recover directly on older Android versions
+      recoverTrackingSession()
+    }
   }
 
   override fun onHostPause() {
@@ -256,6 +263,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
    */
   override fun stopTracking(promise: Promise) {
     try {
+      // Cancel any pending recovery work
+      RecoveryWorker.cancelRecovery(reactApplicationContext)
+
       // Stop the service
       val context = reactApplicationContext
       LocationService.stopService(context)

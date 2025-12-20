@@ -39,6 +39,18 @@ class LocationService : Service() {
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     android.util.Log.d("LocationService", "onStartCommand called")
+
+    // Check for restart loops
+    if (isRestartLoopDetected()) {
+      android.util.Log.e("LocationService", "Restart loop detected, stopping service")
+      storage.saveTrackingState(null, false)
+      stopSelf()
+      return START_NOT_STICKY
+    }
+
+    // Record this start
+    recordServiceStart()
+
     // Try to get tripId from intent
     var tripId = intent?.getStringExtra(EXTRA_TRIP_ID)
     
@@ -80,8 +92,9 @@ class LocationService : Service() {
     // Start location updates
     startLocationUpdates()
 
-    // Return START_STICKY so the service is restarted if killed by system
-    return START_STICKY
+    // Use START_REDELIVER_INTENT for more predictable restart behavior
+    // If killed, system will redeliver the original intent
+    return START_REDELIVER_INTENT
   }
 
   /**
@@ -441,7 +454,53 @@ class LocationService : Service() {
 
   override fun onDestroy() {
     super.onDestroy()
+
+    // Clear restart counter on clean shutdown
+    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      .edit()
+      .putInt(KEY_RESTART_COUNT, 0)
+      .apply()
+
     fusedLocationClient.removeLocationUpdates(locationCallback)
+  }
+
+  /**
+   * Detects if service is restarting too frequently (potential crash loop)
+   */
+  private fun isRestartLoopDetected(): Boolean {
+    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val restartCount = prefs.getInt(KEY_RESTART_COUNT, 0)
+    val lastRestartTime = prefs.getLong(KEY_LAST_RESTART_TIME, 0)
+    val now = System.currentTimeMillis()
+
+    // Reset counter if outside window
+    if (now - lastRestartTime > RESTART_WINDOW_MS) {
+      return false
+    }
+
+    return restartCount >= MAX_RESTARTS_PER_HOUR
+  }
+
+  /**
+   * Records this service start for restart loop detection
+   */
+  private fun recordServiceStart() {
+    val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val lastRestartTime = prefs.getLong(KEY_LAST_RESTART_TIME, 0)
+    val now = System.currentTimeMillis()
+
+    val newCount = if (now - lastRestartTime > RESTART_WINDOW_MS) {
+      1 // Reset counter
+    } else {
+      prefs.getInt(KEY_RESTART_COUNT, 0) + 1
+    }
+
+    prefs.edit()
+      .putInt(KEY_RESTART_COUNT, newCount)
+      .putLong(KEY_LAST_RESTART_TIME, now)
+      .apply()
+
+    android.util.Log.d("LocationService", "Service start recorded: count=$newCount")
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -451,6 +510,13 @@ class LocationService : Service() {
     const val EXTRA_TRACKING_OPTIONS = "tracking_options"
     private const val NOTIFICATION_ID = 1
     private const val CHANNEL_ID = "background_location_channel"
+
+    // Restart loop detection constants
+    private const val PREFS_NAME = "location_service_prefs"
+    private const val KEY_RESTART_COUNT = "restart_count"
+    private const val KEY_LAST_RESTART_TIME = "last_restart_time"
+    private const val MAX_RESTARTS_PER_HOUR = 5
+    private const val RESTART_WINDOW_MS = 3600000L // 1 hour
 
     /**
      * Starts the location service for a specific trip with options

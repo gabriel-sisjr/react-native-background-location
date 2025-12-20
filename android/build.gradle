@@ -90,6 +90,9 @@ dependencies {
   // LocalBroadcastManager for event broadcasting
   implementation "androidx.localbroadcastmanager:localbroadcastmanager:1.1.0"
 
+  // WorkManager for safe recovery on Android 12+
+  implementation "androidx.work:work-runtime-ktx:2.9.0"
+
   // Room
   def room = "2.6.1"
   implementation("androidx.room:room-runtime:$room")

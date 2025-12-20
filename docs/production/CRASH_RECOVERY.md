@@ -6,19 +6,56 @@ This guide explains how the library handles app crashes, restarts, and how to pr
 
 The library persists data across app restarts using:
 
-1. **SharedPreferences**: Stores tracking state (active/inactive, current tripId)
-2. **Room Database**: Stores all collected location data
-3. **Foreground Service**: Continues running briefly after app crash (until system kills it)
+1. **Room Database**: Stores tracking state and all collected location data
+2. **Foreground Service**: Continues running even after app crash
+3. **WorkManager**: Safely recovers sessions on Android 12+ respecting background restrictions
+4. **Crash Loop Protection**: Prevents infinite restart loops with SharedPreferences tracking
 
 ### What Survives App Restart
 
 | Data | Persisted | Location |
 |------|-----------|----------|
-| Tracking state | Yes | SharedPreferences |
-| Current tripId | Yes | SharedPreferences |
+| Tracking state | Yes | Room Database |
+| Current tripId | Yes | Room Database |
+| TrackingOptions | Yes | Room Database (Phase 5+) |
 | Location data | Yes | Room Database |
-| TrackingOptions | No | Must be re-provided |
 | Hook state | No | React state is lost |
+
+## Android 12+ Background Recovery
+
+Starting with Android 12 (API 31), Google introduced strict background start restrictions. The library handles this automatically:
+
+### Recovery Mechanism
+
+**Android 12+ (API 31+):**
+- Uses **WorkManager** to safely recover tracking sessions
+- Respects ForegroundServiceStartNotAllowedException restrictions
+- Executes recovery work in the background with proper foreground promotion
+- Implements exponential backoff retry (max 3 attempts)
+
+**Android 11 and below:**
+- Direct service recovery in `onHostResume`
+- No WorkManager overhead for older devices
+
+### Crash Loop Protection
+
+The library prevents infinite restart loops that can drain battery:
+
+- Tracks restart attempts in SharedPreferences
+- Allows maximum 5 restarts per hour
+- Automatically stops service if loop detected
+- Resets counter on clean shutdown
+- Uses `START_REDELIVER_INTENT` for predictable restart behavior
+
+**Example scenario:**
+```
+12:00 - Service starts (count: 1)
+12:05 - App crashes, service restarts (count: 2)
+12:10 - Crash again (count: 3)
+12:15 - Crash again (count: 4)
+12:20 - Crash again (count: 5)
+12:25 - LOOP DETECTED - Service stops permanently, tracking state cleared
+```
 
 ## Scenarios
 
@@ -57,11 +94,16 @@ The library persists data across app restarts using:
 
 **What happens:**
 1. App crashes due to unhandled exception
-2. Foreground service may continue briefly
-3. System eventually kills service
-4. Data up to crash point is preserved
+2. Service uses `START_REDELIVER_INTENT` to restart automatically
+3. Crash loop protection monitors restart frequency
+4. If crashing repeatedly (5+ times/hour), service stops permanently
+5. All location data up to crash point is preserved in Room Database
+6. On next successful app start, WorkManager (Android 12+) or direct recovery restores session
 
-**Your action:** Check for orphaned trips on startup.
+**Your action:**
+- Check for orphaned trips on startup
+- Monitor crash reports to fix the underlying crash
+- Library will automatically stop service if crash loop detected
 
 ## Implementation
 
