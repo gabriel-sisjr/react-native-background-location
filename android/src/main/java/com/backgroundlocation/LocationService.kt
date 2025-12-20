@@ -15,10 +15,6 @@ import android.os.Looper
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.ReactContext
-import com.facebook.react.bridge.WritableMap
-import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.google.android.gms.location.*
 
 /**
@@ -31,15 +27,13 @@ class LocationService : Service() {
   private lateinit var locationCallback: LocationCallback
   private lateinit var storage: LocationStorage
   private var currentTripId: String? = null
-  private var reactContext: ReactContext? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
 
   override fun onCreate() {
     super.onCreate()
-    serviceInstance = this
     fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
     storage = LocationStorage(this)
-    
+
     setupLocationCallback()
   }
 
@@ -186,32 +180,16 @@ class LocationService : Service() {
   }
 
   /**
-   * Emits a warning event to React Native
+   * Emits a warning event using broadcaster
    */
   private fun emitServiceWarning(tripId: String, warningType: String, message: String) {
-    val context = reactContext ?: return
-
-    if (!context.hasActiveReactInstance()) {
-      android.util.Log.w("LocationService", "React instance not active - cannot emit warning event")
-      return
-    }
-
-    try {
-      val eventData = Arguments.createMap().apply {
-        putString("tripId", tripId)
-        putString("type", warningType)
-        putString("message", message)
-        putDouble("timestamp", System.currentTimeMillis().toDouble())
-      }
-
-      context
-        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit("onLocationWarning", eventData)
-
-      android.util.Log.d("LocationService", "Warning event emitted: $warningType")
-    } catch (e: Exception) {
-      android.util.Log.e("LocationService", "Failed to emit warning event", e)
-    }
+    LocationEventBroadcaster.broadcastWarning(
+      this,
+      tripId,
+      warningType,
+      message
+    )
+    android.util.Log.d("LocationService", "Warning event broadcast sent: $warningType")
   }
 
   @SuppressLint("MissingPermission")
@@ -325,29 +303,13 @@ class LocationService : Service() {
    * Emits error event when permissions are revoked during tracking
    */
   private fun emitPermissionRevokedError() {
-    val context = reactContext ?: return
-
-    if (!context.hasActiveReactInstance()) {
-      android.util.Log.w("LocationService", "React instance not active - cannot emit permission error")
-      return
-    }
-
-    try {
-      val eventData = Arguments.createMap().apply {
-        putString("tripId", currentTripId)
-        putString("type", "PERMISSION_REVOKED")
-        putString("message", "Location permission was revoked. Tracking stopped.")
-        putDouble("timestamp", System.currentTimeMillis().toDouble())
-      }
-
-      context
-        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit("onLocationError", eventData)
-
-      android.util.Log.d("LocationService", "Permission revoked error emitted")
-    } catch (e: Exception) {
-      android.util.Log.e("LocationService", "Failed to emit permission error", e)
-    }
+    LocationEventBroadcaster.broadcastError(
+      this,
+      currentTripId,
+      "PERMISSION_REVOKED",
+      "Location permission was revoked. Tracking stopped."
+    )
+    android.util.Log.d("LocationService", "Permission revoked error broadcast sent")
   }
 
   /**
@@ -417,88 +379,14 @@ class LocationService : Service() {
   }
   
   /**
-   * Sends a location update event to React Native with extended location data
+   * Sends a location update event using broadcaster
    */
   private fun sendLocationUpdateEvent(tripId: String, location: Location) {
-    val context = reactContext
-    if (context == null) {
-      android.util.Log.w("LocationService", "React context not available - cannot emit location update event")
-      return
-    }
-    
-    try {
-      // Check if the catalyst instance is active
-      if (!context.hasActiveReactInstance()) {
-        android.util.Log.w("LocationService", "React instance not active - skipping location update event")
-        return
-      }
-      
-      val eventData = createLocationMap(tripId, location)
-      
-      context
-        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit("onLocationUpdate", eventData)
-        
-      android.util.Log.d("LocationService", "Location update event emitted for tripId: $tripId")
-    } catch (e: Exception) {
-      // React Native context may not be available yet or JS thread might be busy
-      android.util.Log.e("LocationService", "Failed to emit location update event", e)
-    }
+    val locationBundle = LocationEventBroadcaster.locationToBundle(location)
+    LocationEventBroadcaster.broadcastLocationUpdate(this, tripId, locationBundle)
+    android.util.Log.d("LocationService", "Location broadcast sent for tripId: $tripId")
   }
   
-  /**
-   * Creates a WritableMap with all available location data
-   */
-  private fun createLocationMap(tripId: String, location: Location): WritableMap {
-    val map = Arguments.createMap().apply {
-      putString("tripId", tripId)
-      putString("latitude", location.latitude.toString())
-      putString("longitude", location.longitude.toString())
-      putDouble("timestamp", location.time.toDouble())
-      
-      // Add optional fields if available
-      if (location.hasAccuracy()) {
-        putDouble("accuracy", location.accuracy.toDouble())
-      }
-      if (location.hasAltitude()) {
-        putDouble("altitude", location.altitude)
-      }
-      if (location.hasSpeed()) {
-        putDouble("speed", location.speed.toDouble())
-      }
-      if (location.hasBearing()) {
-        putDouble("bearing", location.bearing.toDouble())
-      }
-      
-      // API 26+ fields - check if values are valid (not NaN)
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val verticalAccuracy = location.verticalAccuracyMeters
-        if (!verticalAccuracy.isNaN()) {
-          putDouble("verticalAccuracyMeters", verticalAccuracy.toDouble())
-        }
-        
-        val speedAccuracy = location.speedAccuracyMetersPerSecond
-        if (!speedAccuracy.isNaN()) {
-          putDouble("speedAccuracyMetersPerSecond", speedAccuracy.toDouble())
-        }
-        
-        val bearingAccuracy = location.bearingAccuracyDegrees
-        if (!bearingAccuracy.isNaN()) {
-          putDouble("bearingAccuracyDegrees", bearingAccuracy.toDouble())
-        }
-      }
-      
-      // Always available fields
-      putDouble("elapsedRealtimeNanos", location.elapsedRealtimeNanos.toDouble())
-      location.provider?.let { putString("provider", it) }
-      
-      // API 18+ field
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-        putBoolean("isFromMockProvider", location.isFromMockProvider)
-      }
-    }
-    return map
-  }
 
   private fun createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -554,9 +442,6 @@ class LocationService : Service() {
   override fun onDestroy() {
     super.onDestroy()
     fusedLocationClient.removeLocationUpdates(locationCallback)
-    if (serviceInstance == this) {
-      serviceInstance = null
-    }
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
@@ -566,17 +451,6 @@ class LocationService : Service() {
     const val EXTRA_TRACKING_OPTIONS = "tracking_options"
     private const val NOTIFICATION_ID = 1
     private const val CHANNEL_ID = "background_location_channel"
-
-    // Store the service instance to allow setting ReactContext
-    private var serviceInstance: LocationService? = null
-
-    /**
-     * Sets the React Context for event emission
-     */
-    fun setReactContext(context: ReactContext?) {
-      android.util.Log.d("LocationService", "Setting React context: ${context != null}")
-      serviceInstance?.reactContext = context
-    }
 
     /**
      * Starts the location service for a specific trip with options

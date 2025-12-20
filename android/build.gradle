@@ -77,10 +77,13 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  
+
   // Google Play Services for Location
   implementation "com.google.android.gms:play-services-location:21.3.0"
-  
+
+  // LocalBroadcastManager for event broadcasting
+  implementation "androidx.localbroadcastmanager:localbroadcastmanager:1.1.0"
+
   // Room
   def room = "2.6.1"
   implementation("androidx.room:room-runtime:$room")

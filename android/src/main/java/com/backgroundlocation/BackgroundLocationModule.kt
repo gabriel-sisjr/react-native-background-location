@@ -1,11 +1,17 @@
 package com.backgroundlocation
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import androidx.core.content.ContextCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.facebook.react.bridge.*
 import com.facebook.react.module.annotations.ReactModule
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import java.util.UUID
 
 /**
@@ -14,22 +20,129 @@ import java.util.UUID
  */
 @ReactModule(name = BackgroundLocationModule.NAME)
 class BackgroundLocationModule(reactContext: ReactApplicationContext) :
-  NativeBackgroundLocationSpec(reactContext) {
+  NativeBackgroundLocationSpec(reactContext), LifecycleEventListener {
 
   private val storage: LocationStorage = LocationStorage(reactContext)
+  private var broadcastReceiver: BroadcastReceiver? = null
 
   init {
-    // Set the React Context in LocationService for event emission
-    LocationService.setReactContext(reactContext)
-    
-    // Attempt to recover tracking session if app crashed/restarted
-    recoverTrackingSession()
+    reactContext.addLifecycleEventListener(this)
   }
-  
+
   override fun initialize() {
     super.initialize()
-    // Re-set the React Context when module is initialized
-    LocationService.setReactContext(reactApplicationContext)
+    registerBroadcastReceiver()
+  }
+
+  override fun invalidate() {
+    super.invalidate()
+    unregisterBroadcastReceiver()
+    reactApplicationContext.removeLifecycleEventListener(this)
+  }
+
+  // LifecycleEventListener implementation
+  override fun onHostResume() {
+    registerBroadcastReceiver()
+    // Safe place to attempt recovery on Android 12+
+    recoverTrackingSession()
+  }
+
+  override fun onHostPause() {
+    // Keep receiver registered to not miss events
+  }
+
+  override fun onHostDestroy() {
+    unregisterBroadcastReceiver()
+  }
+
+  private fun registerBroadcastReceiver() {
+    if (broadcastReceiver != null) return
+
+    broadcastReceiver = object : BroadcastReceiver() {
+      override fun onReceive(context: Context?, intent: Intent?) {
+        intent ?: return
+
+        when (intent.action) {
+          LocationEventBroadcaster.ACTION_LOCATION_UPDATE -> {
+            handleLocationUpdate(intent)
+          }
+          LocationEventBroadcaster.ACTION_LOCATION_ERROR -> {
+            handleLocationError(intent)
+          }
+          LocationEventBroadcaster.ACTION_LOCATION_WARNING -> {
+            handleLocationWarning(intent)
+          }
+        }
+      }
+    }
+
+    LocalBroadcastManager.getInstance(reactApplicationContext)
+      .registerReceiver(broadcastReceiver!!, LocationEventBroadcaster.createIntentFilter())
+  }
+
+  private fun unregisterBroadcastReceiver() {
+    broadcastReceiver?.let {
+      LocalBroadcastManager.getInstance(reactApplicationContext).unregisterReceiver(it)
+      broadcastReceiver = null
+    }
+  }
+
+  private fun handleLocationUpdate(intent: Intent) {
+    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID) ?: return
+    val locationBundle = intent.getBundleExtra(LocationEventBroadcaster.EXTRA_LOCATION_DATA) ?: return
+
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val eventData = LocationEventBroadcaster.bundleToWritableMap(tripId, locationBundle)
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onLocationUpdate", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit location update", e)
+    }
+  }
+
+  private fun handleLocationError(intent: Intent) {
+    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID)
+    val errorType = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_TYPE) ?: return
+    val message = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_MESSAGE) ?: return
+
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val eventData = Arguments.createMap().apply {
+        tripId?.let { putString("tripId", it) }
+        putString("type", errorType)
+        putString("message", message)
+      }
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onLocationError", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit location error", e)
+    }
+  }
+
+  private fun handleLocationWarning(intent: Intent) {
+    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID)
+    val warningType = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_TYPE) ?: return
+    val message = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_MESSAGE) ?: return
+
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val eventData = Arguments.createMap().apply {
+        tripId?.let { putString("tripId", it) }
+        putString("type", warningType)
+        putString("message", message)
+      }
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onLocationWarning", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit location warning", e)
+    }
   }
 
   override fun getName(): String = NAME
@@ -83,9 +196,6 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       // Save tracking state with options for recovery
       storage.saveTrackingState(effectiveTripId, true, trackingOptions)
 
-      // Ensure React Context is set before starting service
-      LocationService.setReactContext(reactApplicationContext)
-      
       // Start the foreground service with options
       val context = reactApplicationContext
       LocationService.startService(context, effectiveTripId, trackingOptions)
@@ -205,10 +315,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
           storage.saveTrackingState(null, false)
           return
         }
-        
-        // Ensure React Context is set before restarting service
-        LocationService.setReactContext(reactApplicationContext)
-        
+
         // Restart the service with saved options
         val options = trackingState.options ?: TrackingOptions()
         val context = reactApplicationContext
