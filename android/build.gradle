@@ -36,6 +36,12 @@ android {
   defaultConfig {
     minSdkVersion getExtOrIntegerDefault("minSdkVersion")
     targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
+
+    // Export Room schemas for migration testing and validation
+    ksp {
+      arg("room.schemaLocation", "$projectDir/schemas")
+      arg("room.incremental", "true")
+    }
   }
 
   buildFeatures {
