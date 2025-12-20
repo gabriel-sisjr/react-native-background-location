@@ -1080,4 +1080,147 @@ describe('useLocationUpdates', () => {
       expect(result.current.locations[0]?.latitude).toBe('37.7770');
     });
   });
+
+  describe('onLocationWarning handler', () => {
+    it('should handle location warning events with tripId', async () => {
+      const onLocationWarning = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, onLocationWarning })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const warningEvent = {
+        tripId: mockTripId,
+        type: 'SERVICE_TIMEOUT',
+        message: 'Service timeout warning',
+        timestamp: Date.now(),
+      };
+
+      act(() => {
+        (global as any).simulateWarningEvent(warningEvent);
+      });
+
+      await waitFor(() => {
+        expect(result.current.lastWarning).toEqual(warningEvent);
+        expect(onLocationWarning).toHaveBeenCalledWith(warningEvent);
+      });
+    });
+
+    it('should handle location warning events without specific tripId', async () => {
+      const onLocationWarning = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ onLocationWarning })
+      );
+
+      const warningEvent = {
+        tripId: 'some-trip',
+        type: 'TASK_REMOVED',
+        message: 'Task removed warning',
+        timestamp: Date.now(),
+      };
+
+      act(() => {
+        (global as any).simulateWarningEvent(warningEvent);
+      });
+
+      await waitFor(() => {
+        expect(result.current.lastWarning).toEqual(warningEvent);
+        expect(onLocationWarning).toHaveBeenCalledWith(warningEvent);
+      });
+    });
+
+    it('should filter warning events by tripId when provided', async () => {
+      const onLocationWarning = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, onLocationWarning })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const wrongTripWarning = {
+        tripId: 'different-trip',
+        type: 'SERVICE_TIMEOUT',
+        message: 'Different trip warning',
+        timestamp: Date.now(),
+      };
+
+      act(() => {
+        (global as any).simulateWarningEvent(wrongTripWarning);
+      });
+
+      // Wait a bit to ensure no state update
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(result.current.lastWarning).toBeNull();
+      expect(onLocationWarning).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('checkStatus error handling', () => {
+    it('should handle errors in checkStatus gracefully', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      (BackgroundLocationModule.isTracking as jest.Mock).mockRejectedValue(
+        new Error('Check status failed')
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error checking tracking status:',
+        expect.any(Error)
+      );
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('wasClearedRef timeout', () => {
+    it('should reset wasClearedRef after timeout when not tracking', async () => {
+      jest.useFakeTimers();
+
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: false,
+        tripId: null,
+      });
+      (BackgroundLocationModule.clearTrip as jest.Mock).mockResolvedValue(
+        undefined
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Clear locations
+      await act(async () => {
+        await result.current.clearLocations();
+      });
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Fast-forward the 2-second timeout
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+
+      jest.useRealTimers();
+    });
+  });
 });

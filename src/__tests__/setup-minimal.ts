@@ -64,6 +64,13 @@ jest.mock('react-native', () => ({
   }
 };
 
+(global as any).simulateWarningEvent = (data: any) => {
+  const callback = mockEventCallbacks.onLocationWarning;
+  if (callback) {
+    callback(data);
+  }
+};
+
 // Store module availability state globally
 (global as any).__mockIsModuleAvailable = true;
 
