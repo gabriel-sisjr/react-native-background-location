@@ -20,6 +20,7 @@ jest.mock('react-native', () => ({
       ACCESS_COARSE_LOCATION: 'android.permission.ACCESS_COARSE_LOCATION',
       ACCESS_BACKGROUND_LOCATION:
         'android.permission.ACCESS_BACKGROUND_LOCATION',
+      POST_NOTIFICATIONS: 'android.permission.POST_NOTIFICATIONS',
     },
     RESULTS: {
       GRANTED: 'granted',
