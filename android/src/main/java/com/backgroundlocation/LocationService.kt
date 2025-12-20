@@ -16,6 +16,11 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
+import com.backgroundlocation.provider.LocationProvider
+import com.backgroundlocation.provider.LocationProviderFactory
+import com.backgroundlocation.provider.LocationUpdateCallback
+import com.backgroundlocation.processor.LocationProcessor
+import com.backgroundlocation.processor.DefaultLocationProcessor
 
 /**
  * Foreground service that handles background location tracking
@@ -23,18 +28,19 @@ import com.google.android.gms.location.*
  */
 class LocationService : Service() {
 
-  private lateinit var fusedLocationClient: FusedLocationProviderClient
-  private lateinit var locationCallback: LocationCallback
+  private lateinit var locationProvider: LocationProvider
+  private var locationProcessor: LocationProcessor = DefaultLocationProcessor()
   private lateinit var storage: LocationStorage
   private var currentTripId: String? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
 
   override fun onCreate() {
     super.onCreate()
-    fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
     storage = LocationStorage(this)
 
-    setupLocationCallback()
+    // Use factory to get best available provider
+    locationProvider = LocationProviderFactory.create(this)
+    android.util.Log.d("LocationService", "Location provider initialized")
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -159,7 +165,7 @@ class LocationService : Service() {
       val savedOptions = trackingOptions
 
       // Stop location updates before restart
-      fusedLocationClient.removeLocationUpdates(locationCallback)
+      locationProvider.removeLocationUpdates()
 
       // Schedule restart via Handler to avoid blocking the timeout callback
       Handler(Looper.getMainLooper()).postDelayed({
@@ -209,14 +215,12 @@ class LocationService : Service() {
   private fun checkLastKnownLocation() {
     try {
       android.util.Log.d("LocationService", "Checking last known location...")
-      fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+      locationProvider.getLastLocation { location ->
         if (location != null) {
           android.util.Log.d("LocationService", "Last known location: lat=${location.latitude}, lng=${location.longitude}")
         } else {
           android.util.Log.w("LocationService", "Last known location is NULL - GPS may not have a fix yet")
         }
-      }.addOnFailureListener { e ->
-        android.util.Log.e("LocationService", "Failed to get last known location", e)
       }
     } catch (e: Exception) {
       android.util.Log.e("LocationService", "Exception checking last known location", e)
@@ -235,35 +239,49 @@ class LocationService : Service() {
 
     val updateInterval = trackingOptions.getUpdateIntervalOrDefault()
     val fastestInterval = trackingOptions.getFastestIntervalOrDefault()
-    val maxWaitTime = trackingOptions.getMaxWaitTimeOrDefault()
-    
+
     android.util.Log.d("LocationService", "Starting location updates with:")
     android.util.Log.d("LocationService", "  Priority: $priority")
     android.util.Log.d("LocationService", "  Update Interval: ${updateInterval}ms")
     android.util.Log.d("LocationService", "  Fastest Interval: ${fastestInterval}ms")
-    android.util.Log.d("LocationService", "  Max Wait Time: ${maxWaitTime}ms")
-
-    val locationRequest = LocationRequest.Builder(
-      priority,
-      updateInterval
-    ).apply {
-      setMinUpdateIntervalMillis(fastestInterval)
-      setMaxUpdateDelayMillis(maxWaitTime)
-      setWaitForAccurateLocation(trackingOptions.getWaitForAccurateLocationOrDefault())
-    }.build()
 
     try {
       android.util.Log.d("LocationService", "Requesting location updates...")
-      fusedLocationClient.requestLocationUpdates(
-        locationRequest,
-        locationCallback,
-        Looper.getMainLooper()
-      ).addOnSuccessListener {
-        android.util.Log.d("LocationService", "Location updates request SUCCESS")
-      }.addOnFailureListener { e ->
-        android.util.Log.e("LocationService", "Location updates request FAILED", e)
-        stopSelf()
-      }
+      locationProvider.requestLocationUpdates(
+        updateInterval,
+        fastestInterval,
+        priority,
+        object : LocationUpdateCallback {
+          override fun onLocationUpdate(location: Location) {
+            handleSingleLocation(location)
+          }
+
+          override fun onLocationBatch(locations: List<Location>) {
+            android.util.Log.d("LocationService", "Received batch of ${locations.size} locations")
+            locationProcessor.onLocationBatch(locations)
+            locations.forEach { handleSingleLocation(it) }
+          }
+
+          override fun onLocationAvailabilityChanged(available: Boolean) {
+            if (!available) {
+              android.util.Log.w("LocationService", "Location not available")
+              emitLocationUnavailableWarning()
+            }
+          }
+
+          override fun onError(error: Exception) {
+            android.util.Log.e("LocationService", "Location provider error", error)
+            LocationEventBroadcaster.broadcastError(
+              this@LocationService,
+              currentTripId,
+              "PROVIDER_ERROR",
+              error.message ?: "Unknown location provider error"
+            )
+            stopSelf()
+          }
+        }
+      )
+      android.util.Log.d("LocationService", "Location updates request submitted")
     } catch (e: SecurityException) {
       android.util.Log.e("LocationService", "SecurityException when requesting location updates", e)
       e.printStackTrace()
@@ -274,30 +292,29 @@ class LocationService : Service() {
     }
   }
 
-  private fun setupLocationCallback() {
-    locationCallback = object : LocationCallback() {
-      override fun onLocationResult(locationResult: LocationResult) {
-        // Validate permissions are still granted before processing locations
-        if (!validatePermissions()) {
-          android.util.Log.e("LocationService", "Location permissions revoked during tracking")
-          emitPermissionRevokedError()
-          stopSelf()
-          return
-        }
-
-        android.util.Log.d("LocationService", "Received ${locationResult.locations.size} location(s)")
-        locationResult.locations.forEach { location ->
-          handleLocation(location)
-        }
-      }
-
-      override fun onLocationAvailability(availability: LocationAvailability) {
-        if (!availability.isLocationAvailable) {
-          android.util.Log.w("LocationService", "Location not available")
-          emitLocationUnavailableWarning()
-        }
-      }
+  /**
+   * Handles a single location update with processor filtering
+   */
+  private fun handleSingleLocation(location: Location) {
+    // Validate permissions are still granted before processing locations
+    if (!validatePermissions()) {
+      android.util.Log.e("LocationService", "Location permissions revoked during tracking")
+      emitPermissionRevokedError()
+      stopSelf()
+      return
     }
+
+    // Apply processor filtering
+    if (!locationProcessor.shouldStore(location)) {
+      android.util.Log.d("LocationService", "Location filtered by processor")
+      return
+    }
+
+    // Apply processor transformation
+    val processedLocation = locationProcessor.process(location)
+
+    // Handle the processed location
+    handleLocation(processedLocation)
   }
 
   /**
@@ -461,7 +478,9 @@ class LocationService : Service() {
       .putInt(KEY_RESTART_COUNT, 0)
       .apply()
 
-    fusedLocationClient.removeLocationUpdates(locationCallback)
+    // Cleanup location provider
+    locationProvider.cleanup()
+    android.util.Log.d("LocationService", "Location provider cleaned up")
   }
 
   /**
