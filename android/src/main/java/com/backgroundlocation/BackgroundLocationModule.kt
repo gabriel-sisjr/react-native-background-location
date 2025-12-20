@@ -12,6 +12,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.facebook.react.bridge.*
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import kotlinx.coroutines.*
 import java.util.UUID
 
 /**
@@ -25,6 +26,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   private val storage: LocationStorage = LocationStorage(reactContext)
   private var broadcastReceiver: BroadcastReceiver? = null
 
+  // Coroutine scope for async operations
+  private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
   init {
     reactContext.addLifecycleEventListener(this)
   }
@@ -37,6 +41,8 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   override fun invalidate() {
     super.invalidate()
     unregisterBroadcastReceiver()
+    storage.cleanup()
+    moduleScope.cancel()
     reactApplicationContext.removeLifecycleEventListener(this)
   }
 
@@ -178,31 +184,47 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
         return
       }
 
-      // Check if already tracking
-      val trackingState = storage.getTrackingState()
-      if (trackingState.isActive && trackingState.tripId != null) {
-        // Already tracking - return current tripId (idempotent)
-        promise.resolve(trackingState.tripId)
-        return
+      // Check if already tracking (async)
+      moduleScope.launch {
+        try {
+          val trackingState = storage.getTrackingStateAsync()
+          if (trackingState.isActive && trackingState.tripId != null) {
+            // Already tracking - return current tripId (idempotent)
+            promise.resolve(trackingState.tripId)
+            return@launch
+          }
+
+          // Continue with tracking start logic
+          startTrackingInternal(tripId, trackingOptions, promise)
+        } catch (e: Exception) {
+          promise.reject("START_TRACKING_ERROR", "Failed to start tracking: ${e.message}", e)
+        }
       }
-
-      // Generate tripId if not provided
-      val effectiveTripId = if (tripId.isNullOrBlank()) {
-        UUID.randomUUID().toString()
-      } else {
-        tripId
-      }
-
-      // Save tracking state with options for recovery
-      storage.saveTrackingState(effectiveTripId, true, trackingOptions)
-
-      // Start the foreground service with options
-      val context = reactApplicationContext
-      LocationService.startService(context, effectiveTripId, trackingOptions)
-
-      promise.resolve(effectiveTripId)
     } catch (e: Exception) {
       promise.reject("START_TRACKING_ERROR", "Failed to start tracking: ${e.message}", e)
+    }
+  }
+
+  private suspend fun startTrackingInternal(
+    tripId: String?,
+    trackingOptions: TrackingOptions,
+    promise: Promise
+  ) {
+    // Generate tripId if not provided
+    val effectiveTripId = if (tripId.isNullOrBlank()) {
+      UUID.randomUUID().toString()
+    } else {
+      tripId
+    }
+
+    // Save tracking state with options for recovery
+    storage.saveTrackingState(effectiveTripId, true, trackingOptions)
+
+    // Start the foreground service with options
+    withContext(Dispatchers.Main) {
+      val context = reactApplicationContext
+      LocationService.startService(context, effectiveTripId, trackingOptions)
+      promise.resolve(effectiveTripId)
     }
   }
 
@@ -251,17 +273,19 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
    * Returns the current tracking state
    */
   override fun isTracking(promise: Promise) {
-    try {
-      val trackingState = storage.getTrackingState()
-      val result = Arguments.createMap().apply {
-        putBoolean("active", trackingState.isActive)
-        if (trackingState.tripId != null) {
-          putString("tripId", trackingState.tripId)
+    moduleScope.launch {
+      try {
+        val trackingState = storage.getTrackingStateAsync()
+        val result = Arguments.createMap().apply {
+          putBoolean("active", trackingState.isActive)
+          if (trackingState.tripId != null) {
+            putString("tripId", trackingState.tripId)
+          }
         }
+        promise.resolve(result)
+      } catch (e: Exception) {
+        promise.reject("IS_TRACKING_ERROR", "Failed to get tracking state: ${e.message}", e)
       }
-      promise.resolve(result)
-    } catch (e: Exception) {
-      promise.reject("IS_TRACKING_ERROR", "Failed to get tracking state: ${e.message}", e)
     }
   }
 
@@ -269,16 +293,19 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
    * Retrieves all stored locations for a specific trip
    */
   override fun getLocations(tripId: String, promise: Promise) {
-    try {
-      if (tripId.isBlank()) {
-        promise.reject("INVALID_TRIP_ID", "Trip ID cannot be empty")
-        return
-      }
+    if (tripId.isBlank()) {
+      promise.reject("INVALID_TRIP_ID", "Trip ID cannot be empty")
+      return
+    }
 
-      val locations = storage.getLocations(tripId)
-      promise.resolve(locations)
-    } catch (e: Exception) {
-      promise.reject("GET_LOCATIONS_ERROR", "Failed to get locations: ${e.message}", e)
+    moduleScope.launch {
+      try {
+        val entities = storage.getLocationsAsync(tripId)
+        val locations = storage.entitiesToWritableArray(entities)
+        promise.resolve(locations)
+      } catch (e: Exception) {
+        promise.reject("GET_LOCATIONS_ERROR", "Failed to get locations: ${e.message}", e)
+      }
     }
   }
 
@@ -304,32 +331,36 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
    * Restarts the LocationService if tracking was active
    */
   private fun recoverTrackingSession() {
-    try {
-      val trackingState = storage.getTrackingState()
-      
-      // If tracking was active and we have both tripId and options
-      if (trackingState.isActive && trackingState.tripId != null) {
-        // Check if we still have location permissions
-        if (!hasLocationPermissions()) {
-          // Clear tracking state if permissions were revoked
-          storage.saveTrackingState(null, false)
-          return
-        }
-
-        // Restart the service with saved options
-        val options = trackingState.options ?: TrackingOptions()
-        val context = reactApplicationContext
-        LocationService.startService(context, trackingState.tripId, options)
-      }
-    } catch (e: Exception) {
-      // Log error but don't crash - recovery is best-effort
-      e.printStackTrace()
-      
-      // Clear tracking state if recovery fails
+    moduleScope.launch {
       try {
-        storage.saveTrackingState(null, false)
-      } catch (clearError: Exception) {
-        clearError.printStackTrace()
+        val trackingState = storage.getTrackingStateAsync()
+
+        // If tracking was active and we have both tripId and options
+        if (trackingState.isActive && trackingState.tripId != null) {
+          // Check if we still have location permissions
+          if (!hasLocationPermissions()) {
+            // Clear tracking state if permissions were revoked
+            storage.saveTrackingState(null, false)
+            return@launch
+          }
+
+          // Restart the service with saved options
+          val options = trackingState.options ?: TrackingOptions()
+          withContext(Dispatchers.Main) {
+            val context = reactApplicationContext
+            LocationService.startService(context, trackingState.tripId, options)
+          }
+        }
+      } catch (e: Exception) {
+        // Log error but don't crash - recovery is best-effort
+        e.printStackTrace()
+
+        // Clear tracking state if recovery fails
+        try {
+          storage.saveTrackingState(null, false)
+        } catch (clearError: Exception) {
+          clearError.printStackTrace()
+        }
       }
     }
   }
