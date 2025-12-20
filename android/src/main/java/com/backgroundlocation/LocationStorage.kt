@@ -143,7 +143,8 @@ class LocationStorage(context: Context) {
           notificationTitle = options?.notificationTitle,
           notificationText = options?.notificationText,
           notificationChannelName = options?.notificationChannelName,
-          notificationPriority = options?.notificationPriority
+          notificationPriority = options?.notificationPriority,
+          foregroundOnly = options?.foregroundOnly
         )
         trackingStateDao.upsert(entity)
       } catch (e: Exception) {
@@ -174,7 +175,8 @@ class LocationStorage(context: Context) {
               notificationTitle = entity.notificationTitle,
               notificationText = entity.notificationText,
               notificationChannelName = entity.notificationChannelName,
-              notificationPriority = entity.notificationPriority
+              notificationPriority = entity.notificationPriority,
+              foregroundOnly = entity.foregroundOnly
             )
           } else null
           

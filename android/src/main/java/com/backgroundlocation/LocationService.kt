@@ -1,14 +1,20 @@
 package com.backgroundlocation
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
@@ -72,7 +78,7 @@ class LocationService : Service() {
 
     // Start as foreground service with notification
     val notification = createNotification()
-    startForeground(NOTIFICATION_ID, notification)
+    startForegroundWithType(notification)
 
     // Check last known location to verify GPS is working
     checkLastKnownLocation()
@@ -98,8 +104,114 @@ class LocationService : Service() {
       notificationTitle = bundle.getString("notificationTitle"),
       notificationText = bundle.getString("notificationText"),
       notificationChannelName = bundle.getString("notificationChannelName"),
-      notificationPriority = bundle.getString("notificationPriority")
+      notificationPriority = bundle.getString("notificationPriority"),
+      foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null
     )
+  }
+
+  /**
+   * Starts the foreground service with proper service type for Android 14+
+   * Android 14 (API 34) requires declaring foregroundServiceType at runtime
+   */
+  private fun startForegroundWithType(notification: Notification) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      // Android 14+ requires specifying the foreground service type at runtime
+      startForeground(
+        NOTIFICATION_ID,
+        notification,
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+      )
+      android.util.Log.d("LocationService", "Started foreground service with FOREGROUND_SERVICE_TYPE_LOCATION (Android 14+)")
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      // Android 10-13: foregroundServiceType from manifest is sufficient
+      startForeground(NOTIFICATION_ID, notification)
+      android.util.Log.d("LocationService", "Started foreground service (Android 10-13)")
+    } else {
+      // Android 9 and below
+      startForeground(NOTIFICATION_ID, notification)
+      android.util.Log.d("LocationService", "Started foreground service (Android 9 and below)")
+    }
+  }
+
+  /**
+   * Called when the foreground service reaches its timeout limit (Android 15+)
+   * Location services have a ~6 hour timeout on Android 15
+   *
+   * Strategy: Emit warning event and restart the service to reset the timeout
+   */
+  override fun onTimeout(startId: Int, fgsType: Int) {
+    super.onTimeout(startId, fgsType)
+    android.util.Log.w("LocationService", "Foreground service timeout reached for type: $fgsType, startId: $startId")
+
+    currentTripId?.let { tripId ->
+      // Emit warning event to React Native
+      emitServiceWarning(tripId, "SERVICE_TIMEOUT", "Location service reached Android timeout limit. Restarting automatically...")
+
+      // Save current state before restart
+      val savedTripId = tripId
+      val savedOptions = trackingOptions
+
+      // Stop location updates before restart
+      fusedLocationClient.removeLocationUpdates(locationCallback)
+
+      // Schedule restart via Handler to avoid blocking the timeout callback
+      Handler(Looper.getMainLooper()).postDelayed({
+        android.util.Log.d("LocationService", "Restarting service after timeout for tripId: $savedTripId")
+        startService(applicationContext, savedTripId, savedOptions)
+      }, 1000)
+
+      // Stop this instance - the new one will take over
+      stopSelf(startId)
+    } ?: run {
+      // No tripId - just stop
+      android.util.Log.w("LocationService", "No tripId during timeout - stopping service")
+      stopSelf(startId)
+    }
+  }
+
+  /**
+   * Called when the user swipes the app from recents
+   * Service continues running because android:stopWithTask="false" in manifest
+   */
+  override fun onTaskRemoved(rootIntent: Intent?) {
+    super.onTaskRemoved(rootIntent)
+    android.util.Log.d("LocationService", "Task removed - service continuing in background")
+
+    currentTripId?.let { tripId ->
+      emitServiceWarning(tripId, "TASK_REMOVED", "App was removed from recents. Location tracking continues in background.")
+    }
+
+    // Service continues because android:stopWithTask="false"
+    // Location updates will continue
+  }
+
+  /**
+   * Emits a warning event to React Native
+   */
+  private fun emitServiceWarning(tripId: String, warningType: String, message: String) {
+    val context = reactContext ?: return
+
+    if (!context.hasActiveReactInstance()) {
+      android.util.Log.w("LocationService", "React instance not active - cannot emit warning event")
+      return
+    }
+
+    try {
+      val eventData = Arguments.createMap().apply {
+        putString("tripId", tripId)
+        putString("type", warningType)
+        putString("message", message)
+        putDouble("timestamp", System.currentTimeMillis().toDouble())
+      }
+
+      context
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onLocationWarning", eventData)
+
+      android.util.Log.d("LocationService", "Warning event emitted: $warningType")
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Failed to emit warning event", e)
+    }
   }
 
   @SuppressLint("MissingPermission")
@@ -174,12 +286,79 @@ class LocationService : Service() {
   private fun setupLocationCallback() {
     locationCallback = object : LocationCallback() {
       override fun onLocationResult(locationResult: LocationResult) {
+        // Validate permissions are still granted before processing locations
+        if (!validatePermissions()) {
+          android.util.Log.e("LocationService", "Location permissions revoked during tracking")
+          emitPermissionRevokedError()
+          stopSelf()
+          return
+        }
+
         android.util.Log.d("LocationService", "Received ${locationResult.locations.size} location(s)")
         locationResult.locations.forEach { location ->
           handleLocation(location)
         }
       }
+
+      override fun onLocationAvailability(availability: LocationAvailability) {
+        if (!availability.isLocationAvailable) {
+          android.util.Log.w("LocationService", "Location not available")
+          emitLocationUnavailableWarning()
+        }
+      }
     }
+  }
+
+  /**
+   * Validates that location permissions are still granted
+   */
+  private fun validatePermissions(): Boolean {
+    val fineLocation = ContextCompat.checkSelfPermission(
+      this,
+      Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+
+    return fineLocation
+  }
+
+  /**
+   * Emits error event when permissions are revoked during tracking
+   */
+  private fun emitPermissionRevokedError() {
+    val context = reactContext ?: return
+
+    if (!context.hasActiveReactInstance()) {
+      android.util.Log.w("LocationService", "React instance not active - cannot emit permission error")
+      return
+    }
+
+    try {
+      val eventData = Arguments.createMap().apply {
+        putString("tripId", currentTripId)
+        putString("type", "PERMISSION_REVOKED")
+        putString("message", "Location permission was revoked. Tracking stopped.")
+        putDouble("timestamp", System.currentTimeMillis().toDouble())
+      }
+
+      context
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onLocationError", eventData)
+
+      android.util.Log.d("LocationService", "Permission revoked error emitted")
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Failed to emit permission error", e)
+    }
+  }
+
+  /**
+   * Emits warning when location becomes unavailable
+   */
+  private fun emitLocationUnavailableWarning() {
+    emitServiceWarning(
+      currentTripId ?: return,
+      "LOCATION_UNAVAILABLE",
+      "GPS signal lost or location services disabled."
+    )
   }
 
   private fun handleLocation(location: Location) {
@@ -413,6 +592,7 @@ class LocationService : Service() {
         if (options.notificationText != null) putString("notificationText", options.notificationText)
         if (options.notificationChannelName != null) putString("notificationChannelName", options.notificationChannelName)
         if (options.notificationPriority != null) putString("notificationPriority", options.notificationPriority)
+        if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

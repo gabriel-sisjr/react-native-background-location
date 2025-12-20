@@ -21,6 +21,8 @@ export type {
   UseLocationTrackingOptions,
   UseLocationUpdatesOptions,
   UseLocationUpdatesResult,
+  LocationWarningEvent,
+  LocationWarningType,
 } from './types';
 export type { UseLocationTrackingResult } from './hooks/useLocationTracking';
 
@@ -89,6 +91,7 @@ export default {
           notificationPriority: options.notificationPriority
             ? String(options.notificationPriority)
             : undefined,
+          foregroundOnly: options.foregroundOnly,
         }
       : undefined;
     return BackgroundLocationModule.startTracking(tripId, specOptions);

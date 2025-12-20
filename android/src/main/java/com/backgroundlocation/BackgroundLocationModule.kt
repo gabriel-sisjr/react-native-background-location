@@ -41,11 +41,26 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
    */
   override fun startTracking(tripId: String?, options: ReadableMap?, promise: Promise) {
     try {
-      // Check location permissions
-      if (!hasLocationPermissions()) {
+      // Parse options first to check foregroundOnly mode
+      val trackingOptions = parseTrackingOptions(options)
+      val foregroundOnly = trackingOptions.getForegroundOnlyOrDefault()
+
+      // Check location permissions based on mode
+      if (!hasLocationPermissions(foregroundOnly)) {
+        val permissionMessage = if (foregroundOnly) {
+          "Location permissions are required. Please grant ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION permissions."
+        } else {
+          "Location permissions are required. Please grant ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION, and ACCESS_BACKGROUND_LOCATION permissions."
+        }
+        promise.reject("PERMISSION_DENIED", permissionMessage)
+        return
+      }
+
+      // Check notification permission for Android 13+
+      if (!hasNotificationPermission()) {
         promise.reject(
-          "PERMISSION_DENIED",
-          "Location permissions are required. Please request ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION permissions."
+          "NOTIFICATION_PERMISSION_DENIED",
+          "Notification permission is required for background location tracking on Android 13+. Please grant POST_NOTIFICATIONS permission."
         )
         return
       }
@@ -64,9 +79,6 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       } else {
         tripId
       }
-
-      // Parse options if provided
-      val trackingOptions = parseTrackingOptions(options)
 
       // Save tracking state with options for recovery
       storage.saveTrackingState(effectiveTripId, true, trackingOptions)
@@ -102,7 +114,8 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       notificationTitle = if (options.hasKey("notificationTitle")) options.getString("notificationTitle") else null,
       notificationText = if (options.hasKey("notificationText")) options.getString("notificationText") else null,
       notificationChannelName = if (options.hasKey("notificationChannelName")) options.getString("notificationChannelName") else null,
-      notificationPriority = if (options.hasKey("notificationPriority")) options.getString("notificationPriority") else null
+      notificationPriority = if (options.hasKey("notificationPriority")) options.getString("notificationPriority") else null,
+      foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null
     )
   }
 
@@ -216,8 +229,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   /**
    * Checks if the app has the necessary location permissions
+   * @param foregroundOnly If true, only checks for foreground location permissions (no background)
    */
-  private fun hasLocationPermissions(): Boolean {
+  private fun hasLocationPermissions(foregroundOnly: Boolean = false): Boolean {
     val context = reactApplicationContext
     val fineLocation = ContextCompat.checkSelfPermission(
       context,
@@ -228,6 +242,11 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       context,
       Manifest.permission.ACCESS_COARSE_LOCATION
     ) == PackageManager.PERMISSION_GRANTED
+
+    // Skip background location check if foregroundOnly mode
+    if (foregroundOnly) {
+      return fineLocation && coarseLocation
+    }
 
     // Check background location permission for Android 10+
     val backgroundLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -240,6 +259,21 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     }
 
     return fineLocation && coarseLocation && backgroundLocation
+  }
+
+  /**
+   * Checks if the app has notification permission (Android 13+)
+   * Required for foreground services to show notifications
+   */
+  private fun hasNotificationPermission(): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      ContextCompat.checkSelfPermission(
+        reactApplicationContext,
+        Manifest.permission.POST_NOTIFICATIONS
+      ) == PackageManager.PERMISSION_GRANTED
+    } else {
+      true // Not required before Android 13
+    }
   }
 
   companion object {
