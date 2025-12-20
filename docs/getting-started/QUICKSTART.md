@@ -38,17 +38,49 @@ Edit `android/app/src/main/AndroidManifest.xml`:
 
 ### 2. Request Permissions in Your App
 
-```typescript
-import { PermissionsAndroid } from 'react-native';
+> **⚠️ Critical for Android 11+:** Background location must be requested **separately** from foreground permissions. Requesting them together will silently fail.
 
-const requestPermissions = async () => {
-  const granted = await PermissionsAndroid.requestMultiple([
+```typescript
+import { PermissionsAndroid, Platform, Alert } from 'react-native';
+
+const requestPermissions = async (): Promise<boolean> => {
+  if (Platform.OS !== 'android') {
+    return true;
+  }
+
+  // Step 1: Request foreground permissions FIRST
+  const foreground = await PermissionsAndroid.requestMultiple([
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-    PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
   ]);
 
-  return Object.values(granted).every(g => g === 'granted');
+  const foregroundGranted =
+    foreground['android.permission.ACCESS_FINE_LOCATION'] === 'granted' ||
+    foreground['android.permission.ACCESS_COARSE_LOCATION'] === 'granted';
+
+  if (!foregroundGranted) {
+    return false;
+  }
+
+  // Step 2: Request background permission SEPARATELY (Android 10+)
+  if (Platform.Version >= 29) {
+    // Show explanation before requesting (required for good UX)
+    await new Promise<void>((resolve) => {
+      Alert.alert(
+        'Background Location',
+        'To track your location in the background, please select "Allow all the time" on the next screen.',
+        [{ text: 'Continue', onPress: () => resolve() }]
+      );
+    });
+
+    const background = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
+    );
+
+    return background === 'granted';
+  }
+
+  return true;
 };
 ```
 
@@ -102,28 +134,68 @@ await BackgroundLocation.stopTracking();
 ## Complete Example
 
 ```typescript
-import React, { useState } from 'react';
-import { View, Button, Text, Alert, PermissionsAndroid } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Button, Text, Alert, Platform, PermissionsAndroid } from 'react-native';
 import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
 
 export default function App() {
   const [tracking, setTracking] = useState(false);
   const [tripId, setTripId] = useState<string | null>(null);
+  const [locationCount, setLocationCount] = useState(0);
 
-  const requestPermissions = async () => {
-    const granted = await PermissionsAndroid.requestMultiple([
+  // Check for active session on app start (crash recovery)
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      const status = await BackgroundLocation.isTracking();
+      if (status.active && status.tripId) {
+        setTracking(true);
+        setTripId(status.tripId);
+        const locations = await BackgroundLocation.getLocations(status.tripId);
+        setLocationCount(locations.length);
+      }
+    };
+    checkExistingSession();
+  }, []);
+
+  // Proper Android 11+ permission handling
+  const requestPermissions = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+
+    // Step 1: Foreground permissions first
+    const foreground = await PermissionsAndroid.requestMultiple([
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-      PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
     ]);
 
-    return Object.values(granted).every(g => g === 'granted');
+    const foregroundGranted =
+      foreground['android.permission.ACCESS_FINE_LOCATION'] === 'granted' ||
+      foreground['android.permission.ACCESS_COARSE_LOCATION'] === 'granted';
+
+    if (!foregroundGranted) return false;
+
+    // Step 2: Background permission separately (Android 10+)
+    if (Platform.Version >= 29) {
+      await new Promise<void>((resolve) => {
+        Alert.alert(
+          'Background Location',
+          'Select "Allow all the time" to track in background.',
+          [{ text: 'Continue', onPress: () => resolve() }]
+        );
+      });
+
+      const background = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
+      );
+      return background === 'granted';
+    }
+
+    return true;
   };
 
   const startTracking = async () => {
     try {
       const hasPermission = await requestPermissions();
-      
+
       if (!hasPermission) {
         Alert.alert('Error', 'Location permissions required');
         return;
@@ -133,7 +205,7 @@ export default function App() {
       setTripId(id);
       setTracking(true);
       Alert.alert('Success', `Tracking started: ${id}`);
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert('Error', error.message);
     }
   };
@@ -143,7 +215,7 @@ export default function App() {
       await BackgroundLocation.stopTracking();
       setTracking(false);
       Alert.alert('Success', 'Tracking stopped');
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert('Error', error.message);
     }
   };
@@ -153,9 +225,18 @@ export default function App() {
 
     try {
       const locations = await BackgroundLocation.getLocations(tripId);
+      setLocationCount(locations.length);
       Alert.alert('Locations', `Found ${locations.length} location(s)`);
-      console.log(locations);
-    } catch (error) {
+      // Note: latitude/longitude are strings, parse for maps
+      locations.forEach((loc) => {
+        console.log({
+          lat: parseFloat(loc.latitude),
+          lng: parseFloat(loc.longitude),
+          time: new Date(loc.timestamp),
+          accuracy: loc.accuracy, // optional
+        });
+      });
+    } catch (error: any) {
       Alert.alert('Error', error.message);
     }
   };
@@ -167,9 +248,14 @@ export default function App() {
       </Text>
 
       {tripId && (
-        <Text style={{ marginBottom: 20, textAlign: 'center' }}>
-          Trip ID: {tripId}
-        </Text>
+        <>
+          <Text style={{ marginBottom: 10, textAlign: 'center' }}>
+            Trip ID: {tripId}
+          </Text>
+          <Text style={{ marginBottom: 20, textAlign: 'center' }}>
+            Locations: {locationCount}
+          </Text>
+        </>
       )}
 
       <Button
@@ -178,22 +264,58 @@ export default function App() {
       />
 
       {tripId && (
-        <Button
-          title="Get Locations"
-          onPress={getLocations}
-        />
+        <View style={{ marginTop: 10 }}>
+          <Button title="Get Locations" onPress={getLocations} />
+        </View>
       )}
     </View>
   );
 }
 ```
 
+## Important Notes
+
+### Coordinates are Strings
+
+Coordinates are returned as strings for precision. Always parse for map libraries:
+
+```typescript
+// ✅ Correct
+<Marker coordinate={{
+  latitude: parseFloat(location.latitude),
+  longitude: parseFloat(location.longitude),
+}} />
+
+// ❌ Wrong - will cause errors
+<Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }} />
+```
+
+### Foreground-Only Mode
+
+If background permission is denied or not needed:
+
+```typescript
+const tripId = await BackgroundLocation.startTracking(undefined, {
+  foregroundOnly: true,  // No background permission required
+});
+```
+
+### Google Play Compliance
+
+Before publishing, ensure you:
+1. Add prominent in-app disclosure before requesting permissions
+2. Update your privacy policy to mention location tracking
+3. Fill out the Play Console permissions declaration form
+
+See [Google Play Compliance](../production/GOOGLE_PLAY_COMPLIANCE.md) for details.
+
 ## Next Steps
 
-- Read the [full documentation](README.md) for all API methods
-- Check the [example app](example/) for a complete implementation
-- Learn about [battery optimization](README.md#battery-optimization)
-- See [troubleshooting guide](README.md#troubleshooting)
+- Read the [full documentation](../../README.md) for all API methods
+- Check the [example app](../../example/) for a complete implementation
+- Review [Google Play Compliance](../production/GOOGLE_PLAY_COMPLIANCE.md) before publishing
+- Learn about [battery optimization](../production/BATTERY_OPTIMIZATION.md)
+- See [troubleshooting guide](../../README.md#troubleshooting)
 
 ## Testing
 
