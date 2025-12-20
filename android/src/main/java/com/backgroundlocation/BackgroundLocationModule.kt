@@ -50,13 +50,27 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   override fun onHostResume() {
     registerBroadcastReceiver()
 
-    // Schedule recovery via WorkManager on Android 12+ (safer for background restrictions)
-    // On older versions, recover directly
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      RecoveryWorker.scheduleRecovery(reactApplicationContext)
-    } else {
-      // Safe to recover directly on older Android versions
-      recoverTrackingSession()
+    // Only schedule recovery if tracking is actually active
+    // This prevents RecoveryWorker from starting SystemForegroundService when no tracking is active
+    moduleScope.launch {
+      try {
+        val trackingState = storage.getTrackingStateAsync()
+        if (!trackingState.isActive || trackingState.tripId == null) {
+          android.util.Log.d("BackgroundLocationModule", "No active tracking session, skipping recovery")
+          return@launch
+        }
+
+        // Schedule recovery via WorkManager on Android 12+ (safer for background restrictions)
+        // On older versions, recover directly
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          RecoveryWorker.scheduleRecovery(reactApplicationContext)
+        } else {
+          // Safe to recover directly on older Android versions
+          recoverTrackingSession()
+        }
+      } catch (e: Exception) {
+        android.util.Log.e("BackgroundLocationModule", "Failed to check tracking state for recovery", e)
+      }
     }
   }
 

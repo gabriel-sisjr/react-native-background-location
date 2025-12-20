@@ -3,6 +3,7 @@ package com.backgroundlocation
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -24,25 +25,34 @@ class RecoveryWorker(
     return try {
       val trackingState = storage.getTrackingStateAsync()
 
-      if (trackingState.isActive && trackingState.tripId != null) {
-        // Check permissions before attempting restart
-        if (!hasRequiredPermissions()) {
-          android.util.Log.w(TAG, "Permissions revoked, clearing tracking state")
-          // Clear tracking state if permissions revoked
-          storage.saveTrackingState(null, false)
-          return Result.success()
-        }
-
-        // Use setForeground to safely start foreground service from background
-        val notification = createRecoveryNotification()
-        setForeground(ForegroundInfo(RECOVERY_NOTIFICATION_ID, notification))
-
-        // Now safe to start the actual service
-        val options = trackingState.options ?: TrackingOptions()
-        LocationService.startService(applicationContext, trackingState.tripId, options)
-
-        android.util.Log.d(TAG, "Successfully recovered tracking session: ${trackingState.tripId}")
+      // Only proceed if tracking is actually active with a valid tripId
+      if (!trackingState.isActive || trackingState.tripId == null) {
+        android.util.Log.d(TAG, "No active tracking session, skipping recovery")
+        return Result.success()
       }
+
+      // Check permissions before attempting restart
+      if (!hasRequiredPermissions()) {
+        android.util.Log.w(TAG, "Permissions revoked, clearing tracking state")
+        // Clear tracking state if permissions revoked
+        storage.saveTrackingState(null, false)
+        return Result.success()
+      }
+
+      // Use setForeground to safely start foreground service from background
+      // This creates SystemForegroundService with location type
+      val notification = createRecoveryNotification()
+      setForeground(ForegroundInfo(
+        RECOVERY_NOTIFICATION_ID,
+        notification,
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+      ))
+
+      // Now safe to start the actual service
+      val options = trackingState.options ?: TrackingOptions()
+      LocationService.startService(applicationContext, trackingState.tripId, options)
+
+      android.util.Log.d(TAG, "Successfully recovered tracking session: ${trackingState.tripId}")
 
       Result.success()
     } catch (e: Exception) {
@@ -83,6 +93,20 @@ class RecoveryWorker(
   }
 
   private fun createRecoveryNotification(): android.app.Notification {
+    // Create notification channel for Android 8+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+      val channel = android.app.NotificationChannel(
+        CHANNEL_ID,
+        "Background Location",
+        android.app.NotificationManager.IMPORTANCE_LOW
+      ).apply {
+        description = "Background location tracking"
+        setShowBadge(false)
+      }
+      notificationManager.createNotificationChannel(channel)
+    }
+
     // Create minimal notification for setForeground
     return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
       .setContentTitle("Recovering location tracking...")

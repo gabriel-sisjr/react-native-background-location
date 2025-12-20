@@ -46,6 +46,19 @@ class LocationService : Service() {
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     android.util.Log.d("LocationService", "onStartCommand called")
 
+    // CRITICAL: Call startForeground() IMMEDIATELY to avoid ForegroundServiceDidNotStartInTimeException
+    // This must happen within 5-10 seconds on Android 12+ (API 31+)
+    // We create a minimal notification first, then update it with proper options
+    try {
+      val minimalNotification = createMinimalNotification()
+      startForegroundWithType(minimalNotification)
+      android.util.Log.d("LocationService", "Started foreground service immediately with minimal notification")
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "CRITICAL: Failed to call startForeground()", e)
+      stopSelf()
+      return START_NOT_STICKY
+    }
+
     // Check for restart loops
     if (isRestartLoopDetected()) {
       android.util.Log.e("LocationService", "Restart loop detected, stopping service")
@@ -59,7 +72,7 @@ class LocationService : Service() {
 
     // Try to get tripId from intent
     var tripId = intent?.getStringExtra(EXTRA_TRIP_ID)
-    
+
     // Parse tracking options from Bundle
     val optionsBundle = intent?.getBundleExtra(EXTRA_TRACKING_OPTIONS)
     trackingOptions = if (optionsBundle != null) {
@@ -75,26 +88,29 @@ class LocationService : Service() {
       }
       trackingOptions
     }
-    
+
     if (tripId == null) {
       // No valid tripId - stop the service
       stopSelf()
       return START_NOT_STICKY
     }
-    
+
     currentTripId = tripId
     android.util.Log.d("LocationService", "Starting location tracking for tripId: $tripId")
 
-    // Create notification channel with options
-    createNotificationChannel()
-
-    // Start as foreground service with notification
-    val notification = createNotification()
-    startForegroundWithType(notification)
+    // Now that we have options, create proper notification channel and update notification
+    try {
+      createNotificationChannel()
+      val properNotification = createNotification()
+      startForegroundWithType(properNotification)
+      android.util.Log.d("LocationService", "Updated foreground notification with proper options")
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Failed to update notification, continuing with minimal", e)
+    }
 
     // Check last known location to verify GPS is working
     checkLastKnownLocation()
-    
+
     // Start location updates
     startLocationUpdates()
 
@@ -417,6 +433,36 @@ class LocationService : Service() {
     android.util.Log.d("LocationService", "Location broadcast sent for tripId: $tripId")
   }
   
+
+  /**
+   * Creates a minimal notification for immediate startForeground() call
+   * This ensures we meet the 5-10 second deadline on Android 12+
+   */
+  private fun createMinimalNotification(): Notification {
+    // Create minimal notification channel if needed
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      if (notificationManager.getNotificationChannel(CHANNEL_ID) == null) {
+        val channel = NotificationChannel(
+          CHANNEL_ID,
+          "Background Location",
+          NotificationManager.IMPORTANCE_LOW
+        ).apply {
+          description = "Background location tracking"
+          setShowBadge(false)
+        }
+        notificationManager.createNotificationChannel(channel)
+      }
+    }
+
+    return NotificationCompat.Builder(this, CHANNEL_ID)
+      .setContentTitle("Location Tracking")
+      .setContentText("Starting location tracking...")
+      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+      .setOngoing(true)
+      .setPriority(NotificationCompat.PRIORITY_LOW)
+      .build()
+  }
 
   private fun createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
