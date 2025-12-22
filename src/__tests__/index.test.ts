@@ -181,6 +181,146 @@ describe('BackgroundLocation API', () => {
       );
     });
 
+    it('should start tracking with distanceFilter option', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        distanceFilter: 50,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          updateInterval: 5000,
+          distanceFilter: 50,
+        })
+      );
+    });
+
+    it('should start tracking with options only (no tripId) - overload signature', async () => {
+      const generatedId = 'generated-trip-789';
+      const options: TrackingOptions = {
+        updateInterval: 10000,
+        distanceFilter: 100,
+        notificationTitle: 'Tracking Active',
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        generatedId
+      );
+
+      const result = await BackgroundLocation.startTracking(options);
+
+      expect(result).toBe(generatedId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({
+          updateInterval: 10000,
+          distanceFilter: 100,
+          notificationTitle: 'Tracking Active',
+        })
+      );
+    });
+
+    it('should handle overload with empty options object', async () => {
+      const generatedId = 'generated-trip-empty';
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        generatedId
+      );
+
+      const result = await BackgroundLocation.startTracking({});
+
+      expect(result).toBe(generatedId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        undefined,
+        {}
+      );
+    });
+
+    it('should correctly identify object as options in overload', async () => {
+      const generatedId = 'generated-trip-obj';
+      const options: TrackingOptions = {
+        accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+        foregroundOnly: true,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        generatedId
+      );
+
+      const result = await BackgroundLocation.startTracking(options);
+
+      expect(result).toBe(generatedId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({
+          accuracy: 'BALANCED_POWER_ACCURACY',
+          foregroundOnly: true,
+        })
+      );
+    });
+
+    it('should handle simulator mode when called with options object', async () => {
+      // Mock isTracking to return undefined to simulate unavailable module
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+      });
+
+      const options: TrackingOptions = {
+        distanceFilter: 25,
+      };
+
+      const result = await BackgroundLocation.startTracking(options);
+
+      expect(result).toMatch(/^simulator-trip-\d+$/);
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+      });
+    });
+
+    it('should start tracking with all new options including distanceFilter and onUpdateInterval', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        fastestInterval: 2000,
+        distanceFilter: 75,
+        onUpdateInterval: 30000,
+        foregroundOnly: false,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      expect(result).toBe(mockTripId);
+      // Note: onUpdateInterval is not passed to native - it's handled in TypeScript hooks
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          updateInterval: 5000,
+          fastestInterval: 2000,
+          distanceFilter: 75,
+          foregroundOnly: false,
+        })
+      );
+    });
+
     it('should handle when module is not available - isTracking returns false', async () => {
       // Mock BackgroundLocationModule to return undefined for isTracking
       Object.defineProperty(BackgroundLocationModule, 'isTracking', {

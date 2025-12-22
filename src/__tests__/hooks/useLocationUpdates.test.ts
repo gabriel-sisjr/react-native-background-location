@@ -1161,6 +1161,307 @@ describe('useLocationUpdates', () => {
     });
   });
 
+  describe('onUpdateInterval throttling', () => {
+    it('should call callback immediately on first location update', async () => {
+      const onLocationUpdate = jest.fn();
+
+      renderHook(() =>
+        useLocationUpdates({
+          onLocationUpdate,
+          onUpdateInterval: 5000,
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throttle callback when onUpdateInterval is set', async () => {
+      const onLocationUpdate = jest.fn();
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({
+          onLocationUpdate,
+          onUpdateInterval: 5000,
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // First location - should trigger callback
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+
+      // Second location immediately after - should NOT trigger callback (throttled)
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7751',
+          longitude: '-122.4196',
+          timestamp: 1640995202000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1); // Still 1, throttled
+
+      // But location should still be added to array
+      expect(result.current.locations).toHaveLength(2);
+    });
+
+    it('should call callback after throttle interval has passed', async () => {
+      const onLocationUpdate = jest.fn();
+      const mockDateNow = jest.spyOn(Date, 'now');
+
+      // Start at a high value so first callback fires (needs to be >= onUpdateInterval from 0)
+      let currentTime = 10000;
+      mockDateNow.mockImplementation(() => currentTime);
+
+      renderHook(() =>
+        useLocationUpdates({
+          onLocationUpdate,
+          onUpdateInterval: 5000,
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // First location at t=10000 - should trigger callback (10000 - 0 >= 5000)
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+
+      // Second location immediately (still at t=10000) - should be throttled
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7751',
+          longitude: '-122.4196',
+          timestamp: 1640995202000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1); // Still throttled
+
+      // Advance Date.now() past the throttle interval (10000 + 5001 = 15001)
+      currentTime = 15001;
+
+      // New location after interval - should trigger callback
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7752',
+          longitude: '-122.4197',
+          timestamp: 1640995207000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(2);
+
+      mockDateNow.mockRestore();
+    });
+
+    it('should not throttle when onUpdateInterval is undefined', async () => {
+      const onLocationUpdate = jest.fn();
+
+      renderHook(() =>
+        useLocationUpdates({
+          onLocationUpdate,
+          // onUpdateInterval not set
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Multiple rapid locations
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7751',
+          longitude: '-122.4196',
+          timestamp: 1640995202000,
+        });
+      });
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7752',
+          longitude: '-122.4197',
+          timestamp: 1640995203000,
+        });
+      });
+
+      // All should trigger callback without throttling
+      expect(onLocationUpdate).toHaveBeenCalledTimes(3);
+    });
+
+    it('should collect all locations even when callback is throttled', async () => {
+      const onLocationUpdate = jest.fn();
+      const mockDateNow = jest.spyOn(Date, 'now');
+
+      // Start at a high value so first callback fires (needs to be >= onUpdateInterval from 0)
+      mockDateNow.mockReturnValue(15000);
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({
+          onLocationUpdate,
+          onUpdateInterval: 10000, // 10 second throttle
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Send 5 rapid locations (all within throttle window - time doesn't advance)
+      for (let i = 0; i < 5; i++) {
+        act(() => {
+          simulateEvent({
+            tripId: mockTripId,
+            latitude: `37.775${i}`,
+            longitude: `-122.419${i}`,
+            timestamp: 1640995201000 + i * 1000,
+          });
+        });
+      }
+
+      // Only first callback should have been called (15000 - 0 >= 10000, but subsequent ones are throttled)
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+
+      // But all locations should be stored
+      expect(result.current.locations).toHaveLength(5);
+      expect(result.current.lastLocation?.latitude).toBe('37.7754');
+
+      mockDateNow.mockRestore();
+    });
+
+    it('should handle onUpdateInterval of 0 as no throttling', async () => {
+      const onLocationUpdate = jest.fn();
+
+      renderHook(() =>
+        useLocationUpdates({
+          onLocationUpdate,
+          onUpdateInterval: 0,
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7751',
+          longitude: '-122.4196',
+          timestamp: 1640995202000,
+        });
+      });
+
+      // 0 is falsy, so no throttling applied
+      expect(onLocationUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should reset throttle timer when callback is called', async () => {
+      const onLocationUpdate = jest.fn();
+      const mockDateNow = jest.spyOn(Date, 'now');
+
+      // Start at a high value so first callback fires (needs to be >= onUpdateInterval from 0)
+      let currentTime = 5000;
+      mockDateNow.mockImplementation(() => currentTime);
+
+      renderHook(() =>
+        useLocationUpdates({
+          onLocationUpdate,
+          onUpdateInterval: 3000,
+        })
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // First location at t=5000 - should trigger callback (5000 - 0 >= 3000)
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1);
+
+      // Advance to 2 seconds after first call (t=7000) - not enough (need 3000ms elapsed from 5000)
+      currentTime = 7000;
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7751',
+          longitude: '-122.4196',
+          timestamp: 1640995203000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(1); // Still throttled (only 2000ms elapsed)
+
+      // Advance to 3 seconds after first call (t=8000) - now 3000ms elapsed from 5000
+      currentTime = 8000;
+
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '37.7752',
+          longitude: '-122.4197',
+          timestamp: 1640995204000,
+        });
+      });
+
+      expect(onLocationUpdate).toHaveBeenCalledTimes(2); // Now allowed
+
+      mockDateNow.mockRestore();
+    });
+  });
+
   describe('checkStatus error handling', () => {
     it('should handle errors in checkStatus gracefully', async () => {
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
