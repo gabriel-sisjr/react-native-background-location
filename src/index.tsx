@@ -66,32 +66,57 @@ const isNativeModuleAvailable = () => {
 export default {
   /**
    * Starts location tracking in background for a specific trip
-   * @param tripId Optional trip identifier. If omitted, a new one will be generated
-   * @param options Optional tracking configuration options
+   * @param tripIdOrOptions Optional trip identifier or tracking options. If omitted, a new tripId will be generated
+   * @param options Optional tracking configuration options (only used when first param is tripId)
    * @returns Promise resolving to the effective tripId (received or generated)
    */
-  startTracking(tripId?: string, options?: TrackingOptions): Promise<string> {
+  startTracking(
+    tripIdOrOptions?: string | TrackingOptions,
+    options?: TrackingOptions
+  ): Promise<string> {
     if (!isNativeModuleAvailable()) {
       console.warn(
         'BackgroundLocation not available - running in simulator or module not linked?'
       );
-      return Promise.resolve(tripId || `simulator-trip-${Date.now()}`);
+      const fallbackTripId =
+        typeof tripIdOrOptions === 'string'
+          ? tripIdOrOptions
+          : `simulator-trip-${Date.now()}`;
+      return Promise.resolve(fallbackTripId);
     }
+
+    // Handle overload: startTracking(options?) or startTracking(tripId?, options?)
+    let tripId: string | undefined;
+    let trackingOptions: TrackingOptions | undefined;
+
+    if (typeof tripIdOrOptions === 'object') {
+      // Called as startTracking(options)
+      tripId = undefined;
+      trackingOptions = tripIdOrOptions;
+    } else {
+      // Called as startTracking(tripId?, options?)
+      tripId = tripIdOrOptions;
+      trackingOptions = options;
+    }
+
     // Convert TrackingOptions (with enums) to TrackingOptionsSpec (with strings) for Codegen
-    const specOptions: TrackingOptionsSpec | undefined = options
+    const specOptions: TrackingOptionsSpec | undefined = trackingOptions
       ? {
-          updateInterval: options.updateInterval,
-          fastestInterval: options.fastestInterval,
-          maxWaitTime: options.maxWaitTime,
-          accuracy: options.accuracy ? String(options.accuracy) : undefined,
-          waitForAccurateLocation: options.waitForAccurateLocation,
-          notificationTitle: options.notificationTitle,
-          notificationText: options.notificationText,
-          notificationChannelName: options.notificationChannelName,
-          notificationPriority: options.notificationPriority
-            ? String(options.notificationPriority)
+          updateInterval: trackingOptions.updateInterval,
+          fastestInterval: trackingOptions.fastestInterval,
+          maxWaitTime: trackingOptions.maxWaitTime,
+          accuracy: trackingOptions.accuracy
+            ? String(trackingOptions.accuracy)
             : undefined,
-          foregroundOnly: options.foregroundOnly,
+          waitForAccurateLocation: trackingOptions.waitForAccurateLocation,
+          notificationTitle: trackingOptions.notificationTitle,
+          notificationText: trackingOptions.notificationText,
+          notificationChannelName: trackingOptions.notificationChannelName,
+          notificationPriority: trackingOptions.notificationPriority
+            ? String(trackingOptions.notificationPriority)
+            : undefined,
+          foregroundOnly: trackingOptions.foregroundOnly,
+          distanceFilter: trackingOptions.distanceFilter,
         }
       : undefined;
     return BackgroundLocationModule.startTracking(tripId, specOptions);
