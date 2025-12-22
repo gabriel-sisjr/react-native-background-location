@@ -1,5 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
+
   <!-- Location permissions -->
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -24,6 +25,19 @@
       android:exported="false"
       android:foregroundServiceType="location"
       android:stopWithTask="false" />
+
+    <!--
+      WorkManager SystemForegroundService override.
+      Required for Android 14+ when RecoveryWorker uses setForeground()
+      with FOREGROUND_SERVICE_TYPE_LOCATION.
+      Without this, the app crashes with IllegalArgumentException.
+    -->
+    <service
+      android:name="androidx.work.impl.foreground.SystemForegroundService"
+      android:enabled="true"
+      android:exported="false"
+      android:foregroundServiceType="location"
+      tools:node="merge" />
   </application>
-  
+
 </manifest>
