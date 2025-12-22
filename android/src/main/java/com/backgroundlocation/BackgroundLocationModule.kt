@@ -54,9 +54,21 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     // This prevents RecoveryWorker from starting SystemForegroundService when no tracking is active
     moduleScope.launch {
       try {
+        // Check stop token first - if user explicitly stopped tracking, don't recover
+        if (LocationService.isStopTokenSet(reactApplicationContext)) {
+          android.util.Log.d("BackgroundLocationModule", "Stop token is set, skipping recovery")
+          return@launch
+        }
+
         val trackingState = storage.getTrackingStateAsync()
         if (!trackingState.isActive || trackingState.tripId == null) {
           android.util.Log.d("BackgroundLocationModule", "No active tracking session, skipping recovery")
+          return@launch
+        }
+
+        // Double-check stop token after reading state (handles race condition)
+        if (LocationService.isStopTokenSet(reactApplicationContext)) {
+          android.util.Log.d("BackgroundLocationModule", "Stop token set during state check, skipping recovery")
           return@launch
         }
 
@@ -268,28 +280,54 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       notificationText = if (options.hasKey("notificationText")) options.getString("notificationText") else null,
       notificationChannelName = if (options.hasKey("notificationChannelName")) options.getString("notificationChannelName") else null,
       notificationPriority = if (options.hasKey("notificationPriority")) options.getString("notificationPriority") else null,
-      foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null
+      foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null,
+      distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null
     )
   }
 
   /**
    * Stops all location tracking and terminates the service
+   * Uses a multi-step approach to ensure immediate cessation of location tracking:
+   * 1. Set stop token (prevents RecoveryWorker from restarting)
+   * 2. Cancel pending recovery work
+   * 3. Immediately stop location updates on active instance
+   * 4. Save tracking state synchronously (prevents race condition)
+   * 5. Stop the service
    */
   override fun stopTracking(promise: Promise) {
-    try {
-      // Cancel any pending recovery work
-      RecoveryWorker.cancelRecovery(reactApplicationContext)
+    val context = reactApplicationContext
 
-      // Stop the service
-      val context = reactApplicationContext
-      LocationService.stopService(context)
+    // Use coroutine for async database operation
+    moduleScope.launch {
+      try {
+        android.util.Log.d("BackgroundLocationModule", "stopTracking: Starting stop sequence")
 
-      // Update tracking state
-      storage.saveTrackingState(null, false)
+        // Step 1: Set stop token FIRST (synchronous via SharedPreferences.commit())
+        // This prevents RecoveryWorker from restarting tracking
+        LocationService.setStopToken(context)
 
-      promise.resolve(null)
-    } catch (e: Exception) {
-      promise.reject("STOP_TRACKING_ERROR", "Failed to stop tracking: ${e.message}", e)
+        // Step 2: Cancel any pending recovery work
+        RecoveryWorker.cancelRecovery(context)
+
+        // Step 3: Immediately stop location updates on active service instance
+        // This is CRITICAL - stops broadcasts immediately without waiting for service destruction
+        LocationService.stopLocationUpdatesImmediately(context)
+
+        // Step 4: Save tracking state SYNCHRONOUSLY
+        // This ensures the database is updated before RecoveryWorker can read stale state
+        storage.saveTrackingStateSync(null, false)
+
+        // Step 5: Now safe to stop the service
+        withContext(Dispatchers.Main) {
+          LocationService.stopService(context)
+        }
+
+        android.util.Log.d("BackgroundLocationModule", "stopTracking: Stop sequence completed successfully")
+        promise.resolve(null)
+      } catch (e: Exception) {
+        android.util.Log.e("BackgroundLocationModule", "stopTracking: Failed", e)
+        promise.reject("STOP_TRACKING_ERROR", "Failed to stop tracking: ${e.message}", e)
+      }
     }
   }
 
@@ -357,10 +395,22 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   private fun recoverTrackingSession() {
     moduleScope.launch {
       try {
+        // Check stop token first - if user explicitly stopped, don't recover
+        if (LocationService.isStopTokenSet(reactApplicationContext)) {
+          android.util.Log.d("BackgroundLocationModule", "recoverTrackingSession: Stop token set, aborting recovery")
+          return@launch
+        }
+
         val trackingState = storage.getTrackingStateAsync()
 
         // If tracking was active and we have both tripId and options
         if (trackingState.isActive && trackingState.tripId != null) {
+          // Double-check stop token after reading state
+          if (LocationService.isStopTokenSet(reactApplicationContext)) {
+            android.util.Log.d("BackgroundLocationModule", "recoverTrackingSession: Stop token set during state check, aborting")
+            return@launch
+          }
+
           // Check if we still have location permissions
           if (!hasLocationPermissions()) {
             // Clear tracking state if permissions were revoked

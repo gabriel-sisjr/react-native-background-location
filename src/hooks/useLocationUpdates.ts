@@ -70,6 +70,7 @@ export function useLocationUpdates(
     tripId: providedTripId,
     onLocationUpdate,
     onLocationWarning,
+    onUpdateInterval,
     autoLoad = true,
   } = options;
 
@@ -83,6 +84,7 @@ export function useLocationUpdates(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const wasClearedRef = useRef(false);
+  const lastCallbackTimeRef = useRef<number>(0);
 
   /**
    * Clear error state
@@ -250,8 +252,17 @@ export function useLocationUpdates(
           });
           setLastLocation(newLocation);
 
-          // Call callback if provided
-          onLocationUpdate?.(newLocation);
+          // Call callback if provided (with optional throttling)
+          if (onLocationUpdate) {
+            const now = Date.now();
+            if (
+              !onUpdateInterval ||
+              now - lastCallbackTimeRef.current >= onUpdateInterval
+            ) {
+              lastCallbackTimeRef.current = now;
+              onLocationUpdate(newLocation);
+            }
+          }
         }
       }
     );
@@ -259,7 +270,7 @@ export function useLocationUpdates(
     return () => {
       subscription.remove();
     };
-  }, [tripId, onLocationUpdate]);
+  }, [tripId, onLocationUpdate, onUpdateInterval]);
 
   /**
    * Listen for location warning events (SERVICE_TIMEOUT, TASK_REMOVED, etc.)

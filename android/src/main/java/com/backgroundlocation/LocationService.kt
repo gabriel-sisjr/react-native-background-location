@@ -34,9 +34,18 @@ class LocationService : Service() {
   private var currentTripId: String? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
 
+  // Flag to prevent location broadcasts after stop is requested
+  @Volatile
+  private var isStopRequested: Boolean = false
+
   override fun onCreate() {
     super.onCreate()
     storage = LocationStorage(this)
+
+    // Register this instance for immediate stop access
+    synchronized(instanceLock) {
+      activeInstance = this
+    }
 
     // Use factory to get best available provider
     locationProvider = LocationProviderFactory.create(this)
@@ -134,7 +143,8 @@ class LocationService : Service() {
       notificationText = bundle.getString("notificationText"),
       notificationChannelName = bundle.getString("notificationChannelName"),
       notificationPriority = bundle.getString("notificationPriority"),
-      foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null
+      foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
+      distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null
     )
   }
 
@@ -255,11 +265,13 @@ class LocationService : Service() {
 
     val updateInterval = trackingOptions.getUpdateIntervalOrDefault()
     val fastestInterval = trackingOptions.getFastestIntervalOrDefault()
+    val distanceFilter = trackingOptions.getDistanceFilterOrDefault()
 
     android.util.Log.d("LocationService", "Starting location updates with:")
     android.util.Log.d("LocationService", "  Priority: $priority")
     android.util.Log.d("LocationService", "  Update Interval: ${updateInterval}ms")
     android.util.Log.d("LocationService", "  Fastest Interval: ${fastestInterval}ms")
+    android.util.Log.d("LocationService", "  Distance Filter: ${distanceFilter}m")
 
     try {
       android.util.Log.d("LocationService", "Requesting location updates...")
@@ -267,6 +279,7 @@ class LocationService : Service() {
         updateInterval,
         fastestInterval,
         priority,
+        distanceFilter,
         object : LocationUpdateCallback {
           override fun onLocationUpdate(location: Location) {
             handleSingleLocation(location)
@@ -370,6 +383,19 @@ class LocationService : Service() {
   }
 
   private fun handleLocation(location: Location) {
+    // CRITICAL: Check if stop was requested - prevent location broadcasts after stopTracking()
+    if (isStopRequested) {
+      android.util.Log.d("LocationService", "Stop requested - ignoring location update")
+      return
+    }
+
+    // Also check the global stop token for extra safety
+    if (isStopTokenSet(this)) {
+      android.util.Log.d("LocationService", "Stop token set - ignoring location update")
+      isStopRequested = true // Cache locally to avoid repeated SharedPreferences reads
+      return
+    }
+
     android.util.Log.d("LocationService", "Handling location: lat=${location.latitude}, lng=${location.longitude}, tripId=$currentTripId")
     currentTripId?.let { tripId ->
       // Extract all available location data
@@ -518,6 +544,13 @@ class LocationService : Service() {
   override fun onDestroy() {
     super.onDestroy()
 
+    // Clear active instance reference
+    synchronized(instanceLock) {
+      if (activeInstance === this) {
+        activeInstance = null
+      }
+    }
+
     // Clear restart counter on clean shutdown
     getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
       .edit()
@@ -527,6 +560,17 @@ class LocationService : Service() {
     // Cleanup location provider
     locationProvider.cleanup()
     android.util.Log.d("LocationService", "Location provider cleaned up")
+  }
+
+  /**
+   * Immediately stops location updates without waiting for service destruction
+   * Called from static method when stopTracking is invoked
+   */
+  internal fun stopLocationUpdatesImmediately() {
+    android.util.Log.d("LocationService", "Stopping location updates immediately")
+    isStopRequested = true
+    locationProvider.removeLocationUpdates()
+    android.util.Log.d("LocationService", "Location updates stopped immediately")
   }
 
   /**
@@ -583,10 +627,77 @@ class LocationService : Service() {
     private const val MAX_RESTARTS_PER_HOUR = 5
     private const val RESTART_WINDOW_MS = 3600000L // 1 hour
 
+    // Stop token - prevents RecoveryWorker from restarting after explicit stop
+    private const val KEY_STOP_TOKEN = "stop_token"
+    private const val KEY_STOP_TOKEN_TIMESTAMP = "stop_token_timestamp"
+    private const val STOP_TOKEN_VALIDITY_MS = 60000L // Token valid for 60 seconds
+
+    // Reference to active service instance for immediate stop
+    private val instanceLock = Any()
+    @Volatile
+    private var activeInstance: LocationService? = null
+
+    /**
+     * Sets a stop token to prevent RecoveryWorker from restarting tracking
+     * Uses SharedPreferences for synchronous, cross-process communication
+     */
+    fun setStopToken(context: Context) {
+      context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean(KEY_STOP_TOKEN, true)
+        .putLong(KEY_STOP_TOKEN_TIMESTAMP, System.currentTimeMillis())
+        .commit() // Use commit() for synchronous write
+      android.util.Log.d("LocationService", "Stop token set")
+    }
+
+    /**
+     * Clears the stop token (called when starting new tracking session)
+     */
+    fun clearStopToken(context: Context) {
+      context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .putBoolean(KEY_STOP_TOKEN, false)
+        .remove(KEY_STOP_TOKEN_TIMESTAMP)
+        .commit()
+      android.util.Log.d("LocationService", "Stop token cleared")
+    }
+
+    /**
+     * Checks if stop token is set and still valid
+     */
+    fun isStopTokenSet(context: Context): Boolean {
+      val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      val isSet = prefs.getBoolean(KEY_STOP_TOKEN, false)
+      if (!isSet) return false
+
+      // Check if token has expired
+      val timestamp = prefs.getLong(KEY_STOP_TOKEN_TIMESTAMP, 0)
+      val elapsed = System.currentTimeMillis() - timestamp
+      return elapsed < STOP_TOKEN_VALIDITY_MS
+    }
+
+    /**
+     * Immediately stops location updates on the active service instance
+     * This is called BEFORE stopService() to ensure immediate cessation of location tracking
+     */
+    fun stopLocationUpdatesImmediately(context: Context) {
+      synchronized(instanceLock) {
+        activeInstance?.let { service ->
+          service.stopLocationUpdatesImmediately()
+          android.util.Log.d("LocationService", "Called immediate stop on active instance")
+        } ?: run {
+          android.util.Log.d("LocationService", "No active instance to stop")
+        }
+      }
+    }
+
     /**
      * Starts the location service for a specific trip with options
      */
     fun startService(context: Context, tripId: String, options: TrackingOptions = TrackingOptions()) {
+      // Clear stop token when starting new tracking
+      clearStopToken(context)
+
       val optionsBundle = android.os.Bundle().apply {
         if (options.updateInterval != null) putLong("updateInterval", options.updateInterval)
         if (options.fastestInterval != null) putLong("fastestInterval", options.fastestInterval)
@@ -598,13 +709,14 @@ class LocationService : Service() {
         if (options.notificationChannelName != null) putString("notificationChannelName", options.notificationChannelName)
         if (options.notificationPriority != null) putString("notificationPriority", options.notificationPriority)
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
+        if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
       }
 
       val intent = Intent(context, LocationService::class.java).apply {
         putExtra(EXTRA_TRIP_ID, tripId)
         putExtra(EXTRA_TRACKING_OPTIONS, optionsBundle)
       }
-      
+
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)
       } else {

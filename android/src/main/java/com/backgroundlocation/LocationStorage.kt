@@ -190,7 +190,7 @@ class LocationStorage(context: Context) {
   
   /**
    * Saves the current tracking state along with tracking options
-   * Uses Room Database for persistence
+   * Uses Room Database for persistence (ASYNC - use saveTrackingStateSync for critical operations)
    */
   fun saveTrackingState(tripId: String?, isActive: Boolean, options: TrackingOptions? = null) {
     scope.launch {
@@ -214,6 +214,36 @@ class LocationStorage(context: Context) {
       } catch (e: Exception) {
         e.printStackTrace()
       }
+    }
+  }
+
+  /**
+   * Saves the current tracking state SYNCHRONOUSLY
+   * Use this for critical operations like stopTracking where we need to ensure
+   * the state is persisted before continuing (prevents race conditions)
+   */
+  suspend fun saveTrackingStateSync(tripId: String?, isActive: Boolean, options: TrackingOptions? = null) {
+    try {
+      val entity = TrackingStateEntity(
+        id = 1,
+        isActive = isActive,
+        tripId = tripId,
+        updateInterval = options?.updateInterval,
+        fastestInterval = options?.fastestInterval,
+        maxWaitTime = options?.maxWaitTime,
+        accuracy = options?.accuracy?.value,
+        waitForAccurateLocation = options?.waitForAccurateLocation,
+        notificationTitle = options?.notificationTitle,
+        notificationText = options?.notificationText,
+        notificationChannelName = options?.notificationChannelName,
+        notificationPriority = options?.notificationPriority,
+        foregroundOnly = options?.foregroundOnly
+      )
+      trackingStateDao.upsert(entity)
+      android.util.Log.d("LocationStorage", "Tracking state saved synchronously: isActive=$isActive, tripId=$tripId")
+    } catch (e: Exception) {
+      android.util.Log.e("LocationStorage", "Failed to save tracking state synchronously", e)
+      throw e
     }
   }
   

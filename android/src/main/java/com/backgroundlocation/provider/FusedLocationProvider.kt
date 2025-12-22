@@ -28,12 +28,18 @@ class FusedLocationProvider : LocationProvider {
         intervalMs: Long,
         fastestIntervalMs: Long,
         priority: Int,
+        distanceFilter: Float,
         callback: LocationUpdateCallback
     ) {
         this.updateCallback = callback
 
         val locationRequest = LocationRequest.Builder(priority, intervalMs)
             .setMinUpdateIntervalMillis(fastestIntervalMs)
+            .apply {
+                if (distanceFilter > 0f) {
+                    setMinUpdateDistanceMeters(distanceFilter)
+                }
+            }
             .build()
 
         locationCallback = object : LocationCallback() {

@@ -262,7 +262,43 @@ function LiveTrackingScreen() {
 }
 ```
 
-See the [Hooks Guide](docs/getting-started/hooks.md) for complete hook documentation.  
+#### Callback Throttling (v0.8.0+)
+
+The `onUpdateInterval` option allows you to throttle callback execution while still collecting all location updates:
+
+```typescript
+// Throttle callback for server sync (locations still collected at updateInterval)
+useLocationUpdates({
+  onLocationUpdate: (location) => {
+    // This callback is called at most every 30 seconds
+    syncToServer(location);
+  },
+  onUpdateInterval: 30000, // Sync every 30 seconds max
+});
+
+// Combine with distance filter for maximum efficiency
+const trackingOptions: TrackingOptions = {
+  distanceFilter: 50, // Only update if moved 50+ meters
+  updateInterval: 5000, // Check every 5 seconds
+};
+
+await BackgroundLocation.startTracking(trackingOptions);
+
+useLocationUpdates({
+  onLocationUpdate: (location) => {
+    // Called when device moves 50+ meters AND at most every 60 seconds
+    uploadToServer(location);
+  },
+  onUpdateInterval: 60000, // Upload at most every 60 seconds
+});
+```
+
+**Key differences:**
+- `distanceFilter` (TrackingOptions): Filters location collection at the native level
+- `onUpdateInterval` (useLocationUpdates): Throttles callback execution but locations are still collected
+- Combine both for optimal battery life and network efficiency
+
+See the [Hooks Guide](docs/getting-started/hooks.md) for complete hook documentation.
 See the [Real-Time Updates Guide](docs/getting-started/REAL_TIME_UPDATES.md) for real-time location watching.
 
 ### Using Direct API
@@ -331,9 +367,19 @@ await BackgroundLocation.clearTrip(tripId);
 
 ## API Reference
 
-### `startTracking(tripId?: string, options?: TrackingOptions): Promise<string>`
+### `startTracking()`
 
 Starts location tracking in background for a new or existing trip.
+
+**Overload 1: Options only (tripId auto-generated)**
+```typescript
+startTracking(options?: TrackingOptions): Promise<string>
+```
+
+**Overload 2: With tripId**
+```typescript
+startTracking(tripId?: string, options?: TrackingOptions): Promise<string>
+```
 
 - **Parameters:**
   - `tripId` (optional): Existing trip identifier to resume tracking. If omitted, a new UUID will be generated.
@@ -474,6 +520,8 @@ interface TrackingOptions {
   maxWaitTime?: number; // Maximum wait time in milliseconds before delivering location updates (default: 10000)
   accuracy?: LocationAccuracy; // Location accuracy priority (default: LocationAccuracy.HIGH_ACCURACY)
   waitForAccurateLocation?: boolean; // Whether to wait for accurate location before delivering updates (default: false)
+  distanceFilter?: number; // Minimum distance in meters between location updates (default: 0) - Android only
+  onUpdateInterval?: number; // Throttle callback execution in milliseconds - locations still collected but callbacks limited (default: undefined)
   notificationTitle?: string; // Notification title for foreground service (default: "Location Tracking")
   notificationText?: string; // Notification text for foreground service (default: "Tracking your location in background")
   notificationChannelName?: string; // Notification channel name (Android) (default: "Background Location")
@@ -588,8 +636,20 @@ const lowPowerOptions: TrackingOptions = {
   notificationPriority: NotificationPriority.LOW,
 };
 
+// Distance filter for battery efficiency (v0.8.0+)
+const distanceFilterOptions: TrackingOptions = {
+  distanceFilter: 50, // Only update if moved 50+ meters
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  updateInterval: 5000,
+  notificationTitle: 'Efficient Tracking',
+  notificationText: 'Tracking significant location changes',
+};
+
 // Start tracking with custom options
 const tripId = await BackgroundLocation.startTracking(undefined, highAccuracyOptions);
+
+// Start tracking with distance filter (new overload)
+const filteredTripId = await BackgroundLocation.startTracking(distanceFilterOptions);
 ```
 
 ### Configuration Presets
@@ -1105,7 +1165,7 @@ Make sure your `tsconfig.json` includes:
 
 - [ ] iOS implementation with Swift
 - [ ] Geofencing support
-- [ ] Distance filtering for GPS coordinates
+- [x] Distance filtering for GPS coordinates (v0.8.0)
 - [ ] Configurable notification appearance
 - [ ] Web support (Geolocation API)
 
