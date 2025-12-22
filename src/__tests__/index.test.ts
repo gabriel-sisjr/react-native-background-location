@@ -291,6 +291,29 @@ describe('BackgroundLocation API', () => {
       });
     });
 
+    it('should handle simulator mode when called with string tripId', async () => {
+      // Mock isTracking to return undefined to simulate unavailable module
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+      });
+
+      const customTripId = 'my-custom-trip-123';
+      const result = await BackgroundLocation.startTracking(customTripId);
+
+      // When tripId is a string, it should return that same tripId even in simulator mode
+      expect(result).toBe(customTripId);
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: jest.fn(),
+        configurable: true,
+      });
+    });
+
     it('should start tracking with all new options including distanceFilter and onUpdateInterval', async () => {
       const options: TrackingOptions = {
         updateInterval: 5000,
