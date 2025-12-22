@@ -23,11 +23,25 @@ class RecoveryWorker(
     val storage = LocationStorage(applicationContext)
 
     return try {
+      // CRITICAL: Check stop token FIRST
+      // If user explicitly called stopTracking(), we must NOT restart
+      if (LocationService.isStopTokenSet(applicationContext)) {
+        android.util.Log.d(TAG, "Stop token is set - user explicitly stopped tracking, skipping recovery")
+        return Result.success()
+      }
+
       val trackingState = storage.getTrackingStateAsync()
 
       // Only proceed if tracking is actually active with a valid tripId
       if (!trackingState.isActive || trackingState.tripId == null) {
         android.util.Log.d(TAG, "No active tracking session, skipping recovery")
+        return Result.success()
+      }
+
+      // Double-check stop token again after reading tracking state
+      // This handles the race condition where stopTracking() was called between the two checks
+      if (LocationService.isStopTokenSet(applicationContext)) {
+        android.util.Log.d(TAG, "Stop token set during state check - aborting recovery")
         return Result.success()
       }
 
@@ -47,6 +61,12 @@ class RecoveryWorker(
         notification,
         ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
       ))
+
+      // Final stop token check before starting service
+      if (LocationService.isStopTokenSet(applicationContext)) {
+        android.util.Log.d(TAG, "Stop token set just before service start - aborting recovery")
+        return Result.success()
+      }
 
       // Now safe to start the actual service
       val options = trackingState.options ?: TrackingOptions()
