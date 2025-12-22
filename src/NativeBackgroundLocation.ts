@@ -23,6 +23,7 @@ export interface TrackingOptionsSpec {
   notificationChannelName?: string;
   notificationPriority?: string;
   foregroundOnly?: boolean;
+  distanceFilter?: number;
 }
 
 export interface Spec extends TurboModule {

@@ -13,7 +13,8 @@ data class TrackingOptions(
   val notificationText: String? = null,
   val notificationChannelName: String? = null,
   val notificationPriority: String? = null,
-  val foregroundOnly: Boolean? = null
+  val foregroundOnly: Boolean? = null,
+  val distanceFilter: Float? = null
 ) {
   companion object {
     // Default values
@@ -26,6 +27,7 @@ data class TrackingOptions(
     const val DEFAULT_NOTIFICATION_CHANNEL_NAME = "Background Location"
     const val DEFAULT_NOTIFICATION_PRIORITY = "LOW"
     const val DEFAULT_FOREGROUND_ONLY = false
+    const val DEFAULT_DISTANCE_FILTER = 0f // No distance filter
   }
 
   /**
@@ -77,5 +79,10 @@ data class TrackingOptions(
    * Gets foregroundOnly with default fallback
    */
   fun getForegroundOnlyOrDefault(): Boolean = foregroundOnly ?: DEFAULT_FOREGROUND_ONLY
+
+  /**
+   * Gets the distance filter with default fallback
+   */
+  fun getDistanceFilterOrDefault(): Float = distanceFilter ?: DEFAULT_DISTANCE_FILTER
 }
 

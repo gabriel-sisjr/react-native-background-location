@@ -224,6 +224,14 @@ export interface TrackingOptions {
   waitForAccurateLocation?: boolean;
 
   /**
+   * Minimum distance in meters between location updates
+   * The system will not deliver location updates until the device has moved at least this distance
+   * @default 0 (no distance filter - all updates delivered)
+   * @platform Android
+   */
+  distanceFilter?: number;
+
+  /**
    * Notification title for foreground service
    * @default "Location Tracking"
    */
@@ -255,4 +263,13 @@ export interface TrackingOptions {
    * @platform Android
    */
   foregroundOnly?: boolean;
+
+  /**
+   * Interval in milliseconds to throttle the onLocationUpdate callback execution
+   * Locations are still collected at the updateInterval rate, but the callback
+   * is only executed at this interval. Useful for syncing to servers without
+   * overwhelming the network while still collecting frequent location data.
+   * @default undefined (callback called on every location update)
+   */
+  onUpdateInterval?: number;
 }

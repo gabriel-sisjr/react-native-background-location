@@ -134,7 +134,8 @@ class LocationService : Service() {
       notificationText = bundle.getString("notificationText"),
       notificationChannelName = bundle.getString("notificationChannelName"),
       notificationPriority = bundle.getString("notificationPriority"),
-      foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null
+      foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
+      distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null
     )
   }
 
@@ -255,11 +256,13 @@ class LocationService : Service() {
 
     val updateInterval = trackingOptions.getUpdateIntervalOrDefault()
     val fastestInterval = trackingOptions.getFastestIntervalOrDefault()
+    val distanceFilter = trackingOptions.getDistanceFilterOrDefault()
 
     android.util.Log.d("LocationService", "Starting location updates with:")
     android.util.Log.d("LocationService", "  Priority: $priority")
     android.util.Log.d("LocationService", "  Update Interval: ${updateInterval}ms")
     android.util.Log.d("LocationService", "  Fastest Interval: ${fastestInterval}ms")
+    android.util.Log.d("LocationService", "  Distance Filter: ${distanceFilter}m")
 
     try {
       android.util.Log.d("LocationService", "Requesting location updates...")
@@ -267,6 +270,7 @@ class LocationService : Service() {
         updateInterval,
         fastestInterval,
         priority,
+        distanceFilter,
         object : LocationUpdateCallback {
           override fun onLocationUpdate(location: Location) {
             handleSingleLocation(location)
@@ -598,6 +602,7 @@ class LocationService : Service() {
         if (options.notificationChannelName != null) putString("notificationChannelName", options.notificationChannelName)
         if (options.notificationPriority != null) putString("notificationPriority", options.notificationPriority)
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
+        if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

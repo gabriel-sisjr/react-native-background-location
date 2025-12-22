@@ -268,7 +268,8 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       notificationText = if (options.hasKey("notificationText")) options.getString("notificationText") else null,
       notificationChannelName = if (options.hasKey("notificationChannelName")) options.getString("notificationChannelName") else null,
       notificationPriority = if (options.hasKey("notificationPriority")) options.getString("notificationPriority") else null,
-      foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null
+      foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null,
+      distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null
     )
   }
 

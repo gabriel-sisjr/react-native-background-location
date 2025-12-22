@@ -21,6 +21,7 @@ interface LocationProvider {
         intervalMs: Long,
         fastestIntervalMs: Long,
         priority: Int,
+        distanceFilter: Float,
         callback: LocationUpdateCallback
     )
 
