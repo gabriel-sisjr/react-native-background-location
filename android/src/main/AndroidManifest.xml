@@ -34,8 +34,6 @@
     -->
     <service
       android:name="androidx.work.impl.foreground.SystemForegroundService"
-      android:enabled="true"
-      android:exported="false"
       android:foregroundServiceType="location"
       tools:node="merge" />
   </application>
