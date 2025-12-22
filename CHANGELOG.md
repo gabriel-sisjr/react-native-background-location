@@ -27,9 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ⏱️ **Callback Throttling**: Control callback execution frequency
   - `onUpdateInterval` option in `TrackingOptions` and `UseLocationUpdatesOptions`
-  - Throttles `onLocationUpdate` callback without affecting location collection
-  - Useful for server sync without overwhelming network
-  - Locations still collected at `updateInterval` rate
+  - Throttles `onLocationUpdate` callback to execute at minimum intervals (e.g., every 30 seconds)
+  - Locations are still collected and stored at `updateInterval` rate
+  - Callback fires on the first location that arrives after the interval has elapsed
+  - Ideal for periodic server sync without overwhelming network requests
 
 - 🔄 **startTracking Overload**: Cleaner API for options-only calls
   - `startTracking(options?: TrackingOptions)` - new signature
@@ -82,10 +83,12 @@ await BackgroundLocation.startTracking({
   notificationTitle: 'Tracking',
 });
 
-// Callback throttling - sync to server every 30 seconds max
+// Callback throttling - callback executes every ~30 seconds
+// Locations are still collected at updateInterval rate, but onLocationUpdate
+// fires only when 30+ seconds have passed since the last callback execution
 useLocationUpdates({
   onLocationUpdate: (location) => syncToServer(location),
-  onUpdateInterval: 30000, // 30 seconds
+  onUpdateInterval: 30000, // minimum 30 seconds between callback executions
 });
 ```
 
@@ -689,9 +692,10 @@ This release introduces distance filtering for location updates and callback thr
 - Works with both FusedLocationProvider and AndroidLocationProvider
 
 **⏱️ Callback Throttling:**
-- Control how often callbacks execute without affecting collection
-- Ideal for server sync scenarios
-- Locations still collected at configured rate
+- `onUpdateInterval` sets minimum interval between callback executions (e.g., 30000ms = every ~30 seconds)
+- Locations are still collected and stored at `updateInterval` rate
+- Callback fires on the first location that arrives after the interval has elapsed
+- Ideal for periodic server sync without overwhelming network requests
 
 **🔄 Cleaner API:**
 - New startTracking overload for options-only calls
