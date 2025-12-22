@@ -105,9 +105,18 @@ if (hasPermission) {
   const options: TrackingOptions = {
     accuracy: LocationAccuracy.HIGH_ACCURACY,
     updateInterval: 5000,
+    fastestInterval: 3000,
+    distanceFilter: 50, // Only update if moved 50+ meters
     notificationPriority: NotificationPriority.LOW,
+    notificationTitle: 'Tracking Active',
+    notificationText: 'Your location is being tracked',
   };
-  const customTripId = await BackgroundLocation.startTracking(undefined, options);
+
+  // Simple start with auto-generated tripId (v0.8.0+)
+  const autoTripId = await BackgroundLocation.startTracking(options);
+
+  // Or with custom tripId
+  const customTripId = await BackgroundLocation.startTracking('my-custom-trip-id', options);
 }
 ```
 
@@ -136,7 +145,9 @@ await BackgroundLocation.stopTracking();
 ```typescript
 import React, { useState, useEffect } from 'react';
 import { View, Button, Text, Alert, Platform, PermissionsAndroid } from 'react-native';
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+import BackgroundLocation, {
+  LocationAccuracy,
+} from '@gabriel-sisjr/react-native-background-location';
 
 export default function App() {
   const [tracking, setTracking] = useState(false);
@@ -201,7 +212,12 @@ export default function App() {
         return;
       }
 
-      const id = await BackgroundLocation.startTracking();
+      // Start tracking with custom options (v0.8.0+)
+      const id = await BackgroundLocation.startTracking({
+        distanceFilter: 50,  // Only update if moved 50+ meters
+        updateInterval: 5000,
+        accuracy: LocationAccuracy.HIGH_ACCURACY,
+      });
       setTripId(id);
       setTracking(true);
       Alert.alert('Success', `Tracking started: ${id}`);
@@ -271,6 +287,53 @@ export default function App() {
     </View>
   );
 }
+```
+
+## Quick Tips
+
+### Distance Filter
+
+Set `distanceFilter` to reduce battery usage by only recording locations when the device has moved a minimum distance:
+
+```typescript
+const options: TrackingOptions = {
+  distanceFilter: 25, // Only record when moved 25+ meters
+};
+```
+
+Recommended values:
+- **Walking**: 10-25 meters
+- **Driving**: 50-100 meters
+- **Stationary with movement detection**: 5-10 meters
+
+### Callback Throttling with Hooks
+
+Use `onUpdateInterval` in hooks to throttle server sync without affecting location collection:
+
+```typescript
+import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
+
+const { locations } = useBackgroundLocation({
+  updateInterval: 5000,      // Collect location every 5 seconds
+  onUpdateInterval: 30000,   // Sync to server every 30 seconds
+  onLocationUpdate: async (locations) => {
+    // Only called every 30 seconds
+    await syncToServer(locations);
+  },
+});
+```
+
+### Simplified API
+
+The v0.8.0 API is cleaner with auto-generated tripIds:
+
+```typescript
+// Before (v0.7.x)
+const tripId = uuid.v4();
+await BackgroundLocation.startTracking(tripId, options);
+
+// After (v0.8.0+)
+const tripId = await BackgroundLocation.startTracking(options);
 ```
 
 ## Important Notes

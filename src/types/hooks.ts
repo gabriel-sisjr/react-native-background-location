@@ -114,6 +114,14 @@ export interface UseLocationUpdatesOptions {
   onLocationUpdate?: (location: Coords) => void;
 
   /**
+   * Interval in milliseconds to throttle the onLocationUpdate callback execution
+   * Locations are still collected and stored, but the callback is only executed at this interval.
+   * Useful for syncing to servers without overwhelming the network.
+   * @default undefined (callback called on every location update)
+   */
+  onUpdateInterval?: number;
+
+  /**
    * Callback when a warning is received from the location service
    * Warnings include: SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE
    */

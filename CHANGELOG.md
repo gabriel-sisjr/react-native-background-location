@@ -12,10 +12,147 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - iOS implementation with Swift
 - iOS crash recovery support
 - Geofencing support
-- Distance filtering
-- Configurable notification appearance
 - Automatic data retention policies
 - Background sync with remote server
+
+## [0.8.0] - 2025-12-22
+
+### Added
+
+- 📏 **Distance Filter**: Minimum distance between location updates (Android)
+  - `distanceFilter` option in `TrackingOptions` (in meters)
+  - Uses `setMinUpdateDistanceMeters()` for FusedLocationProvider
+  - Uses `minDistance` parameter for AndroidLocationProvider
+  - Default: 0 (no distance filter - all updates delivered)
+
+- ⏱️ **Callback Throttling**: Control callback execution frequency
+  - `onUpdateInterval` option in `TrackingOptions` and `UseLocationUpdatesOptions`
+  - Throttles `onLocationUpdate` callback to execute at minimum intervals (e.g., every 30 seconds)
+  - Locations are still collected and stored at `updateInterval` rate
+  - Callback fires on the first location that arrives after the interval has elapsed
+  - Ideal for periodic server sync without overwhelming network requests
+
+- 🔄 **startTracking Overload**: Cleaner API for options-only calls
+  - `startTracking(options?: TrackingOptions)` - new signature
+  - `startTracking(tripId?: string, options?: TrackingOptions)` - backward compatible
+  - Automatically detects if first argument is options object or tripId
+
+### Changed
+
+- 🔧 **LocationProvider Interface**: Added `distanceFilter` parameter
+  - Updated `requestLocationUpdates()` signature in all providers
+  - Both FusedLocationProvider and AndroidLocationProvider support distance filtering
+
+- 📱 **TrackingOptions**: Extended with new parameters
+  - Added `distanceFilter?: number` for Android distance filtering
+  - Added `onUpdateInterval?: number` for callback throttling
+
+### Technical Details
+
+**File Changes:**
+- `android/src/main/java/com/backgroundlocation/TrackingOptions.kt`: Added distanceFilter
+- `android/src/main/java/com/backgroundlocation/provider/LocationProvider.kt`: Updated interface
+- `android/src/main/java/com/backgroundlocation/provider/FusedLocationProvider.kt`: Distance filter support
+- `android/src/main/java/com/backgroundlocation/provider/AndroidLocationProvider.kt`: Distance filter support
+- `android/src/main/java/com/backgroundlocation/LocationService.kt`: Pass distanceFilter to providers
+- `android/src/main/java/com/backgroundlocation/BackgroundLocationModule.kt`: Parse distanceFilter option
+- `src/types/tracking.ts`: Added distanceFilter and onUpdateInterval types
+- `src/types/hooks.ts`: Added onUpdateInterval to UseLocationUpdatesOptions
+- `src/hooks/useLocationUpdates.ts`: Implemented callback throttling
+- `src/index.tsx`: Added startTracking overload with distanceFilter support
+- `src/NativeBackgroundLocation.ts`: Added distanceFilter to TurboModule spec
+
+### Migration Guide
+
+If upgrading from 0.7.0:
+
+**No Breaking Changes** - All existing code continues to work without modifications.
+
+**New Features Available:**
+
+```typescript
+// Distance filter - only update if moved 50+ meters
+await BackgroundLocation.startTracking('my-trip', {
+  distanceFilter: 50,
+  updateInterval: 5000,
+});
+
+// Cleaner API - no need to pass undefined for tripId
+await BackgroundLocation.startTracking({
+  distanceFilter: 100,
+  notificationTitle: 'Tracking',
+});
+
+// Callback throttling - callback executes every ~30 seconds
+// Locations are still collected at updateInterval rate, but onLocationUpdate
+// fires only when 30+ seconds have passed since the last callback execution
+useLocationUpdates({
+  onLocationUpdate: (location) => syncToServer(location),
+  onUpdateInterval: 30000, // minimum 30 seconds between callback executions
+});
+```
+
+### Requirements
+
+- React Native 0.70 or higher
+- Android API 24+ (Android 7.0 Nougat)
+- Google Play Services Location 21.3.0
+- Kotlin 2.0.21
+
+## [0.7.0] - 2025-12-20
+
+### Added
+
+- 🤖 **Android 14/15 Compliance**: Full compatibility with latest Android versions
+  - `FOREGROUND_SERVICE_TYPE_LOCATION` declaration for Android 14+ (API 34)
+  - `onTimeout()` callback handling for Android 15+ (~6 hour service limit)
+  - Auto-restart service with saved state when timeout reached
+  - `onTaskRemoved()` handling for app swipe from recents
+
+- ⚠️ **Warning Event System**: New event types for service lifecycle
+  - `LocationWarningEvent` type for warning notifications
+  - `LocationWarningType` enum: `SERVICE_TIMEOUT`, `TASK_REMOVED`, `LOCATION_UNAVAILABLE`
+  - `onLocationWarning` callback in `useLocationUpdates` hook
+  - `lastWarning` state in hook results
+
+- 🏗️ **Provider Abstraction Layer**: Extensible location provider system
+  - `LocationProvider` interface for location updates
+  - `FusedLocationProvider` - Google Play Services implementation
+  - `AndroidLocationProvider` - Fallback for devices without Play Services
+  - `LocationProviderFactory` for automatic provider selection
+  - `LocationProcessor` interface for filtering and processing
+
+- 📚 **Production Documentation**: Comprehensive production guides
+  - `docs/production/BATTERY_OPTIMIZATION.md` - Battery efficiency guide
+  - `docs/production/CRASH_RECOVERY.md` - Recovery mechanisms documentation
+  - `docs/production/GOOGLE_PLAY_COMPLIANCE.md` - Play Store requirements
+
+- 🗄️ **Database Migrations**: Room Database schema versioning
+  - Version 2 schema with migrations support
+  - Automatic migration from version 1 to 2
+
+### Changed
+
+- 🔧 **LocationService**: Major architectural improvements
+  - Immediate `startForeground()` call within 5-10 second Android requirement
+  - Enhanced restart handling with crash loop protection
+  - Improved notification channel management
+
+- 🔧 **BackgroundLocationModule**: Enhanced event broadcasting
+  - Uses `LocationEventBroadcaster` for IPC via LocalBroadcastManager
+  - Better separation of concerns for event handling
+
+- 📱 **Example App**: Updated for Android 15 compatibility
+  - Updated AndroidManifest.xml with proper service declarations
+  - Foreground service type declarations
+
+### Requirements
+
+- React Native 0.70 or higher
+- Android API 24+ (Android 7.0 Nougat)
+- Google Play Services Location 21.3.0
+- Kotlin 2.0.21
+- Supports Android 15 (API 35, targetSDK 36)
 
 ## [0.6.0] - 2025-11-16
 
@@ -543,6 +680,67 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 
 ## Release Notes
 
+### v0.8.0 - Distance Filter & Callback Throttling
+
+**Major Additions:**
+
+This release introduces distance filtering for location updates and callback throttling for better control over location callbacks.
+
+**📏 Distance Filter:**
+- Configure minimum distance between updates
+- Reduces battery usage by filtering unnecessary updates
+- Works with both FusedLocationProvider and AndroidLocationProvider
+
+**⏱️ Callback Throttling:**
+- `onUpdateInterval` sets minimum interval between callback executions (e.g., 30000ms = every ~30 seconds)
+- Locations are still collected and stored at `updateInterval` rate
+- Callback fires on the first location that arrives after the interval has elapsed
+- Ideal for periodic server sync without overwhelming network requests
+
+**🔄 Cleaner API:**
+- New startTracking overload for options-only calls
+- No more passing undefined for tripId
+
+**Key Improvements:**
+
+- ✅ **Battery Efficient**: Distance filter reduces unnecessary updates
+- ✅ **Network Friendly**: Callback throttling prevents server overload
+- ✅ **Cleaner Code**: Options-only API reduces boilerplate
+- ✅ **Backward Compatible**: All existing code works unchanged
+
+---
+
+### v0.7.0 - Android 14/15 Compliance & Architecture
+
+**Major Additions:**
+
+This release ensures full compatibility with Android 14 and 15, plus major architectural improvements.
+
+**🤖 Android 14/15 Compliance:**
+- Foreground service type declaration for Android 14+
+- Timeout handling for Android 15's 6-hour limit
+- Task removal handling for app swipe
+- Proper service lifecycle management
+
+**🏗️ Provider Abstraction:**
+- Extensible location provider system
+- Automatic fallback for devices without Play Services
+- Location processor interface for filtering
+
+**⚠️ Warning Events:**
+- New warning event system
+- SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE types
+- Hook support for warning callbacks
+
+**Key Improvements:**
+
+- ✅ **Future Proof**: Compatible with latest Android versions
+- ✅ **More Reliable**: Better service lifecycle management
+- ✅ **Extensible**: Provider abstraction for customization
+- ✅ **Informative**: Warning events for debugging
+
+---
+
 ### v0.6.0 - Crash Recovery & Room Database
 
 **Major Additions:**
@@ -698,6 +896,8 @@ This is the first public release of `@gabriel-sisjr/react-native-background-loca
 
 ---
 
+[0.8.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.8.0
+[0.7.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.7.0
 [0.6.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.6.0
 [0.5.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.5.0
 [0.4.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.4.0

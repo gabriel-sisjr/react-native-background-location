@@ -30,6 +30,7 @@ class AndroidLocationProvider : LocationProvider {
         intervalMs: Long,
         fastestIntervalMs: Long,
         priority: Int,
+        distanceFilter: Float,
         callback: LocationUpdateCallback
     ) {
         this.updateCallback = callback
@@ -63,7 +64,7 @@ class AndroidLocationProvider : LocationProvider {
             locationManager?.requestLocationUpdates(
                 provider,
                 intervalMs,
-                0f, // No minimum distance
+                distanceFilter,
                 locationListener!!,
                 Looper.getMainLooper()
             )

@@ -166,6 +166,35 @@ function TrackingScreen() {
 }
 ```
 
+### TrackingOptions Interface
+
+The `TrackingOptions` interface defines all available configuration options for background location tracking.
+
+```typescript
+interface TrackingOptions {
+  // Location accuracy level
+  accuracy?: LocationAccuracy;
+
+  // Update interval in milliseconds
+  updateInterval?: number;
+
+  // Minimum distance in meters between location updates
+  // The system will not deliver location updates until the device
+  // has moved at least this distance.
+  // @default 0 (no distance filter - all updates delivered)
+  // @platform Android
+  distanceFilter?: number;
+
+  // Notification configuration
+  notificationTitle?: string;
+  notificationText?: string;
+  notificationPriority?: NotificationPriority;
+  notificationIcon?: string;
+  notificationChannelId?: string;
+  notificationChannelName?: string;
+}
+```
+
 ### Options
 
 ```typescript
@@ -278,6 +307,7 @@ function TripManager() {
     const options: TrackingOptions = {
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       updateInterval: 5000,
+      distanceFilter: 25, // Only update if moved 25+ meters
       notificationTitle: 'Trip Tracking',
       notificationText: 'Tracking your trip in background',
       notificationPriority: NotificationPriority.LOW,
@@ -312,6 +342,55 @@ function TripManager() {
     </View>
   );
 }
+```
+
+### Example: Distance Filter for Battery Optimization
+
+```typescript
+// Only track when user moves 50+ meters
+await startTracking('delivery-trip', {
+  distanceFilter: 50,
+  updateInterval: 5000,
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+});
+```
+
+### Example: New startTracking Overload
+
+```typescript
+// New: Start with just options (tripId auto-generated)
+const tripId = await startTracking({
+  distanceFilter: 100,
+  notificationTitle: 'Delivery Active',
+});
+
+// Existing: Start with tripId and options
+const tripId = await startTracking('my-trip', {
+  distanceFilter: 100,
+});
+```
+
+### Battery Optimization with Distance Filter
+
+Use `distanceFilter` to reduce battery consumption by only receiving updates when the device has moved a significant distance:
+
+```typescript
+// High accuracy with distance filter - great for delivery/navigation
+const deliveryConfig: TrackingOptions = {
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  updateInterval: 5000,
+  distanceFilter: 25, // Only update if moved 25+ meters
+};
+
+// Low power with large distance filter - for check-ins
+const checkInConfig: TrackingOptions = {
+  accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+  updateInterval: 60000,
+  distanceFilter: 500, // Only update if moved 500+ meters
+};
+
+// Start tracking with optimized configuration
+await startTracking(deliveryConfig);
 ```
 
 ## useLocationTracking
@@ -459,6 +538,13 @@ interface UseLocationUpdatesOptions {
 
   // Callback when a new location is received
   onLocationUpdate?: (location: Coords) => void;
+
+  // Interval in milliseconds to throttle the onLocationUpdate callback.
+  // Locations are still collected at the updateInterval rate, but the
+  // callback is only executed at this interval. Useful for syncing to
+  // servers without overwhelming the network.
+  // @default undefined (callback called on every location update)
+  onUpdateInterval?: number;
 
   // Callback when a service warning is emitted (Android 14+/15+)
   onLocationWarning?: (warning: LocationWarningEvent) => void;
@@ -617,6 +703,43 @@ function CompleteTracking() {
       <Button onPress={startTracking}>Start</Button>
       <Button onPress={stopTracking}>Stop</Button>
       <Text>Points: {locations.length}</Text>
+    </View>
+  );
+}
+```
+
+### Example: Throttling Server Sync with onUpdateInterval
+
+Use `onUpdateInterval` to control how often the callback is executed without changing the location collection rate:
+
+```typescript
+// Throttle server sync to every 30 seconds
+const { locations, lastLocation } = useLocationUpdates({
+  onLocationUpdate: async (location) => {
+    // This is only called every 30 seconds, even if locations
+    // are collected more frequently (e.g., every 5 seconds)
+    await syncLocationToServer(location);
+  },
+  onUpdateInterval: 30000, // 30 seconds
+});
+
+// Example: Collect every 5 seconds, sync every minute
+function ThrottledSync() {
+  const [syncCount, setSyncCount] = useState(0);
+
+  const { locations } = useLocationUpdates({
+    onLocationUpdate: async (location) => {
+      // Called every 60 seconds, not every 5 seconds
+      await uploadToServer(location);
+      setSyncCount(prev => prev + 1);
+    },
+    onUpdateInterval: 60000, // Sync every 1 minute
+  });
+
+  return (
+    <View>
+      <Text>Total locations: {locations.length}</Text>
+      <Text>Server syncs: {syncCount}</Text>
     </View>
   );
 }
