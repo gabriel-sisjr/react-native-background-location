@@ -12,6 +12,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * SCHEMA VERSION HISTORY:
  * - Version 1: Initial schema (locations, tracking_state tables)
  * - Version 2: Added notification customization columns to tracking_state
+ * - Version 3: Added notificationActions column to tracking_state
  */
 object Migrations {
 
@@ -28,12 +29,23 @@ object Migrations {
     }
 
     /**
+     * Migration from version 2 to 3
+     * Adds notificationActions column to tracking_state table
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationActions TEXT")
+        }
+    }
+
+    /**
      * Get all migrations in order
      * Add new migrations to this array as they are created
      */
     fun getAllMigrations(): Array<Migration> {
         return arrayOf(
             MIGRATION_1_2,
+            MIGRATION_2_3,
         )
     }
 

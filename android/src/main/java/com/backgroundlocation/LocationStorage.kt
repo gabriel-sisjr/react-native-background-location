@@ -211,7 +211,8 @@ class LocationStorage(context: Context) {
           foregroundOnly = options?.foregroundOnly,
           notificationSmallIcon = options?.notificationSmallIcon,
           notificationColor = options?.notificationColor,
-          notificationShowTimestamp = options?.notificationShowTimestamp
+          notificationShowTimestamp = options?.notificationShowTimestamp,
+          notificationActions = options?.notificationActions
         )
         trackingStateDao.upsert(entity)
       } catch (e: Exception) {
@@ -277,7 +278,8 @@ class LocationStorage(context: Context) {
             foregroundOnly = entity.foregroundOnly,
             notificationSmallIcon = entity.notificationSmallIcon,
             notificationColor = entity.notificationColor,
-            notificationShowTimestamp = entity.notificationShowTimestamp
+            notificationShowTimestamp = entity.notificationShowTimestamp,
+            notificationActions = entity.notificationActions
           )
         } else null
 

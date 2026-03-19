@@ -23,6 +23,8 @@ export type {
   UseLocationUpdatesResult,
   LocationWarningEvent,
   LocationWarningType,
+  NotificationAction,
+  NotificationActionEvent,
 } from './types';
 export type { UseLocationTrackingResult } from './hooks/useLocationTracking';
 
@@ -120,6 +122,9 @@ export default {
           notificationSmallIcon: trackingOptions.notificationSmallIcon,
           notificationColor: trackingOptions.notificationColor,
           notificationShowTimestamp: trackingOptions.notificationShowTimestamp,
+          notificationActions: trackingOptions.notificationActions
+            ? JSON.stringify(trackingOptions.notificationActions.slice(0, 3))
+            : undefined,
         }
       : undefined;
     return BackgroundLocationModule.startTracking(tripId, specOptions);

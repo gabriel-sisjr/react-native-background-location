@@ -147,7 +147,8 @@ class LocationService : Service() {
       distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null,
       notificationSmallIcon = bundle.getString("notificationSmallIcon"),
       notificationColor = bundle.getString("notificationColor"),
-      notificationShowTimestamp = if (bundle.containsKey("notificationShowTimestamp")) bundle.getBoolean("notificationShowTimestamp") else null
+      notificationShowTimestamp = if (bundle.containsKey("notificationShowTimestamp")) bundle.getBoolean("notificationShowTimestamp") else null,
+      notificationActions = bundle.getString("notificationActions")
     )
   }
 
@@ -563,6 +564,35 @@ class LocationService : Service() {
       }
     }
 
+    // Add notification action buttons (max 3)
+    trackingOptions.notificationActions?.let { actionsJson ->
+      try {
+        val actions = org.json.JSONArray(actionsJson)
+        val count = minOf(actions.length(), 3)
+        for (i in 0 until count) {
+          val action = actions.getJSONObject(i)
+          val actionId = action.getString("id")
+          val actionLabel = action.getString("label")
+
+          val actionIntent = Intent(this, NotificationActionReceiver::class.java).apply {
+            this.action = NotificationActionReceiver.ACTION_NOTIFICATION_BUTTON
+            putExtra(NotificationActionReceiver.EXTRA_TRIP_ID, currentTripId)
+            putExtra(NotificationActionReceiver.EXTRA_ACTION_ID, actionId)
+          }
+          val actionPendingIntent = PendingIntent.getBroadcast(
+            this,
+            actionId.hashCode(),
+            actionIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+          )
+          builder.addAction(0, actionLabel, actionPendingIntent)
+        }
+        android.util.Log.d("LocationService", "Added $count notification action(s)")
+      } catch (e: Exception) {
+        android.util.Log.w("LocationService", "Failed to parse notification actions JSON", e)
+      }
+    }
+
     return builder.build()
   }
 
@@ -777,6 +807,7 @@ class LocationService : Service() {
         if (options.notificationSmallIcon != null) putString("notificationSmallIcon", options.notificationSmallIcon)
         if (options.notificationColor != null) putString("notificationColor", options.notificationColor)
         if (options.notificationShowTimestamp != null) putBoolean("notificationShowTimestamp", options.notificationShowTimestamp)
+        if (options.notificationActions != null) putString("notificationActions", options.notificationActions)
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

@@ -962,6 +962,87 @@ describe('BackgroundLocation API', () => {
     });
   });
 
+  describe('notificationActions serialization', () => {
+    it('should serialize notification actions as JSON string', async () => {
+      const options: TrackingOptions = {
+        notificationActions: [
+          { id: 'stop', label: 'Stop' },
+          { id: 'pause', label: 'Pause' },
+        ],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          notificationActions: JSON.stringify([
+            { id: 'stop', label: 'Stop' },
+            { id: 'pause', label: 'Pause' },
+          ]),
+        })
+      );
+    });
+
+    it('should limit notification actions to maximum of 3', async () => {
+      const options: TrackingOptions = {
+        notificationActions: [
+          { id: 'a1', label: 'Action 1' },
+          { id: 'a2', label: 'Action 2' },
+          { id: 'a3', label: 'Action 3' },
+          { id: 'a4', label: 'Action 4' },
+        ],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      const parsedActions = JSON.parse(calledOptions?.notificationActions);
+      expect(parsedActions).toHaveLength(3);
+      expect(parsedActions[2].id).toBe('a3');
+    });
+
+    it('should not include notificationActions when not provided', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      expect(calledOptions?.notificationActions).toBeUndefined();
+    });
+
+    it('should handle empty notification actions array', async () => {
+      const options: TrackingOptions = {
+        notificationActions: [],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      expect(calledOptions?.notificationActions).toBe('[]');
+    });
+  });
+
   describe('Enum exports', () => {
     it('should export LocationAccuracy enum', () => {
       expect(LocationAccuracy).toBeDefined();

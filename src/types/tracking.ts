@@ -187,6 +187,36 @@ export interface LocationWarningEvent {
 }
 
 /**
+ * Notification action button configuration
+ * Up to 3 actions can be added to the foreground service notification
+ */
+export interface NotificationAction {
+  /**
+   * Unique identifier for this action
+   * Used to identify which action was pressed in the callback
+   */
+  id: string;
+  /**
+   * Label displayed on the action button
+   */
+  label: string;
+}
+
+/**
+ * Event emitted when a notification action button is pressed
+ */
+export interface NotificationActionEvent {
+  /**
+   * Trip identifier for the active tracking session
+   */
+  tripId: string;
+  /**
+   * ID of the action that was pressed
+   */
+  actionId: string;
+}
+
+/**
  * Configuration options for location tracking
  */
 export interface TrackingOptions {
@@ -296,4 +326,11 @@ export interface TrackingOptions {
    * @platform Android
    */
   notificationShowTimestamp?: boolean;
+
+  /**
+   * Action buttons to display on the foreground service notification
+   * Maximum of 3 actions. Additional actions will be ignored.
+   * @platform Android
+   */
+  notificationActions?: NotificationAction[];
 }

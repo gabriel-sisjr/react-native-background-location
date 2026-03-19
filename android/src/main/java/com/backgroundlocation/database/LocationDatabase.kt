@@ -14,6 +14,7 @@ import androidx.room.RoomDatabase
  * - Version 1: Initial schema (locations, tracking_state tables)
  * - Version 2: Added notification customization columns to tracking_state
  *              (notificationSmallIcon, notificationColor, notificationShowTimestamp)
+ * - Version 3: Added notificationActions column to tracking_state
  *
  * IMPORTANT: When changing schema:
  * 1. Increment the version number
@@ -23,7 +24,7 @@ import androidx.room.RoomDatabase
  */
 @Database(
   entities = [LocationEntity::class, TrackingStateEntity::class],
-  version = 2,
+  version = 3,
   exportSchema = true  // Changed to true for migration validation
 )
 abstract class LocationDatabase : RoomDatabase() {

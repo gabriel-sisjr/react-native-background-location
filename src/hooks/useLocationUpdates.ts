@@ -7,6 +7,7 @@ import type {
   Coords,
   LocationUpdateEvent,
   LocationWarningEvent,
+  NotificationActionEvent,
 } from '../types';
 import { extractDefinedProperties } from '../utils/objectUtils';
 
@@ -70,6 +71,7 @@ export function useLocationUpdates(
     tripId: providedTripId,
     onLocationUpdate,
     onLocationWarning,
+    onNotificationAction,
     onUpdateInterval,
     autoLoad = true,
   } = options;
@@ -298,6 +300,31 @@ export function useLocationUpdates(
       warningSubscription.remove();
     };
   }, [tripId, onLocationWarning]);
+
+  /**
+   * Listen for notification action events
+   */
+  useEffect(() => {
+    if (!isNativeModuleAvailable() || !onNotificationAction) {
+      return;
+    }
+
+    const eventEmitter = new NativeEventEmitter();
+
+    const actionSubscription = eventEmitter.addListener(
+      'onNotificationAction',
+      (event: any) => {
+        const actionEvent = event as NotificationActionEvent;
+        if (!tripId || actionEvent.tripId === tripId) {
+          onNotificationAction(actionEvent);
+        }
+      }
+    );
+
+    return () => {
+      actionSubscription.remove();
+    };
+  }, [tripId, onNotificationAction]);
 
   /**
    * Reset state when trip changes

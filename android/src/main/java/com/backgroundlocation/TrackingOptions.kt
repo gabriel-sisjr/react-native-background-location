@@ -17,7 +17,8 @@ data class TrackingOptions(
   val distanceFilter: Float? = null,
   val notificationSmallIcon: String? = null,
   val notificationColor: String? = null,
-  val notificationShowTimestamp: Boolean? = null
+  val notificationShowTimestamp: Boolean? = null,
+  val notificationActions: String? = null // JSON serialized array of {id, label}
 ) {
   companion object {
     // Default values

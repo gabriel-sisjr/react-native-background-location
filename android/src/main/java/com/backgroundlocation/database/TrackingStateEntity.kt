@@ -28,6 +28,7 @@ data class TrackingStateEntity(
   val foregroundOnly: Boolean? = null,
   val notificationSmallIcon: String? = null,
   val notificationColor: String? = null,
-  val notificationShowTimestamp: Boolean? = null
+  val notificationShowTimestamp: Boolean? = null,
+  val notificationActions: String? = null
 )
 

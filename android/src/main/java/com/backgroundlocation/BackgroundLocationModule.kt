@@ -111,6 +111,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
           LocationEventBroadcaster.ACTION_LOCATION_WARNING -> {
             handleLocationWarning(intent)
           }
+          LocationEventBroadcaster.ACTION_NOTIFICATION_ACTION -> {
+            handleNotificationAction(intent)
+          }
         }
       }
     }
@@ -181,6 +184,25 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
         .emit("onLocationWarning", eventData)
     } catch (e: Exception) {
       android.util.Log.e("BackgroundLocationModule", "Failed to emit location warning", e)
+    }
+  }
+
+  private fun handleNotificationAction(intent: Intent) {
+    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID) ?: return
+    val actionId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ACTION_ID) ?: return
+
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val eventData = Arguments.createMap().apply {
+        putString("tripId", tripId)
+        putString("actionId", actionId)
+      }
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onNotificationAction", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit notification action", e)
     }
   }
 
@@ -284,7 +306,8 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null,
       notificationSmallIcon = if (options.hasKey("notificationSmallIcon")) options.getString("notificationSmallIcon") else null,
       notificationColor = if (options.hasKey("notificationColor")) options.getString("notificationColor") else null,
-      notificationShowTimestamp = if (options.hasKey("notificationShowTimestamp")) options.getBoolean("notificationShowTimestamp") else null
+      notificationShowTimestamp = if (options.hasKey("notificationShowTimestamp")) options.getBoolean("notificationShowTimestamp") else null,
+      notificationActions = if (options.hasKey("notificationActions")) options.getString("notificationActions") else null
     )
   }
 
