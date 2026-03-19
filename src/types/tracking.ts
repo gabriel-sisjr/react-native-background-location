@@ -272,4 +272,28 @@ export interface TrackingOptions {
    * @default undefined (callback called on every location update)
    */
   onUpdateInterval?: number;
+
+  /**
+   * Name of the drawable resource to use as the notification small icon
+   * Must be a valid drawable resource name in the app's res/drawable directory
+   * @example "ic_notification"
+   * @default Android's built-in ic_menu_mylocation
+   * @platform Android
+   */
+  notificationSmallIcon?: string;
+
+  /**
+   * Hex color string for the notification accent color
+   * @example "#FF5722"
+   * @default undefined (system default)
+   * @platform Android
+   */
+  notificationColor?: string;
+
+  /**
+   * Whether to show the timestamp on the notification
+   * @default false
+   * @platform Android
+   */
+  notificationShowTimestamp?: boolean;
 }

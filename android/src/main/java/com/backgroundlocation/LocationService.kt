@@ -144,7 +144,10 @@ class LocationService : Service() {
       notificationChannelName = bundle.getString("notificationChannelName"),
       notificationPriority = bundle.getString("notificationPriority"),
       foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
-      distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null
+      distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null,
+      notificationSmallIcon = bundle.getString("notificationSmallIcon"),
+      notificationColor = bundle.getString("notificationColor"),
+      notificationShowTimestamp = if (bundle.containsKey("notificationShowTimestamp")) bundle.getBoolean("notificationShowTimestamp") else null
     )
   }
 
@@ -531,14 +534,36 @@ class LocationService : Service() {
       else -> NotificationCompat.PRIORITY_LOW
     }
 
-    return NotificationCompat.Builder(this, CHANNEL_ID)
+    // Resolve small icon: use custom drawable if provided, fallback to system default
+    val smallIconResId = trackingOptions.notificationSmallIcon?.let { iconName ->
+      val resId = resources.getIdentifier(iconName, "drawable", packageName)
+      if (resId != 0) {
+        resId
+      } else {
+        android.util.Log.w("LocationService", "Drawable resource '$iconName' not found, using default icon")
+        android.R.drawable.ic_menu_mylocation
+      }
+    } ?: android.R.drawable.ic_menu_mylocation
+
+    val builder = NotificationCompat.Builder(this, CHANNEL_ID)
       .setContentTitle(trackingOptions.getNotificationTitleOrDefault())
       .setContentText(trackingOptions.getNotificationTextOrDefault())
-      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+      .setSmallIcon(smallIconResId)
       .setContentIntent(pendingIntent)
       .setOngoing(true)
       .setPriority(priority)
-      .build()
+      .setShowWhen(trackingOptions.getNotificationShowTimestampOrDefault())
+
+    // Apply notification color if provided
+    trackingOptions.notificationColor?.let { colorHex ->
+      try {
+        builder.setColor(android.graphics.Color.parseColor(colorHex))
+      } catch (e: IllegalArgumentException) {
+        android.util.Log.w("LocationService", "Invalid notification color '$colorHex', ignoring")
+      }
+    }
+
+    return builder.build()
   }
 
   override fun onDestroy() {
@@ -710,6 +735,9 @@ class LocationService : Service() {
         if (options.notificationPriority != null) putString("notificationPriority", options.notificationPriority)
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
         if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
+        if (options.notificationSmallIcon != null) putString("notificationSmallIcon", options.notificationSmallIcon)
+        if (options.notificationColor != null) putString("notificationColor", options.notificationColor)
+        if (options.notificationShowTimestamp != null) putBoolean("notificationShowTimestamp", options.notificationShowTimestamp)
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

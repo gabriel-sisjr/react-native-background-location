@@ -117,6 +117,9 @@ export default {
             : undefined,
           foregroundOnly: trackingOptions.foregroundOnly,
           distanceFilter: trackingOptions.distanceFilter,
+          notificationSmallIcon: trackingOptions.notificationSmallIcon,
+          notificationColor: trackingOptions.notificationColor,
+          notificationShowTimestamp: trackingOptions.notificationShowTimestamp,
         }
       : undefined;
     return BackgroundLocationModule.startTracking(tripId, specOptions);

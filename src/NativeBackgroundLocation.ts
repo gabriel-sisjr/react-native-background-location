@@ -24,6 +24,9 @@ export interface TrackingOptionsSpec {
   notificationPriority?: string;
   foregroundOnly?: boolean;
   distanceFilter?: number;
+  notificationSmallIcon?: string;
+  notificationColor?: string;
+  notificationShowTimestamp?: boolean;
 }
 
 export interface Spec extends TurboModule {
