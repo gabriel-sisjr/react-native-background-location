@@ -32,6 +32,7 @@ A React Native library for tracking location in the background using TurboModule
 - ✅ **Android support** - Native Kotlin implementation (iOS coming soon)
 - ✅ **Persistent storage** - Locations are stored in Room Database and survive app restarts
 - ✅ **Foreground service** - Uses Android foreground service for reliable tracking
+- ✅ **Notification customization** - Custom icons, colors, action buttons, dynamic updates, and more
 
 ## Installation
 
@@ -298,6 +299,94 @@ useLocationUpdates({
 - `onUpdateInterval` (useLocationUpdates): Throttles callback execution but locations are still collected
 - Combine both for optimal battery life and network efficiency
 
+#### Notification Customization (v0.9.0+)
+
+Customize the foreground service notification appearance:
+
+```typescript
+await BackgroundLocation.startTracking('trip-123', {
+  // Visual customization
+  notificationSmallIcon: 'ic_delivery',     // Custom drawable resource
+  notificationColor: '#FF5722',              // Accent color
+  notificationShowTimestamp: true,            // Show time
+  notificationLargeIcon: 'ic_large_logo',    // Large icon
+  notificationSubtext: '2.5km remaining',    // Subtext
+  notificationChannelId: 'delivery_channel', // Custom channel
+
+  // Action buttons (max 3)
+  notificationActions: [
+    { id: 'stop', label: 'Stop Tracking' },
+    { id: 'emergency', label: 'Emergency' },
+  ],
+});
+
+// Update notification content dynamically
+await BackgroundLocation.updateNotification(
+  'Delivery #1234',
+  'Arriving in 5 minutes'
+);
+
+// Listen for action button presses
+useLocationUpdates({
+  onNotificationAction: (event) => {
+    if (event.actionId === 'stop') {
+      BackgroundLocation.stopTracking();
+    }
+  },
+});
+```
+
+**Important notes:**
+- Custom icons must be valid drawable resources in your app's `res/drawable/` directory
+- Invalid icon names or colors fall back to defaults with a warning log
+- `updateNotification()` changes are transient — they don't survive service restarts
+- The minimal notification (shown during the 5-10s Android startup deadline) is not affected
+
+### Static Notification Defaults
+
+You can set default notification icons and colors without passing them on every `startTracking()` call. These defaults also apply to the minimal notification (Android 12+ startup deadline) and the crash recovery notification — contexts where runtime options are not yet available.
+
+#### Option 1: AndroidManifest Metadata (Recommended)
+
+Add `<meta-data>` elements to your app's `AndroidManifest.xml`, following the same pattern used by Firebase:
+
+```xml
+<application>
+    <!-- Default small icon for all tracking notifications -->
+    <meta-data
+        android:name="com.backgroundlocation.default_notification_icon"
+        android:resource="@drawable/ic_notification" />
+
+    <!-- Default large icon (optional) -->
+    <meta-data
+        android:name="com.backgroundlocation.default_notification_large_icon"
+        android:resource="@drawable/ic_logo_large" />
+
+    <!-- Default accent color (optional) -->
+    <meta-data
+        android:name="com.backgroundlocation.default_notification_color"
+        android:resource="@color/notification_accent" />
+</application>
+```
+
+#### Option 2: Convention-Based Drawable
+
+Simply place a drawable with a specific name in your app's `res/drawable/` directory — no configuration needed:
+
+- **Small icon:** `bg_location_notification_icon` (e.g., `res/drawable/bg_location_notification_icon.xml`)
+- **Large icon:** `bg_location_notification_large_icon`
+
+#### Resolution Priority
+
+Icons and colors are resolved in this order (highest priority first):
+
+1. **Runtime** — `TrackingOptions.notificationSmallIcon` passed to `startTracking()`
+2. **AndroidManifest** — `<meta-data>` elements
+3. **Convention** — Drawables with conventional names
+4. **System default** — `android.R.drawable.ic_menu_mylocation`
+
+This means runtime options always win, but if omitted, the library automatically falls back through the chain. The minimal notification and crash recovery notification — which run before/without JS — benefit from options 2-4.
+
 See the [Hooks Guide](docs/getting-started/hooks.md) for complete hook documentation.
 See the [Real-Time Updates Guide](docs/getting-started/REAL_TIME_UPDATES.md) for real-time location watching.
 
@@ -488,6 +577,25 @@ Clears all stored location data for a specific trip.
   - `INVALID_TRIP_ID` if trip ID is empty.
   - `CLEAR_TRIP_ERROR` if unable to clear data.
 
+### `updateNotification(title: string, text: string): Promise<void>`
+
+Updates the notification content while tracking is active. Dynamic updates are transient and do not persist across service restarts.
+
+- **Parameters:**
+  - `title`: New notification title
+  - `text`: New notification text
+
+- **Returns:** Promise that resolves when notification is updated.
+
+- **Behavior:**
+  - Inherits icon, color, and timestamp settings from initial tracking options
+  - Does not recreate the notification channel
+  - Updates are transient (not persisted to database)
+
+- **Throws:**
+  - `INVALID_ARGUMENTS` if title or text is empty
+  - `NO_ACTIVE_SERVICE` if no tracking is currently active
+
 ## Types
 
 ```typescript
@@ -527,6 +635,23 @@ interface TrackingOptions {
   notificationChannelName?: string; // Notification channel name (Android) (default: "Background Location")
   notificationPriority?: NotificationPriority; // Notification priority (Android) (default: NotificationPriority.LOW)
   foregroundOnly?: boolean; // Track only while app is visible (default: false) - does not require background permission
+  notificationSmallIcon?: string; // Custom drawable resource name for small icon. Falls back to manifest metadata, then convention drawable, then system default - Android only
+  notificationColor?: string; // Hex color string for notification accent (e.g., "#FF5722") - Android only
+  notificationShowTimestamp?: boolean; // Show timestamp on notification (default: false) - Android only
+  notificationActions?: NotificationAction[]; // Up to 3 action buttons on notification - Android only
+  notificationLargeIcon?: string; // Custom drawable for large icon - Android only
+  notificationSubtext?: string; // Subtext below notification content - Android only
+  notificationChannelId?: string; // Custom notification channel ID (default: "background_location_channel") - Android only
+}
+
+interface NotificationAction {
+  id: string; // Unique action identifier
+  label: string; // Button label text
+}
+
+interface NotificationActionEvent {
+  tripId: string; // Active trip ID
+  actionId: string; // ID of pressed action
 }
 ```
 
@@ -589,6 +714,7 @@ The library uses the following default settings:
 - **Notification text:** "Tracking your location in background"
 - **Notification channel name:** "Background Location"
 - **Notification priority:** `NotificationPriority.LOW`
+- **Notification icon:** Resolved via manifest metadata → convention drawable → system default
 
 ### Customizing Configuration
 
@@ -1069,6 +1195,7 @@ const {
   tripId?: string,                                    // Filter by tripId
   onLocationUpdate?: (location) => void,              // Callback per update
   onLocationWarning?: (warning) => void,              // Callback for warnings
+  onNotificationAction?: (event: NotificationActionEvent) => void, // Callback for action button presses
   autoLoad?: boolean,                                 // Auto-load existing data (default: true)
 });
 
@@ -1166,7 +1293,7 @@ Make sure your `tsconfig.json` includes:
 - [ ] iOS implementation with Swift
 - [ ] Geofencing support
 - [x] Distance filtering for GPS coordinates (v0.8.0)
-- [ ] Configurable notification appearance
+- [x] Configurable notification appearance (v0.9.0)
 - [ ] Web support (Geolocation API)
 
 ## Contributing

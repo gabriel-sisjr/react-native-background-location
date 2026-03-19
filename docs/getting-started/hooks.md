@@ -189,11 +189,20 @@ interface TrackingOptions {
   notificationTitle?: string;
   notificationText?: string;
   notificationPriority?: NotificationPriority;
-  notificationIcon?: string;
-  notificationChannelId?: string;
   notificationChannelName?: string;
+
+  // Notification appearance (v0.9.0+)
+  notificationSmallIcon?: string;    // Custom drawable resource name (falls back to manifest metadata → convention drawable → system default)
+  notificationColor?: string;         // Hex color (e.g., "#FF5722")
+  notificationShowTimestamp?: boolean; // Show timestamp
+  notificationLargeIcon?: string;     // Large icon drawable
+  notificationSubtext?: string;       // Subtext below content
+  notificationChannelId?: string;     // Custom channel ID
+  notificationActions?: NotificationAction[]; // Up to 3 action buttons
 }
 ```
+
+> **Tip:** You can set default notification icons via AndroidManifest `<meta-data>` instead of passing them at runtime. See the [README — Static Notification Defaults](../../README.md#static-notification-defaults) for details.
 
 ### Options
 
@@ -549,6 +558,9 @@ interface UseLocationUpdatesOptions {
   // Callback when a service warning is emitted (Android 14+/15+)
   onLocationWarning?: (warning: LocationWarningEvent) => void;
 
+  // Callback when a notification action button is pressed (v0.9.0+)
+  onNotificationAction?: (event: NotificationActionEvent) => void;
+
   // Whether to automatically load existing locations on mount
   autoLoad?: boolean;  // Default: true
 }
@@ -641,6 +653,50 @@ function TrackingWithWarnings() {
 | `SERVICE_TIMEOUT` | Android 15+ foreground service timeout reached | Service auto-restarts, no action needed |
 | `TASK_REMOVED` | App swiped from recents | Tracking continues, inform user if needed |
 | `LOCATION_UNAVAILABLE` | GPS signal lost or disabled | Prompt user to check settings |
+
+### Notification Action Buttons (v0.9.0+)
+
+Add interactive buttons to the tracking notification and listen for presses:
+
+```typescript
+import BackgroundLocation, {
+  useLocationUpdates,
+  type NotificationActionEvent,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function TrackingWithActions() {
+  const { locations } = useLocationUpdates({
+    onNotificationAction: (event: NotificationActionEvent) => {
+      switch (event.actionId) {
+        case 'stop':
+          BackgroundLocation.stopTracking();
+          break;
+        case 'emergency':
+          callEmergencyService();
+          break;
+      }
+    },
+  });
+
+  const startWithActions = async () => {
+    await BackgroundLocation.startTracking('trip-123', {
+      notificationTitle: 'Delivery in Progress',
+      notificationText: 'En route to destination',
+      notificationActions: [
+        { id: 'stop', label: 'Stop' },
+        { id: 'emergency', label: 'Emergency' },
+      ],
+    });
+  };
+
+  return (
+    <View>
+      <Button title="Start" onPress={startWithActions} />
+      <Text>Locations: {locations.length}</Text>
+    </View>
+  );
+}
+```
 
 ### Key Differences from useBackgroundLocation
 
@@ -1121,6 +1177,8 @@ import type {
   LocationUpdateEvent,
   LocationWarningEvent,
   LocationWarningType,
+  NotificationAction,
+  NotificationActionEvent,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import {

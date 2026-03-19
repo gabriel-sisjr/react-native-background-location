@@ -11,7 +11,7 @@ import {
   Switch,
   TouchableOpacity,
 } from 'react-native';
-import {
+import BackgroundLocation, {
   useLocationPermissions,
   useBackgroundLocation,
   useLocationUpdates,
@@ -19,6 +19,7 @@ import {
   LocationAccuracy,
   NotificationPriority,
   type TrackingOptions,
+  type NotificationActionEvent,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import styles from './styles';
@@ -77,6 +78,8 @@ export default function App() {
   const [useAutoUpdates, setUseAutoUpdates] = React.useState(true);
   const [showConfig, setShowConfig] = React.useState(false);
   const [showMap, setShowMap] = React.useState(false);
+  const [lastActionEvent, setLastActionEvent] =
+    React.useState<NotificationActionEvent | null>(null);
   const [configPreset, setConfigPreset] = React.useState<
     'default' | 'high-accuracy' | 'balanced' | 'low-power' | 'custom'
   >('default');
@@ -93,6 +96,15 @@ export default function App() {
       notificationText: 'Tracking your location in background',
       notificationChannelName: 'Background Location',
       notificationPriority: NotificationPriority.LOW,
+      notificationSmallIcon: 'ic_notification',
+      notificationColor: '#4CAF50',
+      notificationShowTimestamp: true,
+      notificationLargeIcon: 'ic_notification_large',
+      notificationSubtext: 'Background Location Example',
+      notificationActions: [
+        { id: 'pause', label: 'Pause' },
+        { id: 'stop', label: 'Stop' },
+      ],
     }
   );
 
@@ -108,6 +120,15 @@ export default function App() {
       notificationText: 'Tracking your location in background',
       notificationChannelName: 'Background Location',
       notificationPriority: NotificationPriority.LOW,
+      notificationSmallIcon: 'ic_notification',
+      notificationColor: '#4CAF50',
+      notificationShowTimestamp: true,
+      notificationLargeIcon: 'ic_notification_large',
+      notificationSubtext: 'Background Location Example',
+      notificationActions: [
+        { id: 'pause', label: 'Pause' },
+        { id: 'stop', label: 'Stop' },
+      ],
     } as TrackingOptions,
     'high-accuracy': {
       updateInterval: 2000,
@@ -119,6 +140,10 @@ export default function App() {
       notificationText: 'Using GPS for precise location tracking',
       notificationChannelName: 'High Accuracy Tracking',
       notificationPriority: NotificationPriority.DEFAULT,
+      notificationSmallIcon: 'ic_notification',
+      notificationColor: '#2196F3',
+      notificationShowTimestamp: true,
+      notificationActions: [{ id: 'stop', label: 'Stop Tracking' }],
     } as TrackingOptions,
     'balanced': {
       updateInterval: 10000,
@@ -130,6 +155,9 @@ export default function App() {
       notificationText: 'Balanced location tracking',
       notificationChannelName: 'Balanced Location',
       notificationPriority: NotificationPriority.LOW,
+      notificationSmallIcon: 'ic_notification',
+      notificationColor: '#FF9800',
+      notificationShowTimestamp: false,
     } as TrackingOptions,
     'low-power': {
       updateInterval: 30000,
@@ -141,6 +169,8 @@ export default function App() {
       notificationText: 'Power-efficient location tracking',
       notificationChannelName: 'Low Power Tracking',
       notificationPriority: NotificationPriority.LOW,
+      notificationSmallIcon: 'ic_notification',
+      notificationColor: '#9C27B0',
     } as TrackingOptions,
   };
 
@@ -188,6 +218,19 @@ export default function App() {
   } = useLocationUpdates({
     onLocationUpdate: (location) => {
       console.log('New location received:', location);
+    },
+    onNotificationAction: (event: NotificationActionEvent) => {
+      console.log('Notification action pressed:', event);
+      setLastActionEvent(event);
+
+      if (event.actionId === 'stop') {
+        stopTracking();
+      } else if (event.actionId === 'pause') {
+        Alert.alert(
+          'Pause Action',
+          `Action "${event.actionId}" pressed for trip ${event.tripId}`
+        );
+      }
     },
   });
 
@@ -392,6 +435,29 @@ export default function App() {
                 <Text style={styles.configDetailText}>
                   Notification Title: {trackingOptions.notificationTitle}
                 </Text>
+                <Text style={styles.configDetailText}>
+                  Small Icon:{' '}
+                  {trackingOptions.notificationSmallIcon || 'default'}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Color: {trackingOptions.notificationColor || 'none'}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Timestamp:{' '}
+                  {trackingOptions.notificationShowTimestamp ? 'Yes' : 'No'}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Large Icon: {trackingOptions.notificationLargeIcon || 'none'}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Subtext: {trackingOptions.notificationSubtext || 'none'}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Actions:{' '}
+                  {trackingOptions.notificationActions
+                    ?.map((a) => a.label)
+                    .join(', ') || 'none'}
+                </Text>
               </View>
 
               <View style={styles.configInfo}>
@@ -461,6 +527,25 @@ export default function App() {
           </View>
         )}
 
+        {lastActionEvent && (
+          <View style={styles.actionEventContainer}>
+            <Text style={styles.actionEventTitle}>
+              Last Notification Action
+            </Text>
+            <Text style={styles.actionEventText}>
+              Action: {lastActionEvent.actionId}
+            </Text>
+            <Text style={styles.actionEventText}>
+              Trip: {lastActionEvent.tripId}
+            </Text>
+            <Button
+              title="Dismiss"
+              onPress={() => setLastActionEvent(null)}
+              color="#795548"
+            />
+          </View>
+        )}
+
         {/* Route Map */}
         {locations.length > 0 && (
           <View style={styles.mapContainer}>
@@ -518,6 +603,20 @@ export default function App() {
                   title="Refresh Locations"
                   onPress={refreshLocations}
                   color="#FF9800"
+                />
+              )}
+
+              {isTracking && (
+                <Button
+                  title="Update Notification Text"
+                  onPress={() => {
+                    const now = new Date().toLocaleTimeString();
+                    BackgroundLocation.updateNotification(
+                      'Updated at ' + now,
+                      `${locations.length} locations collected`
+                    );
+                  }}
+                  color="#009688"
                 />
               )}
 

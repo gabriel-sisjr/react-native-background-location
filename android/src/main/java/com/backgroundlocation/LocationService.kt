@@ -488,10 +488,12 @@ class LocationService : Service() {
       }
     }
 
+    val smallIcon = NotificationDefaults.getSmallIcon(this)
+
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setContentTitle("Location Tracking")
       .setContentText("Starting location tracking...")
-      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+      .setSmallIcon(smallIcon)
       .setOngoing(true)
       .setPriority(NotificationCompat.PRIORITY_LOW)
       .build()
@@ -540,16 +542,8 @@ class LocationService : Service() {
       else -> NotificationCompat.PRIORITY_LOW
     }
 
-    // Resolve small icon: use custom drawable if provided, fallback to system default
-    val smallIconResId = trackingOptions.notificationSmallIcon?.let { iconName ->
-      val resId = resources.getIdentifier(iconName, "drawable", packageName)
-      if (resId != 0) {
-        resId
-      } else {
-        android.util.Log.w("LocationService", "Drawable resource '$iconName' not found, using default icon")
-        android.R.drawable.ic_menu_mylocation
-      }
-    } ?: android.R.drawable.ic_menu_mylocation
+    // Resolve small icon: runtime override -> manifest meta-data -> convention -> system default
+    val smallIconResId = NotificationDefaults.getSmallIcon(this, trackingOptions.notificationSmallIcon)
 
     val effectiveChannelId = trackingOptions.notificationChannelId ?: CHANNEL_ID
 
@@ -562,23 +556,14 @@ class LocationService : Service() {
       .setPriority(priority)
       .setShowWhen(trackingOptions.getNotificationShowTimestampOrDefault())
 
-    // Apply notification color if provided
-    trackingOptions.notificationColor?.let { colorHex ->
-      try {
-        builder.setColor(android.graphics.Color.parseColor(colorHex))
-      } catch (e: IllegalArgumentException) {
-        android.util.Log.w("LocationService", "Invalid notification color '$colorHex', ignoring")
-      }
+    // Apply notification color: runtime override -> manifest meta-data -> none
+    NotificationDefaults.getColor(this, trackingOptions.notificationColor)?.let { color ->
+      builder.setColor(color)
     }
 
-    // Apply large icon if provided
-    trackingOptions.notificationLargeIcon?.let { iconName ->
-      val resId = resources.getIdentifier(iconName, "drawable", packageName)
-      if (resId != 0) {
-        builder.setLargeIcon(android.graphics.BitmapFactory.decodeResource(resources, resId))
-      } else {
-        android.util.Log.w("LocationService", "Large icon drawable '$iconName' not found, ignoring")
-      }
+    // Apply large icon: runtime override -> manifest meta-data -> convention -> none
+    NotificationDefaults.getLargeIcon(this, trackingOptions.notificationLargeIcon)?.let { bitmap ->
+      builder.setLargeIcon(bitmap)
     }
 
     // Apply subtext if provided

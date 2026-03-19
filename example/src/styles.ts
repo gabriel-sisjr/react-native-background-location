@@ -320,6 +320,31 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontStyle: 'italic',
   },
+  actionEventContainer: {
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: '#FFF3E0',
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  actionEventTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#E65100',
+    marginBottom: 8,
+  },
+  actionEventText: {
+    fontSize: 12,
+    color: '#BF360C',
+    marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
 });
 
 export default styles;
