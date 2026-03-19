@@ -128,10 +128,12 @@ class RecoveryWorker(
     }
 
     // Create minimal notification for setForeground
+    val smallIcon = NotificationDefaults.getSmallIcon(applicationContext)
+
     return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
       .setContentTitle("Recovering location tracking...")
       .setContentText("Restarting background location service")
-      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+      .setSmallIcon(smallIcon)
       .setPriority(NotificationCompat.PRIORITY_LOW)
       .build()
   }

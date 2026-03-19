@@ -144,7 +144,14 @@ class LocationService : Service() {
       notificationChannelName = bundle.getString("notificationChannelName"),
       notificationPriority = bundle.getString("notificationPriority"),
       foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
-      distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null
+      distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null,
+      notificationSmallIcon = bundle.getString("notificationSmallIcon"),
+      notificationColor = bundle.getString("notificationColor"),
+      notificationShowTimestamp = if (bundle.containsKey("notificationShowTimestamp")) bundle.getBoolean("notificationShowTimestamp") else null,
+      notificationActions = bundle.getString("notificationActions"),
+      notificationLargeIcon = bundle.getString("notificationLargeIcon"),
+      notificationSubtext = bundle.getString("notificationSubtext"),
+      notificationChannelId = bundle.getString("notificationChannelId")
     )
   }
 
@@ -481,10 +488,12 @@ class LocationService : Service() {
       }
     }
 
+    val smallIcon = NotificationDefaults.getSmallIcon(this)
+
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setContentTitle("Location Tracking")
       .setContentText("Starting location tracking...")
-      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+      .setSmallIcon(smallIcon)
       .setOngoing(true)
       .setPriority(NotificationCompat.PRIORITY_LOW)
       .build()
@@ -500,8 +509,10 @@ class LocationService : Service() {
         else -> NotificationManager.IMPORTANCE_LOW
       }
 
+      val effectiveChannelId = trackingOptions.notificationChannelId ?: CHANNEL_ID
+
       val channel = NotificationChannel(
-        CHANNEL_ID,
+        effectiveChannelId,
         trackingOptions.getNotificationChannelNameOrDefault(),
         importance
       ).apply {
@@ -531,14 +542,65 @@ class LocationService : Service() {
       else -> NotificationCompat.PRIORITY_LOW
     }
 
-    return NotificationCompat.Builder(this, CHANNEL_ID)
+    // Resolve small icon: runtime override -> manifest meta-data -> convention -> system default
+    val smallIconResId = NotificationDefaults.getSmallIcon(this, trackingOptions.notificationSmallIcon)
+
+    val effectiveChannelId = trackingOptions.notificationChannelId ?: CHANNEL_ID
+
+    val builder = NotificationCompat.Builder(this, effectiveChannelId)
       .setContentTitle(trackingOptions.getNotificationTitleOrDefault())
       .setContentText(trackingOptions.getNotificationTextOrDefault())
-      .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+      .setSmallIcon(smallIconResId)
       .setContentIntent(pendingIntent)
       .setOngoing(true)
       .setPriority(priority)
-      .build()
+      .setShowWhen(trackingOptions.getNotificationShowTimestampOrDefault())
+
+    // Apply notification color: runtime override -> manifest meta-data -> none
+    NotificationDefaults.getColor(this, trackingOptions.notificationColor)?.let { color ->
+      builder.setColor(color)
+    }
+
+    // Apply large icon: runtime override -> manifest meta-data -> convention -> none
+    NotificationDefaults.getLargeIcon(this, trackingOptions.notificationLargeIcon)?.let { bitmap ->
+      builder.setLargeIcon(bitmap)
+    }
+
+    // Apply subtext if provided
+    trackingOptions.notificationSubtext?.let { subtext ->
+      builder.setSubText(subtext)
+    }
+
+    // Add notification action buttons (max 3)
+    trackingOptions.notificationActions?.let { actionsJson ->
+      try {
+        val actions = org.json.JSONArray(actionsJson)
+        val count = minOf(actions.length(), 3)
+        for (i in 0 until count) {
+          val action = actions.getJSONObject(i)
+          val actionId = action.getString("id")
+          val actionLabel = action.getString("label")
+
+          val actionIntent = Intent(this, NotificationActionReceiver::class.java).apply {
+            this.action = NotificationActionReceiver.ACTION_NOTIFICATION_BUTTON
+            putExtra(NotificationActionReceiver.EXTRA_TRIP_ID, currentTripId)
+            putExtra(NotificationActionReceiver.EXTRA_ACTION_ID, actionId)
+          }
+          val actionPendingIntent = PendingIntent.getBroadcast(
+            this,
+            actionId.hashCode(),
+            actionIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+          )
+          builder.addAction(0, actionLabel, actionPendingIntent)
+        }
+        android.util.Log.d("LocationService", "Added $count notification action(s)")
+      } catch (e: Exception) {
+        android.util.Log.w("LocationService", "Failed to parse notification actions JSON", e)
+      }
+    }
+
+    return builder.build()
   }
 
   override fun onDestroy() {
@@ -560,6 +622,28 @@ class LocationService : Service() {
     // Cleanup location provider
     locationProvider.cleanup()
     android.util.Log.d("LocationService", "Location provider cleaned up")
+  }
+
+  /**
+   * Updates the notification content while tracking is active
+   * Merges new title/text into trackingOptions, rebuilds and re-posts the notification
+   * Does NOT recreate the notification channel
+   * Does NOT persist to database - dynamic updates are transient
+   */
+  internal fun updateNotificationContent(title: String, text: String) {
+    trackingOptions = trackingOptions.copy(
+      notificationTitle = title,
+      notificationText = text
+    )
+
+    try {
+      val updatedNotification = createNotification()
+      val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      notificationManager.notify(NOTIFICATION_ID, updatedNotification)
+      android.util.Log.d("LocationService", "Notification updated: title='$title', text='$text'")
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Failed to update notification", e)
+    }
   }
 
   /**
@@ -677,6 +761,23 @@ class LocationService : Service() {
     }
 
     /**
+     * Updates the notification on the active service instance
+     * Returns true if an active instance was found and updated, false otherwise
+     */
+    fun updateNotification(title: String, text: String): Boolean {
+      synchronized(instanceLock) {
+        return activeInstance?.let { service ->
+          service.updateNotificationContent(title, text)
+          android.util.Log.d("LocationService", "Called updateNotification on active instance")
+          true
+        } ?: run {
+          android.util.Log.d("LocationService", "No active instance to update notification")
+          false
+        }
+      }
+    }
+
+    /**
      * Immediately stops location updates on the active service instance
      * This is called BEFORE stopService() to ensure immediate cessation of location tracking
      */
@@ -710,6 +811,13 @@ class LocationService : Service() {
         if (options.notificationPriority != null) putString("notificationPriority", options.notificationPriority)
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
         if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
+        if (options.notificationSmallIcon != null) putString("notificationSmallIcon", options.notificationSmallIcon)
+        if (options.notificationColor != null) putString("notificationColor", options.notificationColor)
+        if (options.notificationShowTimestamp != null) putBoolean("notificationShowTimestamp", options.notificationShowTimestamp)
+        if (options.notificationActions != null) putString("notificationActions", options.notificationActions)
+        if (options.notificationLargeIcon != null) putString("notificationLargeIcon", options.notificationLargeIcon)
+        if (options.notificationSubtext != null) putString("notificationSubtext", options.notificationSubtext)
+        if (options.notificationChannelId != null) putString("notificationChannelId", options.notificationChannelId)
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

@@ -15,6 +15,171 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic data retention policies
 - Background sync with remote server
 
+## [0.9.0] - 2026-03-19
+
+### Added
+
+- 🎨 **Notification Visual Customization** (Phase 1): Core appearance options for the foreground service notification
+  - `notificationSmallIcon` (string) - Custom drawable resource name for small icon, with fallback to system default
+  - `notificationColor` (string) - Hex color for notification accent color (e.g., "#FF5722")
+  - `notificationShowTimestamp` (boolean) - Show/hide timestamp on notification
+
+- 🔄 **Dynamic Notification Updates** (Phase 2): Update notification content while tracking is active
+  - New `updateNotification(title, text)` method on the public API and TurboModule spec
+  - Updates notification content in-place using `NotificationManager.notify()`
+  - Dynamic updates are transient (not persisted to DB, won't survive service restart)
+
+- 🔘 **Notification Action Buttons** (Phase 3): Interactive buttons on the tracking notification
+  - New `NotificationAction` interface: `{ id: string; label: string }`
+  - New `NotificationActionEvent` interface: `{ tripId: string; actionId: string }`
+  - `notificationActions` field in `TrackingOptions` (max 3 actions)
+  - New `onNotificationAction` callback in `useLocationUpdates` hook
+  - Flow: PendingIntent → NotificationActionReceiver → LocalBroadcast → RCTDeviceEventEmitter → JS
+  - JSON serialization workaround for Codegen (typed object arrays not supported)
+  - New `NotificationActionReceiver` manifest-registered BroadcastReceiver
+
+- 🖼️ **Extended Notification Customization** (Phase 4): Additional appearance options
+  - `notificationLargeIcon` (string) - Drawable resource decoded with BitmapFactory for large icon
+  - `notificationSubtext` (string) - Subtext below notification content
+  - `notificationChannelId` (string) - Custom notification channel ID (default still "background_location_channel")
+
+- 🎯 **Static Notification Defaults**: Configure default icons and colors without runtime options
+  - AndroidManifest `<meta-data>` support (same pattern as Firebase)
+    - `com.backgroundlocation.default_notification_icon` — default small icon
+    - `com.backgroundlocation.default_notification_large_icon` — default large icon
+    - `com.backgroundlocation.default_notification_color` — default accent color
+  - Convention-based drawable resolution (`bg_location_notification_icon` in `res/drawable/`)
+  - Resolution chain: Runtime → Manifest → Convention → System default
+  - Applies to all notification contexts including minimal notification (Android 12+ deadline) and crash recovery
+  - New `NotificationDefaults.kt` utility with cached resolution
+
+- 🗄️ **Database Migrations**: Room Database schema versioning v1 → v4
+  - Migration v1→v2 (Phase 1): Visual customization fields
+  - Migration v2→v3 (Phase 3): Notification action fields
+  - Migration v3→v4 (Phase 4): Extended customization fields
+  - All new fields persisted in `TrackingStateEntity` for crash recovery
+
+### Changed
+
+- 🔧 **TrackingOptions**: Extended with 6 new notification parameters
+  - Added `notificationSmallIcon?: string` for custom small icon drawable
+  - Added `notificationColor?: string` for notification accent color
+  - Added `notificationShowTimestamp?: boolean` for timestamp visibility
+  - Added `notificationLargeIcon?: string` for large icon drawable
+  - Added `notificationSubtext?: string` for notification subtext
+  - Added `notificationChannelId?: string` for custom channel ID
+  - Added `notificationActions?: NotificationAction[]` for action buttons (max 3)
+
+- 🔧 **TurboModule Spec**: Extended with new fields and method
+  - Added all new notification fields to the spec
+  - Added `updateNotification(title: string, text: string)` method
+
+- 🔧 **LocationService**: Enhanced notification creation
+  - Large icon support with `BitmapFactory` drawable decoding
+  - Subtext support below notification content
+  - Custom notification channel ID support
+  - Action buttons with `PendingIntent` for each action
+  - In-place notification content updates via `updateNotificationContent()`
+  - Bundle serialization for notification actions
+
+- 🔧 **LocationEventBroadcaster**: New notification action broadcasting
+  - Added `ACTION_NOTIFICATION_ACTION` constant
+  - Added `broadcastNotificationAction()` method
+
+- 🔧 **Hooks**: Extended for new notification features
+  - `useBackgroundLocation`: TrackingOptions → TrackingOptionsSpec conversion for new fields
+  - `useLocationUpdates`: Added `onNotificationAction` event listener
+
+- 🔧 **LocationService**: Notification icon/color resolution now uses `NotificationDefaults` utility
+  - `createMinimalNotification()` respects static defaults instead of hardcoded system icon
+  - `createNotification()` uses full resolution chain for icon, large icon, and color
+- 🔧 **RecoveryWorker**: Recovery notification now uses `NotificationDefaults` for icon resolution
+
+### Technical Details
+
+**File Changes (TypeScript):**
+- `src/types/tracking.ts`: Added `NotificationAction`, `NotificationActionEvent` interfaces, 6 new `TrackingOptions` fields
+- `src/types/hooks.ts`: Added `onNotificationAction` callback to hook options
+- `src/types/index.ts`: New type exports for `NotificationAction` and `NotificationActionEvent`
+- `src/NativeBackgroundLocation.ts`: New spec fields + `updateNotification` method
+- `src/index.tsx`: Public API: `updateNotification`, JSON serialization of actions, new type exports
+- `src/hooks/useBackgroundLocation.ts`: TrackingOptions → TrackingOptionsSpec conversion for new fields
+- `src/hooks/useLocationUpdates.ts`: `onNotificationAction` event listener
+
+**File Changes (Kotlin):**
+- `android/src/main/java/com/backgroundlocation/TrackingOptions.kt`: 6 new fields
+- `android/src/main/java/com/backgroundlocation/BackgroundLocationModule.kt`: Parse new fields, `handleNotificationAction`, `updateNotification` override
+- `android/src/main/java/com/backgroundlocation/LocationService.kt`: `createNotification` updates (largeIcon, subtext, channelId, actions with PendingIntent), `updateNotificationContent`, Bundle serialization
+- `android/src/main/java/com/backgroundlocation/LocationEventBroadcaster.kt`: `ACTION_NOTIFICATION_ACTION` + `broadcastNotificationAction`
+- `android/src/main/java/com/backgroundlocation/NotificationActionReceiver.kt`: New manifest-registered BroadcastReceiver
+- `android/src/main/AndroidManifest.xml`: Register `NotificationActionReceiver`
+- `android/src/main/java/com/backgroundlocation/LocationStorage.kt`: Save/restore all new fields
+- `android/src/main/java/com/backgroundlocation/database/TrackingStateEntity.kt`: 6 new columns
+- `android/src/main/java/com/backgroundlocation/database/LocationDatabase.kt`: Version 1→4
+- `android/src/main/java/com/backgroundlocation/database/Migrations.kt`: `MIGRATION_1_2`, `MIGRATION_2_3`, `MIGRATION_3_4`
+- `NotificationDefaults.kt` - NEW: Singleton utility for resolving notification icon/color from manifest metadata, convention drawables, and system defaults with caching
+- `LocationService.kt` - Refactored icon/color resolution to use NotificationDefaults in createMinimalNotification() and createNotification()
+- `RecoveryWorker.kt` - Refactored icon resolution to use NotificationDefaults in createRecoveryNotification()
+
+**File Changes (Tests):**
+- `src/__tests__/index.test.ts`: 11 new tests (visual options, updateNotification, actions serialization, extended options)
+
+**Architecture:**
+- Four-phase implementation for incremental delivery
+- JSON serialization workaround for Codegen limitation with typed object arrays
+- PendingIntent-based action flow through manifest-registered BroadcastReceiver
+- Transient dynamic updates (not persisted) for performance
+- All persistent fields stored in Room DB for crash recovery continuity
+
+### Migration Guide
+
+If upgrading from 0.8.0:
+
+**No Breaking Changes** - All existing code continues to work without modifications. All new fields are optional with defaults preserving existing behavior.
+
+**New Features Available:**
+
+```typescript
+// Notification visual customization
+await BackgroundLocation.startTracking('trip-123', {
+  notificationSmallIcon: 'ic_delivery',
+  notificationColor: '#FF5722',
+  notificationShowTimestamp: true,
+  notificationLargeIcon: 'ic_large_logo',
+  notificationSubtext: '2.5km remaining',
+  notificationChannelId: 'delivery_tracking',
+  notificationActions: [
+    { id: 'stop', label: 'Stop' },
+    { id: 'pause', label: 'Pause' },
+  ],
+});
+
+// Dynamic notification update
+await BackgroundLocation.updateNotification(
+  'Delivery #1234',
+  'Arriving in 5 minutes'
+);
+
+// Listen for action button presses
+useLocationUpdates({
+  onNotificationAction: (event) => {
+    if (event.actionId === 'stop') stopTracking();
+  },
+});
+
+// Or configure defaults statically in AndroidManifest.xml (no runtime code needed):
+// <meta-data android:name="com.backgroundlocation.default_notification_icon"
+//            android:resource="@drawable/ic_notification" />
+```
+
+### Requirements
+
+- React Native 0.70 or higher
+- Android API 24+ (Android 7.0 Nougat)
+- Google Play Services Location 21.3.0
+- Kotlin 2.0.21
+- Room Database v4 schema
+
 ## [0.8.0] - 2025-12-22
 
 ### Added
@@ -710,6 +875,47 @@ This release introduces distance filtering for location updates and callback thr
 
 ---
 
+### v0.9.0 - Configurable Notification Appearance
+
+**Major Additions:**
+
+This release introduces full notification customization for the background location foreground service, delivered in four phases: visual core, dynamic updates, action buttons, and extended customization.
+
+**🎨 Notification Visual Customization (Phase 1):**
+- Custom small icon, accent color, and timestamp toggle
+- Drawable resource name resolution with system default fallback
+- Hex color support for brand-consistent notifications
+
+**🔄 Dynamic Notification Updates (Phase 2):**
+- New `updateNotification(title, text)` API method
+- In-place content updates while tracking is active
+- Transient updates for performance (not persisted to DB)
+
+**🔘 Notification Action Buttons (Phase 3):**
+- Up to 3 interactive buttons on the tracking notification
+- Full event flow from PendingIntent through to JS callbacks
+- New `onNotificationAction` callback in `useLocationUpdates` hook
+- JSON serialization workaround for Codegen compatibility
+
+**🖼️ Extended Customization (Phase 4):**
+- Large icon support with BitmapFactory drawable decoding
+- Subtext below notification content
+- Custom notification channel ID
+
+**🗄️ Database Migrations:**
+- Room Database v1→v4 with three incremental migrations
+- All new fields persisted for crash recovery
+
+**Key Improvements:**
+
+- ✅ **Brand Customizable**: Full control over notification appearance
+- ✅ **Interactive**: Action buttons for quick user actions without opening the app
+- ✅ **Dynamic**: Update notification content in real-time during tracking
+- ✅ **Crash Recovery Safe**: All settings persisted and restored after crashes
+- ✅ **Backward Compatible**: All new options are optional with sensible defaults
+
+---
+
 ### v0.7.0 - Android 14/15 Compliance & Architecture
 
 **Major Additions:**
@@ -896,6 +1102,7 @@ This is the first public release of `@gabriel-sisjr/react-native-background-loca
 
 ---
 
+[0.9.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.9.0
 [0.8.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.8.0
 [0.7.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.7.0
 [0.6.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.6.0

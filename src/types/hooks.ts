@@ -2,7 +2,12 @@
  * Types and interfaces for React hooks
  */
 
-import type { Coords, TrackingOptions, LocationWarningEvent } from './tracking';
+import type {
+  Coords,
+  TrackingOptions,
+  LocationWarningEvent,
+  NotificationActionEvent,
+} from './tracking';
 
 /**
  * Result type for useBackgroundLocation hook
@@ -126,6 +131,11 @@ export interface UseLocationUpdatesOptions {
    * Warnings include: SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE
    */
   onLocationWarning?: (warning: LocationWarningEvent) => void;
+
+  /**
+   * Callback when a notification action button is pressed
+   */
+  onNotificationAction?: (event: NotificationActionEvent) => void;
 
   /**
    * Whether to automatically load existing locations on mount

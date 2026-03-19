@@ -208,7 +208,14 @@ class LocationStorage(context: Context) {
           notificationText = options?.notificationText,
           notificationChannelName = options?.notificationChannelName,
           notificationPriority = options?.notificationPriority,
-          foregroundOnly = options?.foregroundOnly
+          foregroundOnly = options?.foregroundOnly,
+          notificationSmallIcon = options?.notificationSmallIcon,
+          notificationColor = options?.notificationColor,
+          notificationShowTimestamp = options?.notificationShowTimestamp,
+          notificationActions = options?.notificationActions,
+          notificationLargeIcon = options?.notificationLargeIcon,
+          notificationSubtext = options?.notificationSubtext,
+          notificationChannelId = options?.notificationChannelId
         )
         trackingStateDao.upsert(entity)
       } catch (e: Exception) {
@@ -237,7 +244,10 @@ class LocationStorage(context: Context) {
         notificationText = options?.notificationText,
         notificationChannelName = options?.notificationChannelName,
         notificationPriority = options?.notificationPriority,
-        foregroundOnly = options?.foregroundOnly
+        foregroundOnly = options?.foregroundOnly,
+        notificationSmallIcon = options?.notificationSmallIcon,
+        notificationColor = options?.notificationColor,
+        notificationShowTimestamp = options?.notificationShowTimestamp
       )
       trackingStateDao.upsert(entity)
       android.util.Log.d("LocationStorage", "Tracking state saved synchronously: isActive=$isActive, tripId=$tripId")
@@ -268,7 +278,14 @@ class LocationStorage(context: Context) {
             notificationText = entity.notificationText,
             notificationChannelName = entity.notificationChannelName,
             notificationPriority = entity.notificationPriority,
-            foregroundOnly = entity.foregroundOnly
+            foregroundOnly = entity.foregroundOnly,
+            notificationSmallIcon = entity.notificationSmallIcon,
+            notificationColor = entity.notificationColor,
+            notificationShowTimestamp = entity.notificationShowTimestamp,
+            notificationActions = entity.notificationActions,
+            notificationLargeIcon = entity.notificationLargeIcon,
+            notificationSubtext = entity.notificationSubtext,
+            notificationChannelId = entity.notificationChannelId
           )
         } else null
 

@@ -111,6 +111,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
           LocationEventBroadcaster.ACTION_LOCATION_WARNING -> {
             handleLocationWarning(intent)
           }
+          LocationEventBroadcaster.ACTION_NOTIFICATION_ACTION -> {
+            handleNotificationAction(intent)
+          }
         }
       }
     }
@@ -181,6 +184,25 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
         .emit("onLocationWarning", eventData)
     } catch (e: Exception) {
       android.util.Log.e("BackgroundLocationModule", "Failed to emit location warning", e)
+    }
+  }
+
+  private fun handleNotificationAction(intent: Intent) {
+    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID) ?: return
+    val actionId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ACTION_ID) ?: return
+
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val eventData = Arguments.createMap().apply {
+        putString("tripId", tripId)
+        putString("actionId", actionId)
+      }
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onNotificationAction", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit notification action", e)
     }
   }
 
@@ -281,7 +303,14 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       notificationChannelName = if (options.hasKey("notificationChannelName")) options.getString("notificationChannelName") else null,
       notificationPriority = if (options.hasKey("notificationPriority")) options.getString("notificationPriority") else null,
       foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null,
-      distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null
+      distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null,
+      notificationSmallIcon = if (options.hasKey("notificationSmallIcon")) options.getString("notificationSmallIcon") else null,
+      notificationColor = if (options.hasKey("notificationColor")) options.getString("notificationColor") else null,
+      notificationShowTimestamp = if (options.hasKey("notificationShowTimestamp")) options.getBoolean("notificationShowTimestamp") else null,
+      notificationActions = if (options.hasKey("notificationActions")) options.getString("notificationActions") else null,
+      notificationLargeIcon = if (options.hasKey("notificationLargeIcon")) options.getString("notificationLargeIcon") else null,
+      notificationSubtext = if (options.hasKey("notificationSubtext")) options.getString("notificationSubtext") else null,
+      notificationChannelId = if (options.hasKey("notificationChannelId")) options.getString("notificationChannelId") else null
     )
   }
 
@@ -385,6 +414,24 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       promise.resolve(null)
     } catch (e: Exception) {
       promise.reject("CLEAR_TRIP_ERROR", "Failed to clear trip: ${e.message}", e)
+    }
+  }
+
+  /**
+   * Updates the notification content while tracking is active
+   * Dynamic updates are transient and do not persist to database
+   */
+  override fun updateNotification(title: String, text: String, promise: Promise) {
+    if (title.isBlank() || text.isBlank()) {
+      promise.reject("INVALID_ARGUMENTS", "Title and text cannot be empty")
+      return
+    }
+
+    val success = LocationService.updateNotification(title, text)
+    if (success) {
+      promise.resolve(null)
+    } else {
+      promise.reject("NO_ACTIVE_SERVICE", "No active location service instance. Is tracking running?")
     }
   }
 

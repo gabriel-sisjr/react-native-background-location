@@ -294,7 +294,7 @@ function AdvancedTrackingScreen() {
 | Automatic updates | ❌ No | ✅ Yes |
 | Manual refresh | ✅ Yes | ❌ Not needed |
 | Error management | ✅ Complete | ✅ Basic |
-| Clear trip data | ✅ Yes | ❌ No |
+| Clear trip data | ✅ Yes | ✅ Yes (`clearLocations`) |
 | Recommended use | Tracking control | Real-time visualization |
 
 ## Best Practices
@@ -560,7 +560,7 @@ const toNumeric = (loc: Coords) => ({
 ## Frequently Asked Questions
 
 ### Are locations persisted after app restart?
-Yes, locations are stored in SharedPreferences (Android) and persist between restarts.
+Yes, locations are stored in Room Database (Android) and persist between restarts.
 
 ### How many locations are stored?
 All locations collected during a trip are stored until you call `clearTrip()`.

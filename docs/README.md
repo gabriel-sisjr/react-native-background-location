@@ -18,6 +18,9 @@ Start here if you're new to the library:
 - **[Real-Time Updates Guide](getting-started/REAL_TIME_UPDATES.md)**
   Automatic location watching with `useLocationUpdates` hook.
 
+- **[Real-Time Debug Guide](development/REALTIME_DEBUG_GUIDE.md)**
+  Debugging tools and techniques for real-time location events.
+
 ## 🚀 Production
 
 Essential guides before publishing your app:
@@ -57,14 +60,16 @@ For maintainers and contributors:
 ## 📱 Platform Documentation
 
 ### Android
+
 - **Current Status:** ✅ Fully implemented
 - **Features:**
   - Background location tracking
   - Foreground service
-  - SharedPreferences storage
+  - Room Database storage
   - High-accuracy GPS updates
 
 ### iOS
+
 - **Current Status:** 🚧 Coming soon
 - **Planned Features:**
   - Background location tracking
@@ -102,13 +107,18 @@ docs/
 
 ## 🔄 Version
 
-This documentation is for version **0.2.0** which includes:
+This documentation is for version **0.9.0** which includes:
+
 - ✅ Android implementation
-- ✅ React Hooks API
+- ✅ React Hooks API (4 hooks)
+- ✅ Real-time location updates via NativeEventEmitter
+- ✅ Room Database persistent storage
+- ✅ Configurable notification appearance and action buttons
+- ✅ Distance filtering and customizable update intervals
+- ✅ Crash recovery with WorkManager
 - ✅ Automated CI/CD pipeline
 - 🚧 iOS implementation (coming soon)
 
 ---
 
 **Need to add or update documentation?** See our [Contributing Guide](../CONTRIBUTING.md).
-

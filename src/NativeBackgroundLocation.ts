@@ -24,6 +24,13 @@ export interface TrackingOptionsSpec {
   notificationPriority?: string;
   foregroundOnly?: boolean;
   distanceFilter?: number;
+  notificationSmallIcon?: string;
+  notificationColor?: string;
+  notificationShowTimestamp?: boolean;
+  notificationActions?: string; // JSON serialized - Codegen does not support typed object arrays
+  notificationLargeIcon?: string;
+  notificationSubtext?: string;
+  notificationChannelId?: string;
 }
 
 export interface Spec extends TurboModule {
@@ -61,6 +68,13 @@ export interface Spec extends TurboModule {
    * @param tripId The trip identifier to clear
    */
   clearTrip(tripId: string): Promise<void>;
+
+  /**
+   * Updates the notification content while tracking is active
+   * @param title New notification title
+   * @param text New notification text
+   */
+  updateNotification(title: string, text: string): Promise<void>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('BackgroundLocation');
