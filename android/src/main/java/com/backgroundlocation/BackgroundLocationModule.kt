@@ -392,6 +392,24 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   }
 
   /**
+   * Updates the notification content while tracking is active
+   * Dynamic updates are transient and do not persist to database
+   */
+  override fun updateNotification(title: String, text: String, promise: Promise) {
+    if (title.isBlank() || text.isBlank()) {
+      promise.reject("INVALID_ARGUMENTS", "Title and text cannot be empty")
+      return
+    }
+
+    val success = LocationService.updateNotification(title, text)
+    if (success) {
+      promise.resolve(null)
+    } else {
+      promise.reject("NO_ACTIVE_SERVICE", "No active location service instance. Is tracking running?")
+    }
+  }
+
+  /**
    * Recovers tracking session after app restart/crash
    * Restarts the LocationService if tracking was active
    */

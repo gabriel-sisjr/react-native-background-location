@@ -32,6 +32,7 @@ describe('BackgroundLocation API', () => {
     (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
     (BackgroundLocationModule.clearTrip as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.updateNotification as jest.Mock) = jest.fn();
   });
 
   afterEach(() => {
@@ -41,6 +42,7 @@ describe('BackgroundLocation API', () => {
     (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
     (BackgroundLocationModule.clearTrip as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.updateNotification as jest.Mock) = jest.fn();
   });
 
   describe('startTracking', () => {
@@ -887,6 +889,76 @@ describe('BackgroundLocation API', () => {
       });
       // Ensure it's a mock again
       (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+    });
+  });
+
+  describe('updateNotification', () => {
+    it('should update notification with title and text', async () => {
+      (
+        BackgroundLocationModule.updateNotification as jest.Mock
+      ).mockResolvedValue(undefined);
+
+      await BackgroundLocation.updateNotification(
+        'New Title',
+        'New notification text'
+      );
+
+      expect(BackgroundLocationModule.updateNotification).toHaveBeenCalledWith(
+        'New Title',
+        'New notification text'
+      );
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('should handle when module is not available', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      await BackgroundLocation.updateNotification('Title', 'Text');
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.updateNotification as jest.Mock) = jest.fn();
+    });
+
+    it('should propagate errors from native module', async () => {
+      const error = new Error('No active service');
+      (
+        BackgroundLocationModule.updateNotification as jest.Mock
+      ).mockRejectedValue(error);
+
+      await expect(
+        BackgroundLocation.updateNotification('Title', 'Text')
+      ).rejects.toThrow('No active service');
+    });
+
+    it('should pass exact title and text strings to native module', async () => {
+      (
+        BackgroundLocationModule.updateNotification as jest.Mock
+      ).mockResolvedValue(undefined);
+
+      const title = 'Delivery #1234';
+      const text = 'En route to destination - 2.5km remaining';
+
+      await BackgroundLocation.updateNotification(title, text);
+
+      expect(BackgroundLocationModule.updateNotification).toHaveBeenCalledWith(
+        title,
+        text
+      );
     });
   });
 

@@ -64,6 +64,13 @@ export interface Spec extends TurboModule {
    * @param tripId The trip identifier to clear
    */
   clearTrip(tripId: string): Promise<void>;
+
+  /**
+   * Updates the notification content while tracking is active
+   * @param title New notification title
+   * @param text New notification text
+   */
+  updateNotification(title: string, text: string): Promise<void>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('BackgroundLocation');

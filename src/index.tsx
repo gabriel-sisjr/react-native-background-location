@@ -182,4 +182,21 @@ export default {
     }
     return BackgroundLocationModule.clearTrip(tripId);
   },
+
+  /**
+   * Updates the notification content while tracking is active
+   * Dynamic updates are transient and do not persist across service restarts
+   * @param title New notification title
+   * @param text New notification text
+   * @returns Promise that resolves when notification is updated
+   */
+  updateNotification(title: string, text: string): Promise<void> {
+    if (!isNativeModuleAvailable()) {
+      console.warn(
+        'BackgroundLocation not available - running in simulator or module not linked?'
+      );
+      return Promise.resolve();
+    }
+    return BackgroundLocationModule.updateNotification(title, text);
+  },
 };

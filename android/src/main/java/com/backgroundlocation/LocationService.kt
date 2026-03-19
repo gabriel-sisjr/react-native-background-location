@@ -588,6 +588,28 @@ class LocationService : Service() {
   }
 
   /**
+   * Updates the notification content while tracking is active
+   * Merges new title/text into trackingOptions, rebuilds and re-posts the notification
+   * Does NOT recreate the notification channel
+   * Does NOT persist to database - dynamic updates are transient
+   */
+  internal fun updateNotificationContent(title: String, text: String) {
+    trackingOptions = trackingOptions.copy(
+      notificationTitle = title,
+      notificationText = text
+    )
+
+    try {
+      val updatedNotification = createNotification()
+      val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      notificationManager.notify(NOTIFICATION_ID, updatedNotification)
+      android.util.Log.d("LocationService", "Notification updated: title='$title', text='$text'")
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Failed to update notification", e)
+    }
+  }
+
+  /**
    * Immediately stops location updates without waiting for service destruction
    * Called from static method when stopTracking is invoked
    */
@@ -699,6 +721,23 @@ class LocationService : Service() {
       val timestamp = prefs.getLong(KEY_STOP_TOKEN_TIMESTAMP, 0)
       val elapsed = System.currentTimeMillis() - timestamp
       return elapsed < STOP_TOKEN_VALIDITY_MS
+    }
+
+    /**
+     * Updates the notification on the active service instance
+     * Returns true if an active instance was found and updated, false otherwise
+     */
+    fun updateNotification(title: String, text: String): Boolean {
+      synchronized(instanceLock) {
+        return activeInstance?.let { service ->
+          service.updateNotificationContent(title, text)
+          android.util.Log.d("LocationService", "Called updateNotification on active instance")
+          true
+        } ?: run {
+          android.util.Log.d("LocationService", "No active instance to update notification")
+          false
+        }
+      }
     }
 
     /**
