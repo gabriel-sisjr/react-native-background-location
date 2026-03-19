@@ -1043,6 +1043,82 @@ describe('BackgroundLocation API', () => {
     });
   });
 
+  describe('extended notification customization', () => {
+    it('should pass largeIcon, subtext, and channelId options', async () => {
+      const options: TrackingOptions = {
+        notificationLargeIcon: 'ic_large_logo',
+        notificationSubtext: '2.5km remaining',
+        notificationChannelId: 'custom_tracking_channel',
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          notificationLargeIcon: 'ic_large_logo',
+          notificationSubtext: '2.5km remaining',
+          notificationChannelId: 'custom_tracking_channel',
+        })
+      );
+    });
+
+    it('should not include extended options when not provided', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      expect(calledOptions?.notificationLargeIcon).toBeUndefined();
+      expect(calledOptions?.notificationSubtext).toBeUndefined();
+      expect(calledOptions?.notificationChannelId).toBeUndefined();
+    });
+
+    it('should pass all notification options together', async () => {
+      const options: TrackingOptions = {
+        notificationTitle: 'Tracking',
+        notificationText: 'Active',
+        notificationSmallIcon: 'ic_small',
+        notificationLargeIcon: 'ic_large',
+        notificationColor: '#FF0000',
+        notificationShowTimestamp: true,
+        notificationSubtext: 'Details here',
+        notificationChannelId: 'my_channel',
+        notificationActions: [{ id: 'stop', label: 'Stop' }],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          notificationTitle: 'Tracking',
+          notificationText: 'Active',
+          notificationSmallIcon: 'ic_small',
+          notificationLargeIcon: 'ic_large',
+          notificationColor: '#FF0000',
+          notificationShowTimestamp: true,
+          notificationSubtext: 'Details here',
+          notificationChannelId: 'my_channel',
+          notificationActions: JSON.stringify([{ id: 'stop', label: 'Stop' }]),
+        })
+      );
+    });
+  });
+
   describe('Enum exports', () => {
     it('should export LocationAccuracy enum', () => {
       expect(LocationAccuracy).toBeDefined();

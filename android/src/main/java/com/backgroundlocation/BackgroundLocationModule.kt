@@ -307,7 +307,10 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       notificationSmallIcon = if (options.hasKey("notificationSmallIcon")) options.getString("notificationSmallIcon") else null,
       notificationColor = if (options.hasKey("notificationColor")) options.getString("notificationColor") else null,
       notificationShowTimestamp = if (options.hasKey("notificationShowTimestamp")) options.getBoolean("notificationShowTimestamp") else null,
-      notificationActions = if (options.hasKey("notificationActions")) options.getString("notificationActions") else null
+      notificationActions = if (options.hasKey("notificationActions")) options.getString("notificationActions") else null,
+      notificationLargeIcon = if (options.hasKey("notificationLargeIcon")) options.getString("notificationLargeIcon") else null,
+      notificationSubtext = if (options.hasKey("notificationSubtext")) options.getString("notificationSubtext") else null,
+      notificationChannelId = if (options.hasKey("notificationChannelId")) options.getString("notificationChannelId") else null
     )
   }
 

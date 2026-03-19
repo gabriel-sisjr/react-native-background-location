@@ -29,6 +29,9 @@ data class TrackingStateEntity(
   val notificationSmallIcon: String? = null,
   val notificationColor: String? = null,
   val notificationShowTimestamp: Boolean? = null,
-  val notificationActions: String? = null
+  val notificationActions: String? = null,
+  val notificationLargeIcon: String? = null,
+  val notificationSubtext: String? = null,
+  val notificationChannelId: String? = null
 )
 

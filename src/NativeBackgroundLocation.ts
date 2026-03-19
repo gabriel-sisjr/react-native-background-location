@@ -28,6 +28,9 @@ export interface TrackingOptionsSpec {
   notificationColor?: string;
   notificationShowTimestamp?: boolean;
   notificationActions?: string; // JSON serialized - Codegen does not support typed object arrays
+  notificationLargeIcon?: string;
+  notificationSubtext?: string;
+  notificationChannelId?: string;
 }
 
 export interface Spec extends TurboModule {

@@ -125,6 +125,9 @@ export default {
           notificationActions: trackingOptions.notificationActions
             ? JSON.stringify(trackingOptions.notificationActions.slice(0, 3))
             : undefined,
+          notificationLargeIcon: trackingOptions.notificationLargeIcon,
+          notificationSubtext: trackingOptions.notificationSubtext,
+          notificationChannelId: trackingOptions.notificationChannelId,
         }
       : undefined;
     return BackgroundLocationModule.startTracking(tripId, specOptions);

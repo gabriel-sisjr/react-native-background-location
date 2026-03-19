@@ -148,7 +148,10 @@ class LocationService : Service() {
       notificationSmallIcon = bundle.getString("notificationSmallIcon"),
       notificationColor = bundle.getString("notificationColor"),
       notificationShowTimestamp = if (bundle.containsKey("notificationShowTimestamp")) bundle.getBoolean("notificationShowTimestamp") else null,
-      notificationActions = bundle.getString("notificationActions")
+      notificationActions = bundle.getString("notificationActions"),
+      notificationLargeIcon = bundle.getString("notificationLargeIcon"),
+      notificationSubtext = bundle.getString("notificationSubtext"),
+      notificationChannelId = bundle.getString("notificationChannelId")
     )
   }
 
@@ -504,8 +507,10 @@ class LocationService : Service() {
         else -> NotificationManager.IMPORTANCE_LOW
       }
 
+      val effectiveChannelId = trackingOptions.notificationChannelId ?: CHANNEL_ID
+
       val channel = NotificationChannel(
-        CHANNEL_ID,
+        effectiveChannelId,
         trackingOptions.getNotificationChannelNameOrDefault(),
         importance
       ).apply {
@@ -546,7 +551,9 @@ class LocationService : Service() {
       }
     } ?: android.R.drawable.ic_menu_mylocation
 
-    val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+    val effectiveChannelId = trackingOptions.notificationChannelId ?: CHANNEL_ID
+
+    val builder = NotificationCompat.Builder(this, effectiveChannelId)
       .setContentTitle(trackingOptions.getNotificationTitleOrDefault())
       .setContentText(trackingOptions.getNotificationTextOrDefault())
       .setSmallIcon(smallIconResId)
@@ -562,6 +569,21 @@ class LocationService : Service() {
       } catch (e: IllegalArgumentException) {
         android.util.Log.w("LocationService", "Invalid notification color '$colorHex', ignoring")
       }
+    }
+
+    // Apply large icon if provided
+    trackingOptions.notificationLargeIcon?.let { iconName ->
+      val resId = resources.getIdentifier(iconName, "drawable", packageName)
+      if (resId != 0) {
+        builder.setLargeIcon(android.graphics.BitmapFactory.decodeResource(resources, resId))
+      } else {
+        android.util.Log.w("LocationService", "Large icon drawable '$iconName' not found, ignoring")
+      }
+    }
+
+    // Apply subtext if provided
+    trackingOptions.notificationSubtext?.let { subtext ->
+      builder.setSubText(subtext)
     }
 
     // Add notification action buttons (max 3)
@@ -808,6 +830,9 @@ class LocationService : Service() {
         if (options.notificationColor != null) putString("notificationColor", options.notificationColor)
         if (options.notificationShowTimestamp != null) putBoolean("notificationShowTimestamp", options.notificationShowTimestamp)
         if (options.notificationActions != null) putString("notificationActions", options.notificationActions)
+        if (options.notificationLargeIcon != null) putString("notificationLargeIcon", options.notificationLargeIcon)
+        if (options.notificationSubtext != null) putString("notificationSubtext", options.notificationSubtext)
+        if (options.notificationChannelId != null) putString("notificationChannelId", options.notificationChannelId)
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

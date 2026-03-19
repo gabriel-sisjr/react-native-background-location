@@ -18,7 +18,10 @@ data class TrackingOptions(
   val notificationSmallIcon: String? = null,
   val notificationColor: String? = null,
   val notificationShowTimestamp: Boolean? = null,
-  val notificationActions: String? = null // JSON serialized array of {id, label}
+  val notificationActions: String? = null, // JSON serialized array of {id, label}
+  val notificationLargeIcon: String? = null,
+  val notificationSubtext: String? = null,
+  val notificationChannelId: String? = null
 ) {
   companion object {
     // Default values

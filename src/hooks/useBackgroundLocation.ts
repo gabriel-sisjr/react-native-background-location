@@ -178,6 +178,9 @@ export function useBackgroundLocation(
                     effectiveOptions.notificationActions.slice(0, 3)
                   )
                 : undefined,
+              notificationLargeIcon: effectiveOptions.notificationLargeIcon,
+              notificationSubtext: effectiveOptions.notificationSubtext,
+              notificationChannelId: effectiveOptions.notificationChannelId,
             }
           : undefined;
         const effectiveTripId = await BackgroundLocationModule.startTracking(

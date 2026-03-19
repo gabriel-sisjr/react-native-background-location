@@ -333,4 +333,31 @@ export interface TrackingOptions {
    * @platform Android
    */
   notificationActions?: NotificationAction[];
+
+  /**
+   * Name of the drawable resource to use as the notification large icon
+   * Must be a valid drawable resource name in the app's res/drawable directory
+   * The large icon appears as a bigger image on the right side of the notification
+   * @example "ic_large_logo"
+   * @default undefined (no large icon)
+   * @platform Android
+   */
+  notificationLargeIcon?: string;
+
+  /**
+   * Subtext displayed below the notification content
+   * @example "2.5km remaining"
+   * @default undefined (no subtext)
+   * @platform Android
+   */
+  notificationSubtext?: string;
+
+  /**
+   * Custom notification channel ID
+   * Allows using a custom channel instead of the default "background_location_channel"
+   * The channel will be created automatically if it does not exist
+   * @default "background_location_channel"
+   * @platform Android
+   */
+  notificationChannelId?: string;
 }
