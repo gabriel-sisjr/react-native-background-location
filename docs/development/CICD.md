@@ -484,14 +484,14 @@ npm install @gabriel-sisjr/react-native-background-location
 npm install @gabriel-sisjr/react-native-background-location@beta
 
 # Specific version
-npm install @gabriel-sisjr/react-native-background-location@0.2.0
+npm install @gabriel-sisjr/react-native-background-location@0.9.0
 ```
 
 ### Workflow Triggers
 
 | Event | Branch | Workflow | Result |
 |-------|--------|----------|--------|
-| Push | `develop` | CI + Pre-release | Beta publish |
+| Push | `develop` | CI only | Validation (beta via manual trigger) |
 | Push | `main` | CI + Publish | Production publish |
 | PR | `develop` | CI only | Validation |
 | PR | `main` | CI only | Validation |
@@ -545,5 +545,5 @@ npm token list
 ---
 
 **Last Updated**: October 26, 2025  
-**Version**: 0.2.0
+**Version**: 0.9.0
 

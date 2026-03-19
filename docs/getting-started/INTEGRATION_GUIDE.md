@@ -9,7 +9,7 @@ Step-by-step guide to integrate `@gabriel-sisjr/react-native-background-location
 ## Prerequisites
 
 - React Native 0.70 or higher
-- Android minSdkVersion 21+
+- Android minSdkVersion 24+
 - Google Play Services available on device
 - New Architecture (TurboModules) enabled
 

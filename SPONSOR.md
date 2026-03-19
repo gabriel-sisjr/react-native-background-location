@@ -67,11 +67,11 @@ Click the **Sponsor** button at the top of this page or visit directly:
 With your support, we can accelerate:
 
 - [ ] iOS implementation with Swift
-- [ ] Customizable location update intervals
+- [x] Customizable location update intervals
 - [ ] Geofencing support
-- [ ] Distance filtering for GPS coordinates
+- [x] Distance filtering for GPS coordinates
 - [ ] SQLite storage option for large datasets
-- [ ] Configurable notification appearance
+- [x] Configurable notification appearance
 - [ ] Battery optimization modes
 - [ ] Web support (Geolocation API)
 

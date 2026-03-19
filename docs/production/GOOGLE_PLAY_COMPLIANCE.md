@@ -6,13 +6,13 @@ This guide covers all requirements for publishing an app that uses `@gabriel-sis
 
 ## Overview of Requirements
 
-| Requirement | Description | Consequence of Missing |
-|-------------|-------------|----------------------|
-| In-App Disclosure | Prominent dialog explaining background usage | Rejection |
-| Privacy Policy | Explicit mention of location collection | Rejection |
-| Data Safety Form | Declare location in Play Console | Rejection |
-| Permissions Declaration | Submit justification form | Rejection |
-| Core Functionality | Background location must be essential | Rejection |
+| Requirement             | Description                                  | Consequence of Missing |
+| ----------------------- | -------------------------------------------- | ---------------------- |
+| In-App Disclosure       | Prominent dialog explaining background usage | Rejection              |
+| Privacy Policy          | Explicit mention of location collection      | Rejection              |
+| Data Safety Form        | Declare location in Play Console             | Rejection              |
+| Permissions Declaration | Submit justification form                    | Rejection              |
+| Core Functionality      | Background location must be essential        | Rejection              |
 
 ## Step 1: In-App Disclosure (Required)
 
@@ -21,6 +21,7 @@ Google requires a **prominent disclosure** shown **before** requesting backgroun
 ### Requirements
 
 The disclosure must:
+
 - Be shown **before** the permission request
 - Be a **blocking dialog** (not a toast, snackbar, or inline text)
 - Clearly explain **what data** is collected
@@ -43,21 +44,19 @@ async function showLocationDisclosure(): Promise<boolean> {
       'Background Location Access',
 
       'This app collects your location data even when the app is closed or not in use.\n\n' +
-
-      'WHY WE NEED THIS:\n' +
-      'To track your trips and routes accurately, we need to collect your location in the background.\n\n' +
-
-      'WHAT WE COLLECT:\n' +
-      '• GPS coordinates\n' +
-      '• Timestamps\n' +
-      '• Movement speed\n\n' +
-
-      'HOW WE USE IT:\n' +
-      '• Record your travel routes\n' +
-      '• Calculate trip distances and duration\n' +
-      '• [Add your specific use cases]\n\n' +
-
-      'You can stop tracking at any time from within the app.',
+        'WHY WE NEED THIS:\n' +
+        'To track your trips and routes accurately, we need to collect your location in the background.\n\n' +
+        'WHAT WE COLLECT:\n' +
+        '• GPS coordinates\n' +
+        '• Timestamps\n' +
+        '• Movement speed\n\n' +
+        'HOW WE USE IT:\n' +
+        '• Record your travel routes\n' +
+        '• Calculate trip distances and duration\n' +
+        '• Provide real-time fleet management updates\n' +
+        '• Track delivery routes and estimated arrival times\n' +
+        '• Record fitness activities such as running and cycling\n\n' +
+        'You can stop tracking at any time from within the app.',
 
       [
         {
@@ -208,30 +207,39 @@ Your privacy policy must include:
 ## Location Data
 
 ### What We Collect
+
 We collect precise location data (GPS coordinates) from your device, including:
+
 - Latitude and longitude coordinates
 - Timestamps of each location point
 - Speed and direction of movement
 - Altitude (when available)
 
 ### When We Collect
+
 Location data is collected:
+
 - While the app is open and in use
 - While the app is running in the background
 - Even when the app is closed (if tracking is enabled)
 
 ### Why We Collect
+
 We collect location data to:
+
 - Track and record your trips
 - Calculate trip distances and duration
 - Generate route maps and statistics
 
 ### How Long We Keep It
+
 - Local device: Until you delete the trip or clear app data
 - Our servers: [Your retention period, e.g., "90 days" or "Until you request deletion"]
 
 ### Your Rights
+
 You can:
+
 - Stop location collection at any time by stopping tracking in the app
 - Delete individual trips and their location data
 - Request complete deletion of your data by contacting [your email]
@@ -246,13 +254,13 @@ In the Google Play Console, navigate to **App content → Data safety**.
 
 Declare the following:
 
-| Question | Answer |
-|----------|--------|
-| Does your app collect location data? | **Yes** |
+| Question                                 | Answer                                   |
+| ---------------------------------------- | ---------------------------------------- |
+| Does your app collect location data?     | **Yes**                                  |
 | Is this data collected, shared, or both? | **Collected** (and Shared if applicable) |
-| Is this data processed ephemerally? | **No** (it's stored) |
-| Is this data required for your app? | **Yes** |
-| Why is this data collected? | App functionality |
+| Is this data processed ephemerally?      | **No** (it's stored)                     |
+| Is this data required for your app?      | **Yes**                                  |
+| Why is this data collected?              | App functionality                        |
 
 ### Data Types to Declare
 
@@ -261,9 +269,9 @@ Declare the following:
 
 ### Data Handling
 
-| Question | Answer |
-|----------|--------|
-| Is data encrypted in transit? | Yes (if using HTTPS) |
+| Question                         | Answer                  |
+| -------------------------------- | ----------------------- |
+| Is data encrypted in transit?    | Yes (if using HTTPS)    |
 | Can users request data deletion? | Yes (provide mechanism) |
 
 ## Step 4: Play Console - Permissions Declaration
@@ -321,6 +329,7 @@ Record a video showing:
 8. Showing the recorded route
 
 **Tips:**
+
 - Keep it under 2 minutes
 - Show the notification is visible
 - Show the route being recorded accurately
@@ -338,24 +347,26 @@ const tripId = await BackgroundLocation.startTracking(undefined, {
 ```
 
 **Benefits:**
+
 - Simpler permission flow
 - No permissions declaration form
 - Easier Play Store approval
 
 **Limitations:**
+
 - Tracking stops when app is backgrounded
 - Gaps in route when user switches apps
 
 ## Common Rejection Reasons
 
-| Reason | Solution |
-|--------|----------|
-| "Disclosure not prominent" | Use blocking Alert/Modal, not inline text |
-| "Disclosure shown after permission" | Show disclosure BEFORE calling requestPermissions |
+| Reason                              | Solution                                                |
+| ----------------------------------- | ------------------------------------------------------- |
+| "Disclosure not prominent"          | Use blocking Alert/Modal, not inline text               |
+| "Disclosure shown after permission" | Show disclosure BEFORE calling requestPermissions       |
 | "Background location not essential" | Better explain core functionality or use foregroundOnly |
-| "Missing privacy policy disclosure" | Update privacy policy with location section |
-| "Video doesn't show feature" | Re-record showing complete user flow |
-| "Explanation too vague" | Be specific about what, when, why for location |
+| "Missing privacy policy disclosure" | Update privacy policy with location section             |
+| "Video doesn't show feature"        | Re-record showing complete user flow                    |
+| "Explanation too vague"             | Be specific about what, when, why for location          |
 
 ## Checklist Before Submission
 

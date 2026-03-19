@@ -277,7 +277,7 @@ function AutoTrackingScreen() {
   const { isTracking, locations } = useBackgroundLocation({
     autoStart: true, // Start immediately on mount
     // Don't provide tripId for new trips - let the library generate a UUID
-    trackingOptions: {
+    options: {
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       updateInterval: 5000,
       notificationPriority: NotificationPriority.LOW,

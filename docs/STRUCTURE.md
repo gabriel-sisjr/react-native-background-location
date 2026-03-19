@@ -21,13 +21,20 @@ react-native-background-location/
 │   ├── getting-started/                # 🚀 New users start here
 │   │   ├── QUICKSTART.md               # 5-minute quick start guide
 │   │   ├── INTEGRATION_GUIDE.md        # Detailed integration steps
-│   │   └── hooks.md                    # React Hooks API guide
+│   │   ├── hooks.md                    # React Hooks API guide
+│   │   └── REAL_TIME_UPDATES.md        # useLocationUpdates guide
+│   │
+│   ├── production/                     # 📦 Before publishing your app
+│   │   ├── GOOGLE_PLAY_COMPLIANCE.md   # Play Store requirements
+│   │   ├── BATTERY_OPTIMIZATION.md     # Manufacturer-specific issues
+│   │   └── CRASH_RECOVERY.md           # Session persistence
 │   │
 │   └── development/                    # 🛠 For maintainers/contributors
 │       ├── CICD.md                     # CI/CD workflows
 │       ├── PUBLISHING.md               # Publishing to npm
 │       ├── TESTING.md                  # Testing procedures
-│       └── IMPLEMENTATION_SUMMARY.md   # Technical implementation
+│       ├── IMPLEMENTATION_SUMMARY.md   # Technical implementation
+│       └── REALTIME_DEBUG_GUIDE.md     # Real-time debugging
 │
 ├── .github/                            # GitHub configuration
 │   ├── workflows/                      # GitHub Actions workflows
@@ -46,6 +53,7 @@ react-native-background-location/
 ## 📖 Documentation Categories
 
 ### Root Level
+
 Files that should be immediately accessible:
 
 - **README.md** - Main entry point, API reference, installation instructions
@@ -54,27 +62,42 @@ Files that should be immediately accessible:
 - **LICENSE** - MIT license
 
 ### docs/getting-started/
+
 Documentation for **new users** and **integration**:
 
-| File | Purpose | Audience |
-|------|---------|----------|
-| **QUICKSTART.md** | Get running in 5 minutes | New users |
-| **INTEGRATION_GUIDE.md** | Step-by-step integration | Developers adding to existing app |
-| **hooks.md** | React Hooks API guide | Developers using React Hooks |
+| File                     | Purpose                     | Audience                            |
+| ------------------------ | --------------------------- | ----------------------------------- |
+| **QUICKSTART.md**        | Get running in 5 minutes    | New users                           |
+| **INTEGRATION_GUIDE.md** | Step-by-step integration    | Developers adding to existing app   |
+| **hooks.md**             | React Hooks API guide       | Developers using React Hooks        |
+| **REAL_TIME_UPDATES.md** | Real-time location watching | Developers using useLocationUpdates |
+
+### docs/production/
+
+Documentation for **production readiness**:
+
+| File                          | Purpose                           | Audience                            |
+| ----------------------------- | --------------------------------- | ----------------------------------- |
+| **GOOGLE_PLAY_COMPLIANCE.md** | Play Store approval requirements  | Developers publishing to Play Store |
+| **BATTERY_OPTIMIZATION.md**   | Manufacturer battery restrictions | Developers, QA                      |
+| **CRASH_RECOVERY.md**         | Session persistence and recovery  | Developers                          |
 
 ### docs/development/
+
 Documentation for **maintainers** and **contributors**:
 
-| File | Purpose | Audience |
-|------|---------|----------|
-| **CICD.md** | CI/CD workflows and automation | Maintainers, DevOps |
-| **PUBLISHING.md** | How to publish to npm | Maintainers |
-| **TESTING.md** | Testing procedures | Contributors |
-| **IMPLEMENTATION_SUMMARY.md** | Technical details | Contributors, advanced users |
+| File                          | Purpose                        | Audience                     |
+| ----------------------------- | ------------------------------ | ---------------------------- |
+| **CICD.md**                   | CI/CD workflows and automation | Maintainers, DevOps          |
+| **PUBLISHING.md**             | How to publish to npm          | Maintainers                  |
+| **TESTING.md**                | Testing procedures             | Contributors                 |
+| **IMPLEMENTATION_SUMMARY.md** | Technical details              | Contributors, advanced users |
+| **REALTIME_DEBUG_GUIDE.md**   | Real-time debugging tools      | Contributors, maintainers    |
 
 ## 🔗 Navigation Flow
 
 ### For New Users
+
 ```
 README.md
    ↓
@@ -86,6 +109,7 @@ example/src/App.tsx (reference implementation)
 ```
 
 ### For Contributors
+
 ```
 CONTRIBUTING.md
    ↓
@@ -95,6 +119,7 @@ docs/development/PUBLISHING.md
 ```
 
 ### For Maintainers
+
 ```
 docs/development/CICD.md (setup)
    ↓
@@ -137,16 +162,21 @@ Create new documentation files in:
 ## 🔄 Cross-References
 
 ### From README.md
+
 Links to detailed guides in `docs/`:
+
 - Quick Start → `docs/getting-started/QUICKSTART.md`
 - Integration → `docs/getting-started/INTEGRATION_GUIDE.md`
 - Publishing → `docs/development/PUBLISHING.md`
 
 ### From docs/README.md
+
 Central hub linking to all documentation categories
 
 ### Within docs/
+
 Use relative paths:
+
 - Same level: `[Link](FILENAME.md)`
 - Up one level: `[Link](../FILENAME.md)`
 - Different category: `[Link](../other-category/FILENAME.md)`
@@ -194,14 +224,14 @@ When adding new documentation:
 
 ## 📊 Current Documentation Stats
 
-- **Total docs:** 12 files
-- **Getting Started:** 3 guides (Quick Start, Integration, Hooks)
-- **Development:** 4 guides (CI/CD, Publishing, Testing, Implementation)
+- **Total docs:** 17 files
+- **Getting Started:** 4 guides (Quick Start, Integration, Hooks, Real-Time Updates)
+- **Production:** 3 guides (Google Play Compliance, Battery Optimization, Crash Recovery)
+- **Development:** 5 guides (CI/CD, Publishing, Testing, Implementation, Real-Time Debug)
 - **Root level:** 5 files (README, CHANGELOG, CONTRIBUTING, etc.)
 - **Workflows:** 3 automated workflows (CI, Publish, Pre-release)
 
 ---
 
-**Last Updated:** October 26, 2025  
-**Version:** 0.2.0
-
+**Last Updated:** March 19, 2026
+**Version:** 0.9.0
