@@ -1088,4 +1088,206 @@ describe('useBackgroundLocation', () => {
       expect(onError).toHaveBeenCalledWith(error);
     });
   });
+
+  describe('iOS-specific behavior', () => {
+    beforeEach(() => {
+      Platform.OS = 'ios';
+    });
+
+    it('should start tracking on iOS with default options', async () => {
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      let returnedTripId: string | null = null;
+
+      await act(async () => {
+        returnedTripId = await result.current.startTracking();
+      });
+
+      expect(returnedTripId).toBe(mockTripId);
+      expect(result.current.tripId).toBe(mockTripId);
+      expect(result.current.isTracking).toBe(true);
+      expect(result.current.locations).toEqual([]);
+    });
+
+    it('should start tracking with iOS-relevant options (accuracy, distanceFilter, foregroundOnly)', async () => {
+      const iosOptions: TrackingOptions = {
+        accuracy: LocationAccuracy.HIGH_ACCURACY,
+        distanceFilter: 10,
+        foregroundOnly: true,
+        updateInterval: 3000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, iosOptions);
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          accuracy: 'HIGH_ACCURACY',
+          distanceFilter: 10,
+          foregroundOnly: true,
+          updateInterval: 3000,
+        })
+      );
+      expect(result.current.isTracking).toBe(true);
+    });
+
+    it('should pass notification options without crashing on iOS (no-op)', async () => {
+      const optionsWithNotification: TrackingOptions = {
+        accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+        notificationTitle: 'Tracking Active',
+        notificationText: 'Your location is being tracked',
+        notificationPriority: NotificationPriority.HIGH,
+        notificationChannelName: 'location_channel',
+        notificationSmallIcon: 'ic_notification',
+        notificationColor: '#4CAF50',
+        notificationShowTimestamp: true,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, optionsWithNotification);
+      });
+
+      // Should not throw - notification options are passed through to native
+      // On iOS, the native side handles ignoring Android-specific notification options
+      expect(result.current.isTracking).toBe(true);
+      expect(result.current.tripId).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          accuracy: 'BALANCED_POWER_ACCURACY',
+          notificationTitle: 'Tracking Active',
+          notificationText: 'Your location is being tracked',
+          notificationPriority: 'HIGH',
+        })
+      );
+    });
+
+    it('should stop tracking on iOS', async () => {
+      (BackgroundLocationModule.stopTracking as jest.Mock).mockResolvedValue(
+        undefined
+      );
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const onTrackingStop = jest.fn();
+      const { result } = renderHook(() =>
+        useBackgroundLocation({ onTrackingStop })
+      );
+
+      // Start tracking first
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      expect(result.current.isTracking).toBe(true);
+
+      await act(async () => {
+        await result.current.stopTracking();
+      });
+
+      expect(result.current.isTracking).toBe(false);
+      expect(onTrackingStop).toHaveBeenCalled();
+      expect(BackgroundLocationModule.stopTracking).toHaveBeenCalled();
+    });
+
+    it('should refresh locations on iOS', async () => {
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      // Start tracking first to set tripId
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      await act(async () => {
+        await result.current.refreshLocations();
+      });
+
+      expect(result.current.locations).toEqual(mockLocations);
+      expect(BackgroundLocationModule.getLocations).toHaveBeenCalledWith(
+        mockTripId
+      );
+    });
+
+    it('should clear current trip on iOS', async () => {
+      (BackgroundLocationModule.clearTrip as jest.Mock).mockResolvedValue(
+        undefined
+      );
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      // Start tracking
+      await act(async () => {
+        await result.current.startTracking();
+      });
+
+      // Load locations
+      await act(async () => {
+        await result.current.refreshLocations();
+      });
+
+      await waitFor(() => {
+        expect(result.current.locations.length).toBeGreaterThan(0);
+      });
+
+      await act(async () => {
+        await result.current.clearCurrentTrip();
+      });
+
+      expect(result.current.locations).toEqual([]);
+      expect(BackgroundLocationModule.clearTrip).toHaveBeenCalledWith(
+        mockTripId
+      );
+    });
+
+    it('should handle errors on iOS the same as Android', async () => {
+      const error = new Error('iOS permission denied');
+      (BackgroundLocationModule.startTracking as jest.Mock).mockRejectedValue(
+        error
+      );
+
+      const onError = jest.fn();
+      const { result } = renderHook(() => useBackgroundLocation({ onError }));
+
+      let returnedTripId: string | null = 'not-null';
+
+      await act(async () => {
+        returnedTripId = await result.current.startTracking();
+      });
+
+      expect(returnedTripId).toBeNull();
+      expect(result.current.error).toEqual(error);
+      expect(onError).toHaveBeenCalledWith(error);
+      expect(result.current.isTracking).toBe(false);
+    });
+  });
 });
