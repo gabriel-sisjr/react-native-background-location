@@ -11,10 +11,11 @@
 [![GitHub Stars](https://img.shields.io/github/stars/gabriel-sisjr/react-native-background-location)](https://github.com/gabriel-sisjr/react-native-background-location/stargazers)
 [![License](https://img.shields.io/github/license/gabriel-sisjr/react-native-background-location)](https://github.com/gabriel-sisjr/react-native-background-location/blob/develop/LICENSE)
 [![Bundlephobia](https://img.shields.io/bundlephobia/minzip/%40gabriel-sisjr%2Freact-native-background-location?label=size)](https://bundlephobia.com/package/@gabriel-sisjr/react-native-background-location)
-![Platform](https://img.shields.io/badge/platform-Android-green)
+![Platform Android](https://img.shields.io/badge/platform-Android-green)
+![Platform iOS](https://img.shields.io/badge/platform-iOS-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)
 
-A React Native library for background location tracking built on TurboModules (New Architecture). Tracks user location reliably even when the app is minimized, with persistent storage, crash recovery, and full notification customization.
+A cross-platform React Native library for background location tracking built on TurboModules (New Architecture). Tracks user location reliably on both Android and iOS even when the app is minimized, with persistent storage, crash recovery, and platform-native behavior.
 
 ![Tracking demo](docs/assets/tracking.gif)
 
@@ -35,19 +36,20 @@ A React Native library for background location tracking built on TurboModules (N
 
 ## Features
 
-- Background location tracking via Android foreground service
-- Real-time event-driven location updates
-- Crash recovery with automatic session restoration
+- Cross-platform background location tracking (Android and iOS)
+- Real-time event-driven location updates on both platforms
+- Crash recovery with automatic session restoration (WorkManager on Android, significant location monitoring on iOS)
 - Configurable accuracy levels and update intervals for battery efficiency
 - Distance filtering and callback throttling
 - Session-based tracking organized by trip IDs
-- Persistent storage in Room Database (survives app restarts)
-- Full notification customization: icons, colors, action buttons, dynamic updates
-- Static notification defaults via AndroidManifest or convention drawables
+- Persistent storage: Room Database (Android) / Core Data (iOS)
+- Full notification customization on Android: icons, colors, action buttons, dynamic updates
+- Static notification defaults via AndroidManifest or convention drawables (Android)
 - Android 14/15 compliance (foreground service type, timeout handling)
-- Provider abstraction with Google Play Services primary and fallback provider
+- Provider abstraction with Google Play Services primary and fallback provider (Android)
+- CLLocationManager with WhenInUse and Always authorization levels (iOS)
 - Foreground-only mode (no background permission required)
-- Fully typed TypeScript API
+- Fully typed TypeScript API with unified cross-platform hooks
 
 ## Installation
 
@@ -72,6 +74,23 @@ Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
 ```
 
 > On Android 11+, background location must be requested **separately** from foreground permissions. See the [Quick Start Guide](docs/getting-started/QUICKSTART.md) for the full permission flow and the [Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md) for detailed setup in existing apps.
+
+### iOS Setup
+
+1. Add the following keys to your `Info.plist`:
+
+```xml
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>We need your location to track your trips.</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>We need your location in the background to continue tracking your trips.</string>
+```
+
+2. Enable the **Location updates** Background Mode in your Xcode project under Signing & Capabilities.
+
+3. Run `pod install` in your `ios/` directory.
+
+> **iOS:** Unlike Android, iOS does not use a foreground notification for background tracking. Instead, the system shows a blue status bar indicator when the app is using location in the background. See the [iOS Setup Guide](docs/getting-started/IOS_SETUP.md) for full details and App Store compliance requirements.
 
 ## Quick Start
 
@@ -115,12 +134,12 @@ For step-by-step setup, see the [Quick Start Guide](docs/getting-started/QUICKST
 
 ## Hooks
 
-| Hook                                                                             | Purpose                                                                   |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| [`useLocationPermissions`](docs/getting-started/hooks.md#uselocationpermissions) | Manages Android permission flow (foreground, background, notifications)   |
-| [`useBackgroundLocation`](docs/getting-started/hooks.md#usebackgroundlocation)   | Full tracking control: start, stop, locations, trip management            |
-| [`useLocationTracking`](docs/getting-started/hooks.md#uselocationtracking)       | Lightweight tracking status monitor (read-only)                           |
-| [`useLocationUpdates`](docs/getting-started/hooks.md#uselocationupdates)         | Real-time event-driven location stream with warnings and action callbacks |
+| Hook                                                                             | Purpose                                                                                                         |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| [`useLocationPermissions`](docs/getting-started/hooks.md#uselocationpermissions) | Manages cross-platform permission flow (Android: foreground, background, notifications; iOS: WhenInUse, Always) |
+| [`useBackgroundLocation`](docs/getting-started/hooks.md#usebackgroundlocation)   | Full tracking control: start, stop, locations, trip management                                                  |
+| [`useLocationTracking`](docs/getting-started/hooks.md#uselocationtracking)       | Lightweight tracking status monitor (read-only)                                                                 |
+| [`useLocationUpdates`](docs/getting-started/hooks.md#uselocationupdates)         | Real-time event-driven location stream with warnings and action callbacks                                       |
 
 See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation, options, and examples.
 
@@ -132,7 +151,7 @@ See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation,
 | -------------------- | ----------------------------------------------------------------- | ---------------------------------------------------- |
 | `startTracking`      | `(options?: TrackingOptions) => Promise<string>`                  | Start tracking (auto-generates trip ID)              |
 | `startTracking`      | `(tripId?: string, options?: TrackingOptions) => Promise<string>` | Start or resume tracking with a specific trip ID     |
-| `stopTracking`       | `() => Promise<void>`                                             | Stop tracking and terminate the foreground service   |
+| `stopTracking`       | `() => Promise<void>`                                             | Stop tracking and terminate the background service   |
 | `isTracking`         | `() => Promise<TrackingStatus>`                                   | Check if tracking is active                          |
 | `getLocations`       | `(tripId: string) => Promise<Coords[]>`                           | Retrieve all stored locations for a trip             |
 | `clearTrip`          | `(tripId: string) => Promise<void>`                               | Delete all stored data for a trip                    |
@@ -365,12 +384,13 @@ interface UseLocationUpdatesResult {
 
 ### LocationPermissionStatus
 
-| Value          | Description                                         |
-| -------------- | --------------------------------------------------- |
-| `GRANTED`      | All required permissions granted.                   |
-| `DENIED`       | Permission denied (can request again).              |
-| `BLOCKED`      | Permission permanently denied (must open settings). |
-| `UNDETERMINED` | Permission not yet requested.                       |
+| Value          | Description                                                                      |
+| -------------- | -------------------------------------------------------------------------------- |
+| `GRANTED`      | All required permissions granted (full background access).                       |
+| `WHEN_IN_USE`  | iOS only: WhenInUse permission granted. Tracking works but may have limitations. |
+| `DENIED`       | Permission denied (can request again).                                           |
+| `BLOCKED`      | Permission permanently denied (must open settings).                              |
+| `UNDETERMINED` | Permission not yet requested.                                                    |
 
 ## Notification Customization
 
@@ -407,14 +427,17 @@ await BackgroundLocation.updateNotification(
 
 - [Quick Start Guide](docs/getting-started/QUICKSTART.md) -- Get running in 5 minutes
 - [Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md) -- Detailed setup for existing apps
+- [iOS Setup Guide](docs/getting-started/IOS_SETUP.md) -- iOS-specific configuration and requirements
 - [Hooks Guide](docs/getting-started/hooks.md) -- Complete hooks documentation
 - [Real-Time Updates](docs/getting-started/REAL_TIME_UPDATES.md) -- Event-driven location watching
 
 ### Production
 
 - [Google Play Compliance](docs/production/GOOGLE_PLAY_COMPLIANCE.md) -- Required steps for Play Store approval
-- [Battery Optimization](docs/production/BATTERY_OPTIMIZATION.md) -- Manufacturer-specific battery restrictions
+- [App Store Compliance](docs/production/APP_STORE_COMPLIANCE.md) -- Required steps for App Store approval (iOS)
+- [Battery Optimization](docs/production/BATTERY_OPTIMIZATION.md) -- Platform-specific battery management
 - [Crash Recovery](docs/production/CRASH_RECOVERY.md) -- Session persistence and recovery strategies
+- [Platform Comparison](docs/production/PLATFORM_COMPARISON.md) -- Android vs iOS behavior differences
 
 ### Development
 
@@ -426,10 +449,12 @@ await BackgroundLocation.updateNotification(
 
 ## Platform Support
 
-| Platform | Status    | Notes                                                                 |
-| -------- | --------- | --------------------------------------------------------------------- |
-| Android  | Supported | Kotlin native implementation. Min SDK 24, target SDK 34.              |
-| iOS      | Stub only | TypeScript interface exists. Native implementation not yet available. |
+| Platform | Status    | Notes                                                               |
+| -------- | --------- | ------------------------------------------------------------------- |
+| Android  | Supported | Kotlin native implementation. Min SDK 24, target SDK 34.            |
+| iOS      | Supported | Swift native implementation. CLLocationManager, Core Data, iOS 13+. |
+
+> **iOS:** Background tracking on iOS uses the system blue status bar indicator instead of a notification. Notification-related `TrackingOptions` (title, text, icon, color, actions, etc.) are Android-only and are silently ignored on iOS. See [Platform Comparison](docs/production/PLATFORM_COMPARISON.md) for detailed differences.
 
 ## Contributing
 

@@ -57,6 +57,29 @@ Running "BackgroundLocationExample" with {"fabric":true,"initialProps":{"concurr
 
 Note the `"fabric":true` and `"concurrentRoot":true` properties.
 
+### iOS Development
+
+To work on the iOS native code, you will need:
+
+- **Xcode 15+** installed (from the Mac App Store)
+- **CocoaPods** installed (`sudo gem install cocoapods` or via Homebrew)
+- An iOS simulator or physical device running iOS 13+
+
+After modifying Swift or Objective-C files in `ios/`, rebuild the example app:
+
+```sh
+cd example/ios && pod install && cd ../..
+yarn example ios
+```
+
+The iOS native source files are located at:
+- `ios/BackgroundLocation.mm` -- TurboModule bridge (Objective-C++)
+- `ios/*.swift` -- Swift implementation (LocationManagerWrapper, LocationStorage, RecoveryManager, etc.)
+
+To edit the Swift files in Xcode, open `example/ios/BackgroundLocationExample.xcworkspace` and find the source files at `Pods > Development Pods > @gabriel-sisjr/react-native-background-location`.
+
+> **Important:** When making changes that affect both platforms, test on both Android and iOS before submitting a pull request. Platform-specific behavior differences should be documented with `> **iOS:**` / `> **Android:**` callouts in the documentation.
+
 Make sure your code passes TypeScript and ESLint. Run the following to verify:
 
 ```sh
@@ -127,6 +150,8 @@ When you're sending a pull request:
 
 - Prefer small pull requests focused on one change.
 - Verify that linters and tests are passing.
+- Test on both Android and iOS when changes affect shared code or the TypeScript layer.
 - Review the documentation to make sure it looks good.
 - Follow the pull request template when opening a pull request.
 - For pull requests that change the API or implementation, discuss with maintainers first by opening an issue.
+- For platform-specific changes, clearly indicate which platform is affected in the PR title (e.g., `feat(ios): ...` or `fix(android): ...`).

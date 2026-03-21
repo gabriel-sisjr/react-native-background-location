@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23231" systemVersion="24D81" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="NO" userDefinedModelVersionIdentifier="1">
+    <entity name="LocationEntity" representedClassName="LocationEntity" syncable="YES">
+        <attribute name="accuracy" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="altitude" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="bearing" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="bearingAccuracyDegrees" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="id" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="isFromMockProvider" optional="YES" attributeType="Boolean" usesScalarValueType="NO"/>
+        <attribute name="latitude" attributeType="String"/>
+        <attribute name="longitude" attributeType="String"/>
+        <attribute name="provider" optional="YES" attributeType="String"/>
+        <attribute name="speed" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="speedAccuracyMetersPerSecond" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="timestamp" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="tripId" attributeType="String"/>
+        <attribute name="verticalAccuracyMeters" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <fetchIndex name="byTripId">
+            <fetchIndexElement property="tripId" type="Binary" order="ascending"/>
+        </fetchIndex>
+    </entity>
+    <entity name="TrackingStateEntity" representedClassName="TrackingStateEntity" syncable="YES">
+        <attribute name="accuracy" optional="YES" attributeType="String"/>
+        <attribute name="distanceFilter" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="foregroundOnly" optional="YES" attributeType="Boolean" usesScalarValueType="NO"/>
+        <attribute name="id" attributeType="Integer 16" defaultValueString="1" usesScalarValueType="YES"/>
+        <attribute name="isActive" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="tripId" optional="YES" attributeType="String"/>
+        <attribute name="updateInterval" optional="YES" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+    </entity>
+</model>

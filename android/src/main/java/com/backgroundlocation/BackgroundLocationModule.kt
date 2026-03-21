@@ -208,6 +208,10 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   override fun getName(): String = NAME
 
+  // Required by NativeEventEmitter contract (no-op on Android, events use RCTDeviceEventEmitter)
+  override fun addListener(eventName: String?) {}
+  override fun removeListeners(count: Double) {}
+
   /**
    * Starts location tracking for a specific trip
    * If tripId is null or empty, generates a new UUID
@@ -432,6 +436,51 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       promise.resolve(null)
     } else {
       promise.reject("NO_ACTIVE_SERVICE", "No active location service instance. Is tracking running?")
+    }
+  }
+
+  /**
+   * Checks the current location permission status
+   * Returns granted only if background location permission is available
+   */
+  override fun checkLocationPermission(promise: Promise) {
+    try {
+      val hasBackground = hasLocationPermissions(false)
+      val hasForeground = hasLocationPermissions(true)
+
+      val status = when {
+        hasBackground -> "granted"
+        hasForeground -> "denied" // Has foreground only, insufficient for background
+        else -> "denied"
+      }
+
+      val result = Arguments.createMap().apply {
+        putString("status", status)
+        putBoolean("canRequestAgain", true) // Android always allows re-requesting via PermissionsAndroid
+      }
+      promise.resolve(result)
+    } catch (e: Exception) {
+      promise.reject("CHECK_PERMISSION_ERROR", "Failed to check location permission: ${e.message}", e)
+    }
+  }
+
+  /**
+   * Returns the current permission status for location
+   * On Android, actual permission requests are handled by PermissionsAndroid in JS
+   */
+  override fun requestLocationPermission(foregroundOnly: Boolean, promise: Promise) {
+    // On Android, permission requests are handled by PermissionsAndroid in JS
+    // This method returns the current permission status
+    try {
+      val hasPermission = hasLocationPermissions(foregroundOnly)
+
+      val result = Arguments.createMap().apply {
+        putString("status", if (hasPermission) "granted" else "denied")
+        putBoolean("canRequestAgain", true)
+      }
+      promise.resolve(result)
+    } catch (e: Exception) {
+      promise.reject("REQUEST_PERMISSION_ERROR", "Failed to check location permission: ${e.message}", e)
     }
   }
 

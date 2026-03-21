@@ -1,6 +1,6 @@
 # Battery Optimization Guide
 
-Android manufacturers implement aggressive battery optimization that can kill background services, including location tracking. This guide helps you handle these manufacturer-specific behaviors.
+This guide covers battery management for background location tracking on both Android and iOS. Android manufacturers implement aggressive battery optimization that can kill background services. iOS manages battery differently through system-level controls.
 
 ## Understanding the Problem
 
@@ -26,18 +26,18 @@ Android's battery optimization is **not a bug** - it's an intentional feature. H
 
 ## Affected Manufacturers
 
-| Manufacturer | OS Name | Severity | Notes |
-|--------------|---------|----------|-------|
-| Xiaomi | MIUI | High | Multiple restrictions, requires autostart |
-| Huawei | EMUI/HarmonyOS | High | Protected apps list, app launch management |
-| Samsung | OneUI | Medium | Sleeping apps, deep sleeping apps |
-| Oppo | ColorOS | High | Battery optimization, auto-start management |
-| Vivo | FuntouchOS | High | Background app management |
-| OnePlus | OxygenOS | Medium | Battery optimization settings |
-| Realme | Realme UI | High | Same as Oppo (ColorOS based) |
-| Asus | ZenUI | Medium | Auto-start manager |
-| Nokia | Stock+ | Low | Mostly stock Android behavior |
-| Pixel | Stock | Low | Standard Doze, predictable behavior |
+| Manufacturer | OS Name        | Severity | Notes                                       |
+| ------------ | -------------- | -------- | ------------------------------------------- |
+| Xiaomi       | MIUI           | High     | Multiple restrictions, requires autostart   |
+| Huawei       | EMUI/HarmonyOS | High     | Protected apps list, app launch management  |
+| Samsung      | OneUI          | Medium   | Sleeping apps, deep sleeping apps           |
+| Oppo         | ColorOS        | High     | Battery optimization, auto-start management |
+| Vivo         | FuntouchOS     | High     | Background app management                   |
+| OnePlus      | OxygenOS       | Medium   | Battery optimization settings               |
+| Realme       | Realme UI      | High     | Same as Oppo (ColorOS based)                |
+| Asus         | ZenUI          | Medium   | Auto-start manager                          |
+| Nokia        | Stock+         | Low      | Mostly stock Android behavior               |
+| Pixel        | Stock          | Low      | Standard Doze, predictable behavior         |
 
 ## Detection and User Guidance
 
@@ -54,7 +54,9 @@ const getManufacturer = async (): Promise<string> => {
 
 const hasAggressiveBatteryOptimization = async (): Promise<boolean> => {
   const manufacturer = await getManufacturer();
-  return ['xiaomi', 'huawei', 'oppo', 'vivo', 'realme', 'oneplus'].includes(manufacturer);
+  return ['xiaomi', 'huawei', 'oppo', 'vivo', 'realme', 'oneplus'].includes(
+    manufacturer
+  );
 };
 ```
 
@@ -200,11 +202,13 @@ async function onTrackingStarted() {
 **Path:** Settings → Apps → Manage apps → [Your App]
 
 **Required settings:**
+
 1. **Autostart**: Enable
 2. **Battery saver**: No restrictions
 3. **Power saving**: Not in power saving list
 
 **Additional:**
+
 - Security app → Permissions → Autostart → Enable
 - In recent apps, lock the app (pull down on app card)
 
@@ -213,6 +217,7 @@ async function onTrackingStarted() {
 **Path:** Settings → Battery → App launch → [Your App]
 
 **Required settings:**
+
 1. Toggle OFF "Manage automatically"
 2. Enable:
    - Auto-launch: ON
@@ -220,6 +225,7 @@ async function onTrackingStarted() {
    - Run in background: ON
 
 **Additional:**
+
 - Settings → Apps → [Your App] → Battery → Unmonitored
 - Phone Manager → Battery → Protected apps → Add
 
@@ -228,11 +234,13 @@ async function onTrackingStarted() {
 **Path:** Settings → Battery → Background usage limits
 
 **Required settings:**
+
 1. Never sleeping apps → Add your app
 2. Remove from "Sleeping apps" if present
 3. Remove from "Deep sleeping apps" if present
 
 **Additional:**
+
 - Settings → Apps → [Your App] → Battery → Unrestricted
 
 ### Oppo / Realme (ColorOS)
@@ -240,10 +248,12 @@ async function onTrackingStarted() {
 **Path:** Settings → Battery → [Your App]
 
 **Required settings:**
+
 1. Allow background activity: Enable
 2. Allow auto-launch: Enable
 
 **Additional:**
+
 - Settings → App Management → App list → [Your App] → Power saver → Allow
 
 ### Vivo (FuntouchOS)
@@ -251,10 +261,12 @@ async function onTrackingStarted() {
 **Path:** Settings → Battery → Background power consumption
 
 **Required settings:**
+
 1. Find your app
 2. Set to "Allow"
 
 **Additional:**
+
 - i Manager → App manager → Autostart → Enable
 
 ### OnePlus (OxygenOS)
@@ -262,6 +274,7 @@ async function onTrackingStarted() {
 **Path:** Settings → Battery → Battery optimization
 
 **Required settings:**
+
 1. Find your app
 2. Select "Don't optimize"
 
@@ -293,13 +306,13 @@ const drivingOptions = {
 
 ### Use Appropriate Intervals
 
-| Use Case | Interval | Accuracy | Battery Impact |
-|----------|----------|----------|----------------|
-| Walking | 5 sec | HIGH_ACCURACY | High |
-| Cycling | 5-10 sec | HIGH_ACCURACY | Medium-High |
-| Driving | 10-15 sec | BALANCED | Medium |
-| Long trip | 30+ sec | LOW_POWER | Low |
-| Background check-in | 60+ sec | LOW_POWER | Very Low |
+| Use Case            | Interval  | Accuracy      | Battery Impact |
+| ------------------- | --------- | ------------- | -------------- |
+| Walking             | 5 sec     | HIGH_ACCURACY | High           |
+| Cycling             | 5-10 sec  | HIGH_ACCURACY | Medium-High    |
+| Driving             | 10-15 sec | BALANCED      | Medium         |
+| Long trip           | 30+ sec   | LOW_POWER     | Low            |
+| Background check-in | 60+ sec   | LOW_POWER     | Very Low       |
 
 ### Dynamic Configuration
 
@@ -380,6 +393,7 @@ function TrackingScreen() {
 ### Testing on Specific Devices
 
 Before release, test on devices from problematic manufacturers:
+
 - Xiaomi (any MIUI device)
 - Samsung (any OneUI device)
 - Huawei (if available)
@@ -489,9 +503,99 @@ const openBatteryHelp = async () => {
 2. Always test on real devices before release
 3. Test on devices from problematic manufacturers
 
+## iOS Battery Management
+
+iOS handles background location differently from Android. There are no manufacturer-specific issues, but system-level settings significantly impact battery life.
+
+### How iOS Background Location Affects Battery
+
+Unlike Android, iOS does not use a foreground service. Instead, `CLLocationManager` delivers location updates to the app even when it is in the background. The system manages when and how often updates are delivered based on several factors.
+
+### activityType
+
+The `activityType` property tells iOS how to optimize location delivery. Setting this correctly can significantly reduce battery usage:
+
+```typescript
+// For driving/navigation apps
+const drivingOptions: TrackingOptions = {
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  updateInterval: 5000,
+  // iOS will optimize GPS behavior for automotive use
+};
+
+// For fitness/walking apps - iOS uses motion sensors to assist
+const fitnessOptions: TrackingOptions = {
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  updateInterval: 3000,
+};
+```
+
+| Activity Type    | iOS Behavior                                              | Battery Impact |
+| ---------------- | --------------------------------------------------------- | -------------- |
+| Automotive       | Optimized for driving speeds, pauses at stops             | Low            |
+| Fitness          | Uses motion sensors, works well at walking/running speeds | Medium         |
+| Other Navigation | General navigation, works at all speeds                   | Medium-High    |
+| Other (default)  | No specific optimization                                  | Highest        |
+
+### pausesLocationUpdatesAutomatically
+
+iOS can automatically pause location updates when it detects the user is stationary. This dramatically saves battery:
+
+- **Enabled (default):** iOS pauses updates when the device is stationary. Location tracking resumes automatically when movement is detected.
+- **Disabled:** Updates continue regardless of movement. Use this only when continuous tracking is critical (e.g., security applications).
+
+> **iOS:** When iOS pauses updates, no warning event is emitted. Updates simply resume when movement is detected. This is normal behavior, not a bug.
+
+### Accuracy Level Impact
+
+| Accuracy                  | iOS Equivalent                       | Battery Impact | Use Case                  |
+| ------------------------- | ------------------------------------ | -------------- | ------------------------- |
+| `HIGH_ACCURACY`           | `kCLLocationAccuracyBest`            | Highest        | Walking, precise tracking |
+| `BALANCED_POWER_ACCURACY` | `kCLLocationAccuracyHundredMeters`   | Medium         | General navigation        |
+| `LOW_POWER`               | `kCLLocationAccuracyKilometer`       | Low            | City-level tracking       |
+| `NO_POWER` / `PASSIVE`    | `kCLLocationAccuracyThreeKilometers` | Minimal        | Regional tracking         |
+
+### Distance Filter for Battery Savings
+
+The `distanceFilter` option maps directly to `CLLocationManager.distanceFilter` on iOS:
+
+```typescript
+// Only receive updates when the user moves 50+ meters
+const batteryEfficientOptions: TrackingOptions = {
+  accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+  distanceFilter: 50,
+};
+```
+
+Recommended distance filter values for iOS:
+
+- **Walking:** 10-25 meters
+- **Driving:** 50-100 meters
+- **City-level check-in:** 200-500 meters
+
+### iOS Low Power Mode
+
+When the user enables Low Power Mode on iOS, the system may:
+
+- Reduce location update frequency
+- Use less accurate location sources
+- Delay background updates
+
+Your app cannot override Low Power Mode. Handle reduced update frequency gracefully.
+
+### iOS Battery Tips
+
+1. **Set the correct `activityType`** for your use case to let iOS optimize.
+2. **Use `distanceFilter`** to avoid updates when the user is stationary.
+3. **Use `BALANCED_POWER_ACCURACY`** unless you need meter-level precision.
+4. **Allow `pausesLocationUpdatesAutomatically`** (enabled by default) unless continuous tracking is critical.
+5. **Do not poll for locations** -- rely on the event-driven `useLocationUpdates` hook.
+
 ## See Also
 
-- [dontkillmyapp.com](https://dontkillmyapp.com/) - Comprehensive manufacturer database
+- [dontkillmyapp.com](https://dontkillmyapp.com/) - Comprehensive manufacturer database (Android)
 - [Crash Recovery Guide](./CRASH_RECOVERY.md) - Handling service restarts
-- [Google Play Compliance](./GOOGLE_PLAY_COMPLIANCE.md) - Related requirements
+- [Google Play Compliance](./GOOGLE_PLAY_COMPLIANCE.md) - Android requirements
+- [App Store Compliance](./APP_STORE_COMPLIANCE.md) - iOS requirements
+- [Platform Comparison](./PLATFORM_COMPARISON.md) - Android vs iOS differences
 - [Real-Time Updates Guide](../getting-started/REAL_TIME_UPDATES.md) - Handling warnings

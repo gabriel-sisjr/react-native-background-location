@@ -1,6 +1,6 @@
 # Documentation
 
-Complete documentation for `@gabriel-sisjr/react-native-background-location`.
+Complete documentation for `@gabriel-sisjr/react-native-background-location` -- a cross-platform (Android and iOS) React Native library for background location tracking.
 
 ## 📚 Getting Started
 
@@ -18,6 +18,9 @@ Start here if you're new to the library:
 - **[Real-Time Updates Guide](getting-started/REAL_TIME_UPDATES.md)**
   Automatic location watching with `useLocationUpdates` hook.
 
+- **[iOS Setup Guide](getting-started/IOS_SETUP.md)**
+  iOS-specific configuration: Info.plist, Background Modes, CocoaPods, and privacy manifest.
+
 - **[Real-Time Debug Guide](development/REALTIME_DEBUG_GUIDE.md)**
   Debugging tools and techniques for real-time location events.
 
@@ -33,6 +36,12 @@ Essential guides before publishing your app:
 
 - **[Crash Recovery](production/CRASH_RECOVERY.md)**
   Session persistence and recovery strategies for app restarts and crashes.
+
+- **[App Store Compliance](production/APP_STORE_COMPLIANCE.md)**
+  Required steps for Apple App Store approval with background location usage.
+
+- **[Platform Comparison](production/PLATFORM_COMPARISON.md)**
+  Detailed comparison of Android vs iOS behavior, features, and implementation differences.
 
 ## 🛠 Development
 
@@ -61,20 +70,27 @@ For maintainers and contributors:
 
 ### Android
 
-- **Current Status:** ✅ Fully implemented
+- **Current Status:** Fully implemented
 - **Features:**
-  - Background location tracking
-  - Foreground service
+  - Background location tracking via foreground service
   - Room Database storage
-  - High-accuracy GPS updates
+  - Dual provider (Fused + Android LocationManager)
+  - Full notification customization
+  - WorkManager crash recovery
 
 ### iOS
 
-- **Current Status:** 🚧 Coming soon
-- **Planned Features:**
-  - Background location tracking
-  - CoreLocation integration
-  - Same API as Android
+- **Current Status:** Fully implemented
+- **Features:**
+  - Background location tracking via CLLocationManager
+  - Core Data persistence with batched writes
+  - Two-step permission flow (WhenInUse → Always)
+  - Significant location monitoring for crash recovery
+  - System blue bar indicator (no custom notification)
+- **iOS-Specific Docs:**
+  - [iOS Setup Guide](getting-started/IOS_SETUP.md)
+  - [App Store Compliance](production/APP_STORE_COMPLIANCE.md)
+  - [iOS Background Behavior](ios/IOS_BACKGROUND_BEHAVIOR.md) (if available)
 
 ## 🆘 Need Help?
 
@@ -96,28 +112,34 @@ docs/
 │   └── REAL_TIME_UPDATES.md            # useLocationUpdates guide
 ├── production/                         # Before publishing
 │   ├── GOOGLE_PLAY_COMPLIANCE.md       # Play Store requirements
-│   ├── BATTERY_OPTIMIZATION.md         # Manufacturer-specific issues
-│   └── CRASH_RECOVERY.md               # Session persistence
-└── development/                        # For maintainers
-    ├── CICD.md                         # CI/CD and automation
-    ├── PUBLISHING.md                   # Release process
-    ├── TESTING.md                      # Testing guide
-    └── IMPLEMENTATION_SUMMARY.md       # Technical details
+│   ├── APP_STORE_COMPLIANCE.md         # App Store requirements (iOS)
+│   ├── BATTERY_OPTIMIZATION.md         # Platform-specific battery management
+│   ├── CRASH_RECOVERY.md               # Session persistence
+│   └── PLATFORM_COMPARISON.md          # Android vs iOS differences
+├── development/                        # For maintainers
+│   ├── CICD.md                         # CI/CD and automation
+│   ├── PUBLISHING.md                   # Release process
+│   ├── TESTING.md                      # Testing guide
+│   └── IMPLEMENTATION_SUMMARY.md       # Technical details
+└── ios/                                # iOS planning & analysis
+    ├── BUSINESS_REQUIREMENTS.md        # iOS requirements analysis
+    └── IOS_IMPLEMENTATION_PLAN.md      # Implementation plan
 ```
 
-## 🔄 Version
+## Version
 
-This documentation is for version **0.9.0** which includes:
+This documentation is for version **0.10.0** which includes:
 
-- ✅ Android implementation
-- ✅ React Hooks API (4 hooks)
-- ✅ Real-time location updates via NativeEventEmitter
-- ✅ Room Database persistent storage
-- ✅ Configurable notification appearance and action buttons
-- ✅ Distance filtering and customizable update intervals
-- ✅ Crash recovery with WorkManager
-- ✅ Automated CI/CD pipeline
-- 🚧 iOS implementation (coming soon)
+- Android implementation (Kotlin, Room DB, WorkManager)
+- iOS implementation (Swift, CLLocationManager, Core Data)
+- Cross-platform React Hooks API (4 hooks)
+- Real-time location updates via NativeEventEmitter
+- Persistent storage (Room Database on Android, Core Data on iOS)
+- Configurable notification appearance and action buttons (Android)
+- Distance filtering and customizable update intervals
+- Crash recovery (WorkManager on Android, significant location monitoring on iOS)
+- Cross-platform permission management
+- Automated CI/CD pipeline
 
 ---
 

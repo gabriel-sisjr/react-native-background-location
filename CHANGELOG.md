@@ -9,11 +9,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 
-- iOS implementation with Swift
-- iOS crash recovery support
 - Geofencing support
 - Automatic data retention policies
 - Background sync with remote server
+
+## [0.10.0] - 2026-03-21
+
+### Added
+
+- **Full iOS Support**: Complete native implementation using Swift and CLLocationManager
+  - Background location tracking with `CLLocationManager` and `allowsBackgroundLocationUpdates`
+  - Core Data persistence with batched async writes (matches Android Room DB behavior)
+  - Two-step permission flow: WhenInUse → Always authorization via `requestAlwaysAuthorization()`
+  - Significant location monitoring for crash recovery and app wake-up
+  - `RecoveryManager` with stop token pattern and 5 recoveries/hour limit
+  - `LocationManagerWrapper` orchestrating CLLocationManager lifecycle
+  - `LocationManagerDelegate` handling all delegate callbacks
+  - `CoreDataStack` for persistent storage setup and management
+  - `TrackingOptions.swift` and `LocationAccuracy.swift` mapping TypeScript options to iOS native values
+  - `activityType` support for battery optimization (automotive, fitness, other navigation)
+  - `pausesLocationUpdatesAutomatically` for system-managed battery savings
+
+- **Cross-Platform Permission Hooks**: `useLocationPermissions` now works on both platforms
+  - iOS uses native `checkLocationPermission()` and `requestLocationPermission()` TurboModule methods
+  - New `WHEN_IN_USE` permission status for iOS (maps to `hasPermission = true`)
+  - Android continues using `PermissionsAndroid` API as before
+
+- **New TurboModule Methods**:
+  - `checkLocationPermission()` - Returns current permission status from native layer
+  - `requestLocationPermission()` - Requests location permission through native CLLocationManager (iOS)
+
+- **iOS Warning Events**: Platform-specific warnings via `onLocationWarning`
+  - `PERMISSION_REVOKED` - User revoked location permission while tracking
+  - `PERMISSION_DOWNGRADED` - User downgraded from Always to WhenInUse
+
+### Changed
+
+- `useLocationPermissions` hook is now fully cross-platform (was Android-only)
+- `LocationPermissionStatus` enum now includes `WHEN_IN_USE` value
+- Documentation updated across all guides to reflect dual-platform support
+
+### iOS-Specific Behavior
+
+- No foreground notification on iOS; the system shows a blue status bar indicator
+- Notification-related `TrackingOptions` fields are silently ignored on iOS
+- `activityType` in `TrackingOptions` is iOS-only (ignored on Android)
+- Crash recovery uses significant location monitoring instead of WorkManager
+- Persistence uses Core Data (SQLite) instead of Room Database
+- Distance filter uses `CLLocationManager.distanceFilter` property
+
+### Requirements
+
+- React Native 0.70 or higher
+- Android API 24+ (Android 7.0 Nougat)
+- iOS 13+ (iPhone and iPad)
+- Xcode 15+ (for building iOS)
+- Google Play Services Location 21.3.0 (Android)
 
 ## [0.9.0] - 2026-03-19
 
@@ -98,6 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Technical Details
 
 **File Changes (TypeScript):**
+
 - `src/types/tracking.ts`: Added `NotificationAction`, `NotificationActionEvent` interfaces, 6 new `TrackingOptions` fields
 - `src/types/hooks.ts`: Added `onNotificationAction` callback to hook options
 - `src/types/index.ts`: New type exports for `NotificationAction` and `NotificationActionEvent`
@@ -107,6 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/hooks/useLocationUpdates.ts`: `onNotificationAction` event listener
 
 **File Changes (Kotlin):**
+
 - `android/src/main/java/com/backgroundlocation/TrackingOptions.kt`: 6 new fields
 - `android/src/main/java/com/backgroundlocation/BackgroundLocationModule.kt`: Parse new fields, `handleNotificationAction`, `updateNotification` override
 - `android/src/main/java/com/backgroundlocation/LocationService.kt`: `createNotification` updates (largeIcon, subtext, channelId, actions with PendingIntent), `updateNotificationContent`, Bundle serialization
@@ -122,9 +175,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RecoveryWorker.kt` - Refactored icon resolution to use NotificationDefaults in createRecoveryNotification()
 
 **File Changes (Tests):**
+
 - `src/__tests__/index.test.ts`: 11 new tests (visual options, updateNotification, actions serialization, extended options)
 
 **Architecture:**
+
 - Four-phase implementation for incremental delivery
 - JSON serialization workaround for Codegen limitation with typed object arrays
 - PendingIntent-based action flow through manifest-registered BroadcastReceiver
@@ -215,6 +270,7 @@ useLocationUpdates({
 ### Technical Details
 
 **File Changes:**
+
 - `android/src/main/java/com/backgroundlocation/TrackingOptions.kt`: Added distanceFilter
 - `android/src/main/java/com/backgroundlocation/provider/LocationProvider.kt`: Updated interface
 - `android/src/main/java/com/backgroundlocation/provider/FusedLocationProvider.kt`: Distance filter support
@@ -373,6 +429,7 @@ useLocationUpdates({
 ### Technical Details
 
 **Architecture Changes:**
+
 - New persistence layer using Room Database exclusively
 - Room Database handles all data with SQLite backend and indexed queries
 - Locations stored in `locations` table with tripId index
@@ -383,6 +440,7 @@ useLocationUpdates({
 - Service can self-recover from storage when restarted by system
 
 **Recovery Flow:**
+
 1. App crashes or is killed by system
 2. User reopens app (or system restarts service via START_STICKY)
 3. `BackgroundLocationModule.init()` calls `recoverTrackingSession()`
@@ -392,11 +450,13 @@ useLocationUpdates({
 7. Tracking continues seamlessly from previous state
 
 **Error Handling:**
+
 - Permission revocation during recovery clears tracking state
 - Corrupted recovery data triggers automatic cleanup
 - Best-effort recovery with graceful fallback to clean state
 
 **File Changes:**
+
 - `android/build.gradle`: Added Room 2.6.1 with KSP dependencies
 - `android/src/main/java/com/backgroundlocation/database/LocationEntity.kt`: Room entity for locations (new)
 - `android/src/main/java/com/backgroundlocation/database/LocationDao.kt`: DAO for location operations (new)
@@ -417,6 +477,7 @@ If upgrading from 0.5.0:
 **No Breaking Changes** - All existing code continues to work without modifications.
 
 **Important Note:**
+
 - Previous versions stored data in memory only
 - After update, any in-progress tracking sessions will need to be restarted
 - This is expected behavior and not a bug
@@ -430,7 +491,7 @@ const { startTracking, stopTracking, getLocations } = useBackgroundLocation();
 // Crash recovery is now automatic
 await startTracking('my-trip', {
   updateInterval: 5000,
-  accuracy: LocationAccuracy.HIGH_ACCURACY
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
 });
 
 // If app crashes and restarts, tracking resumes automatically
@@ -438,12 +499,14 @@ await startTracking('my-trip', {
 ```
 
 **Performance Improvements:**
+
 - Better performance with large datasets (1000+ location points)
 - Faster queries with indexed Room Database
 - Reduced memory usage with coroutine-based operations
 - No JSON parsing overhead - direct SQLite storage
 
 **Best Practices:**
+
 - Crash recovery is automatic - no configuration needed
 - Data is now persisted to SQLite database
 - Use `clearTrip()` to remove old trip data when no longer needed
@@ -506,6 +569,7 @@ await startTracking('my-trip', {
 ### Technical Details
 
 **File Changes:**
+
 - `android/src/main/java/com/backgroundlocation/LocationService.kt`: Extended to extract and emit all location properties
 - `android/src/main/java/com/backgroundlocation/LocationStorage.kt`: Extended to save and retrieve all location properties
 - `src/types/tracking.ts`: Added optional properties to `Coords` and `LocationUpdateEvent` interfaces
@@ -515,6 +579,7 @@ await startTracking('my-trip', {
 - `example/src/styles.ts`: Added styles for additional properties display
 
 **Architecture:**
+
 - Generic property extraction eliminates manual field mapping
 - Future-proof design automatically includes new properties
 - Type-safe access to all location data
@@ -554,6 +619,7 @@ locations.forEach((location) => {
 ```
 
 **Best Practices:**
+
 - Always check for `undefined` before using optional properties
 - Properties may not be available on all devices or Android versions
 - Some properties require specific Android API levels (18+, 26+)
@@ -663,6 +729,7 @@ locations.forEach((location) => {
 ### Technical Details
 
 **File Changes:**
+
 - `android/src/main/java/com/backgroundlocation/LocationService.kt`: Added event emission
 - `android/src/main/java/com/backgroundlocation/BackgroundLocationModule.kt`: Added context setup
 - `src/hooks/useLocationUpdates.ts`: New hook for real-time updates
@@ -672,6 +739,7 @@ locations.forEach((location) => {
 - `example/src/App.tsx`: Enhanced with toggle demonstration
 
 **Architecture:**
+
 - Event-driven updates (no polling required)
 - Non-blocking event emission
 - Automatic subscription/unsubscription
@@ -753,7 +821,7 @@ const updates = useLocationUpdates(); // For real-time data
 ### Changed
 
 - 📦 **Version Bump**: Updated to 0.2.0 following semantic versioning (minor release for new features)
-- 🔧 **Test Infrastructure**: 
+- 🔧 **Test Infrastructure**:
   - Fixed TypeScript errors with `Platform.Version` mocks using `Object.defineProperty`
   - Improved test setup with minimal mocks for better reliability
   - Enhanced error handling tests for all hooks
@@ -782,7 +850,7 @@ await BackgroundLocation.startTracking('trip-123');
 // New (recommended)
 import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
 const { startTracking } = useBackgroundLocation({
-  onLocationUpdate: (location) => console.log(location)
+  onLocationUpdate: (location) => console.log(location),
 });
 ```
 
@@ -852,17 +920,20 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 This release introduces distance filtering for location updates and callback throttling for better control over location callbacks.
 
 **📏 Distance Filter:**
+
 - Configure minimum distance between updates
 - Reduces battery usage by filtering unnecessary updates
 - Works with both FusedLocationProvider and AndroidLocationProvider
 
 **⏱️ Callback Throttling:**
+
 - `onUpdateInterval` sets minimum interval between callback executions (e.g., 30000ms = every ~30 seconds)
 - Locations are still collected and stored at `updateInterval` rate
 - Callback fires on the first location that arrives after the interval has elapsed
 - Ideal for periodic server sync without overwhelming network requests
 
 **🔄 Cleaner API:**
+
 - New startTracking overload for options-only calls
 - No more passing undefined for tripId
 
@@ -882,27 +953,32 @@ This release introduces distance filtering for location updates and callback thr
 This release introduces full notification customization for the background location foreground service, delivered in four phases: visual core, dynamic updates, action buttons, and extended customization.
 
 **🎨 Notification Visual Customization (Phase 1):**
+
 - Custom small icon, accent color, and timestamp toggle
 - Drawable resource name resolution with system default fallback
 - Hex color support for brand-consistent notifications
 
 **🔄 Dynamic Notification Updates (Phase 2):**
+
 - New `updateNotification(title, text)` API method
 - In-place content updates while tracking is active
 - Transient updates for performance (not persisted to DB)
 
 **🔘 Notification Action Buttons (Phase 3):**
+
 - Up to 3 interactive buttons on the tracking notification
 - Full event flow from PendingIntent through to JS callbacks
 - New `onNotificationAction` callback in `useLocationUpdates` hook
 - JSON serialization workaround for Codegen compatibility
 
 **🖼️ Extended Customization (Phase 4):**
+
 - Large icon support with BitmapFactory drawable decoding
 - Subtext below notification content
 - Custom notification channel ID
 
 **🗄️ Database Migrations:**
+
 - Room Database v1→v4 with three incremental migrations
 - All new fields persisted for crash recovery
 
@@ -923,17 +999,20 @@ This release introduces full notification customization for the background locat
 This release ensures full compatibility with Android 14 and 15, plus major architectural improvements.
 
 **🤖 Android 14/15 Compliance:**
+
 - Foreground service type declaration for Android 14+
 - Timeout handling for Android 15's 6-hour limit
 - Task removal handling for app swipe
 - Proper service lifecycle management
 
 **🏗️ Provider Abstraction:**
+
 - Extensible location provider system
 - Automatic fallback for devices without Play Services
 - Location processor interface for filtering
 
 **⚠️ Warning Events:**
+
 - New warning event system
 - SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE types
 - Hook support for warning callbacks
@@ -954,6 +1033,7 @@ This release ensures full compatibility with Android 14 and 15, plus major archi
 This release introduces automatic crash recovery and a new persistence layer with Room Database for better performance and scalability.
 
 **🔄 Crash Recovery:**
+
 - Automatic tracking session recovery after app crash or restart
 - Persistent storage of TrackingOptions for complete state restoration
 - Service auto-recovery using START_STICKY
@@ -961,6 +1041,7 @@ This release introduces automatic crash recovery and a new persistence layer wit
 - Best-effort recovery with automatic cleanup of corrupted state
 
 **🗄️ Room Database:**
+
 - Room Database 2.6.1 with KSP for all data persistence
 - SQLite backend for locations and tracking state
 - Better performance with large datasets
@@ -969,6 +1050,7 @@ This release introduces automatic crash recovery and a new persistence layer wit
 - Zero JSON parsing overhead
 
 **📚 Documentation:**
+
 - Complete crash recovery architecture guide
 - Manual testing guide with 8 detailed scenarios
 - Technical implementation documentation
@@ -991,6 +1073,7 @@ This release introduces automatic crash recovery and a new persistence layer wit
 This release adds comprehensive support for all location data available from Google Play Services Location API.
 
 **📍 Extended Properties:**
+
 - Full support for 10+ location properties (accuracy, altitude, speed, bearing, etc.)
 - API-level specific properties (Android 18+, 26+)
 - Type-safe access with TypeScript
@@ -1012,6 +1095,7 @@ This release adds comprehensive support for all location data available from Goo
 This release introduces comprehensive tracking configuration options and built-in battery optimization features.
 
 **⚙️ Configurable Tracking:**
+
 - TrackingOptions interface for full customization
 - Location accuracy levels (HIGH_ACCURACY, BALANCED_POWER_ACCURACY, LOW_POWER)
 - Adjustable update intervals
@@ -1019,6 +1103,7 @@ This release introduces comprehensive tracking configuration options and built-i
 - Configuration presets (High Accuracy, Balanced, Low Power)
 
 **🔋 Battery Optimization:**
+
 - Configurable accuracy levels for reduced battery consumption
 - Adjustable update intervals to minimize location requests
 - Smart location updates and efficient foreground service
@@ -1040,6 +1125,7 @@ This release introduces comprehensive tracking configuration options and built-i
 This release introduces real-time location updates with event-driven architecture.
 
 **🎯 Real-Time Updates:**
+
 - New useLocationUpdates hook for automatic location watching
 - Event-driven location updates via native events
 - Automatic subscription/unsubscription management
@@ -1061,17 +1147,20 @@ This release introduces real-time location updates with event-driven architectur
 This release introduces React Hooks for easier integration and a complete CI/CD pipeline for automated releases.
 
 **🎣 React Hooks API:**
+
 - `useBackgroundLocation`: Complete hook for location tracking
 - `useLocationTracking`: Lightweight hook for monitoring tracking status
 - `useLocationPermissions`: Full permission management for Android
 
 **🤖 Automated CI/CD:**
+
 - Automated testing on every PR (lint, tests, builds)
 - Automatic beta releases from `develop` branch
 - Automatic production releases from `main` branch
 - Semantic versioning with automatic version detection
 
 **🧪 Test Coverage:**
+
 - 98.91% overall code coverage
 - 96 comprehensive tests covering all hooks and core functionality
 
@@ -1089,6 +1178,7 @@ This release introduces React Hooks for easier integration and a complete CI/CD 
 This is the first public release of `@gabriel-sisjr/react-native-background-location`. The library provides robust background location tracking for React Native apps using the new TurboModule architecture.
 
 **What's Working:**
+
 - ✅ Full Android implementation
 - ✅ Background and foreground tracking
 - ✅ Persistent storage
@@ -1096,6 +1186,7 @@ This is the first public release of `@gabriel-sisjr/react-native-background-loca
 - ✅ Production-ready
 
 **What's Next:**
+
 - 🚧 iOS implementation
 - 🚧 Event emitters
 - 🚧 Advanced configuration options

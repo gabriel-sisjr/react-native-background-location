@@ -1161,6 +1161,103 @@ describe('useLocationUpdates', () => {
     });
   });
 
+  describe('onNotificationAction handler', () => {
+    const simulateNotificationAction = (data: any) => {
+      (global as any).simulateNotificationActionEvent(data);
+    };
+
+    it('should call onNotificationAction callback when event matches tripId', async () => {
+      const onNotificationAction = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, onNotificationAction })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const actionEvent = {
+        tripId: mockTripId,
+        actionId: 'stop_tracking',
+      };
+
+      act(() => {
+        simulateNotificationAction(actionEvent);
+      });
+
+      expect(onNotificationAction).toHaveBeenCalledWith(actionEvent);
+    });
+
+    it('should call onNotificationAction when no tripId is specified (all events)', async () => {
+      const onNotificationAction = jest.fn();
+      renderHook(() => useLocationUpdates({ onNotificationAction }));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const actionEvent = {
+        tripId: 'any-trip-id',
+        actionId: 'pause_tracking',
+      };
+
+      act(() => {
+        simulateNotificationAction(actionEvent);
+      });
+
+      expect(onNotificationAction).toHaveBeenCalledWith(actionEvent);
+    });
+
+    it('should filter notification action events by tripId when provided', async () => {
+      const onNotificationAction = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, onNotificationAction })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Event for a different trip - should be filtered out
+      act(() => {
+        simulateNotificationAction({
+          tripId: 'different-trip',
+          actionId: 'stop_tracking',
+        });
+      });
+
+      expect(onNotificationAction).not.toHaveBeenCalled();
+    });
+
+    it('should not subscribe when onNotificationAction is not provided', async () => {
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Simulate event - should not crash even without handler
+      act(() => {
+        simulateNotificationAction({
+          tripId: mockTripId,
+          actionId: 'stop_tracking',
+        });
+      });
+
+      // No crash means the early return worked
+      expect(result.current.error).toBeNull();
+    });
+
+    it('should cleanup notification action listener on unmount', () => {
+      const onNotificationAction = jest.fn();
+      const { unmount } = renderHook(() =>
+        useLocationUpdates({ onNotificationAction })
+      );
+
+      expect(() => unmount()).not.toThrow();
+    });
+  });
+
   describe('onUpdateInterval throttling', () => {
     it('should call callback immediately on first location update', async () => {
       const onLocationUpdate = jest.fn();
@@ -1522,6 +1619,189 @@ describe('useLocationUpdates', () => {
       });
 
       jest.useRealTimers();
+    });
+  });
+
+  describe('iOS-specific behavior', () => {
+    beforeEach(() => {
+      Platform.OS = 'ios';
+    });
+
+    it('should receive location events on iOS', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Simulate location update event on iOS
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '34.0522',
+          longitude: '-118.2437',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(result.current.tripId).toBe(mockTripId);
+      expect(result.current.isTracking).toBe(true);
+      expect(result.current.locations).toHaveLength(1);
+      expect(result.current.lastLocation).toEqual(
+        expect.objectContaining({
+          latitude: '34.0522',
+          longitude: '-118.2437',
+          timestamp: 1640995201000,
+          tripId: mockTripId,
+        })
+      );
+    });
+
+    it('should handle warning events (PERMISSION_REVOKED, LOCATION_UNAVAILABLE) on iOS', async () => {
+      const onLocationWarning = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ onLocationWarning })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Simulate PERMISSION_REVOKED warning on iOS
+      const permissionWarning = {
+        tripId: mockTripId,
+        type: 'PERMISSION_REVOKED',
+        message: 'Location permission was revoked by user',
+        timestamp: Date.now(),
+      };
+
+      act(() => {
+        (global as any).simulateWarningEvent(permissionWarning);
+      });
+
+      await waitFor(() => {
+        expect(result.current.lastWarning).toEqual(permissionWarning);
+        expect(onLocationWarning).toHaveBeenCalledWith(permissionWarning);
+      });
+
+      // Simulate LOCATION_UNAVAILABLE warning on iOS
+      const locationUnavailableWarning = {
+        tripId: mockTripId,
+        type: 'LOCATION_UNAVAILABLE',
+        message: 'Location services are unavailable',
+        timestamp: Date.now(),
+      };
+
+      act(() => {
+        (global as any).simulateWarningEvent(locationUnavailableWarning);
+      });
+
+      await waitFor(() => {
+        expect(result.current.lastWarning).toEqual(locationUnavailableWarning);
+        expect(onLocationWarning).toHaveBeenCalledWith(
+          locationUnavailableWarning
+        );
+      });
+    });
+
+    it('should handle iOS-specific location properties (no elapsedRealtimeNanos, no isFromMockProvider)', async () => {
+      const { result } = renderHook(() => useLocationUpdates());
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // iOS locations do not include Android-specific properties like
+      // elapsedRealtimeNanos and isFromMockProvider
+      act(() => {
+        simulateEvent({
+          tripId: mockTripId,
+          latitude: '34.0522',
+          longitude: '-118.2437',
+          timestamp: 1640995201000,
+          accuracy: 5.0,
+          altitude: 71.0,
+          speed: 2.5,
+          bearing: 180.0,
+          verticalAccuracyMeters: 3.0,
+          speedAccuracyMetersPerSecond: 0.3,
+          // Note: no elapsedRealtimeNanos (Android-only)
+          // Note: no isFromMockProvider (Android-only)
+        });
+      });
+
+      const lastLocation = result.current.lastLocation;
+      expect(lastLocation).not.toBeNull();
+      if (lastLocation) {
+        expect(lastLocation.latitude).toBe('34.0522');
+        expect(lastLocation.longitude).toBe('-118.2437');
+        expect(lastLocation.accuracy).toBe(5.0);
+        expect(lastLocation.altitude).toBe(71.0);
+        expect(lastLocation.speed).toBe(2.5);
+        expect(lastLocation.bearing).toBe(180.0);
+        expect(lastLocation.verticalAccuracyMeters).toBe(3.0);
+        expect(lastLocation.speedAccuracyMetersPerSecond).toBe(0.3);
+        // Android-only fields should not be present
+        expect(lastLocation.elapsedRealtimeNanos).toBeUndefined();
+        expect(lastLocation.isFromMockProvider).toBeUndefined();
+      }
+    });
+
+    it('should load existing locations on mount when autoLoad=true on iOS', async () => {
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: true,
+        tripId: mockTripId,
+      });
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const { result } = renderHook(() =>
+        useLocationUpdates({ autoLoad: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isTracking).toBe(true);
+      });
+
+      expect(result.current.tripId).toBe(mockTripId);
+      expect(result.current.locations).toEqual(mockLocations);
+      expect(result.current.lastLocation).toEqual(mockLocations[1]);
+    });
+
+    it('should filter events by tripId on iOS', async () => {
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: 'ios-trip-specific', autoLoad: false })
+      );
+
+      await waitFor(() => {
+        expect(result.current.locations).toEqual([]);
+      });
+
+      // Event for a different trip - should be filtered out
+      act(() => {
+        simulateEvent({
+          tripId: 'other-trip-android',
+          latitude: '37.7750',
+          longitude: '-122.4195',
+          timestamp: 1640995201000,
+        });
+      });
+
+      expect(result.current.locations).toEqual([]);
+
+      // Event for the correct trip - should be accepted
+      act(() => {
+        simulateEvent({
+          tripId: 'ios-trip-specific',
+          latitude: '34.0522',
+          longitude: '-118.2437',
+          timestamp: 1640995202000,
+        });
+      });
+
+      expect(result.current.locations).toHaveLength(1);
+      expect(result.current.lastLocation?.latitude).toBe('34.0522');
     });
   });
 });

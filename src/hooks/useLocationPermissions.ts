@@ -2,12 +2,47 @@ import { useState, useCallback } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { LocationPermissionStatus } from '../types';
 import type { UseLocationPermissionsResult, PermissionState } from '../types';
+import BackgroundLocationModule from '../NativeBackgroundLocation';
+import type { PermissionStatusResult } from '../NativeBackgroundLocation';
+
+/**
+ * Maps native permission status string to LocationPermissionStatus enum
+ */
+function mapNativeStatus(status: string): LocationPermissionStatus {
+  switch (status) {
+    case 'granted':
+      return LocationPermissionStatus.GRANTED;
+    case 'whenInUse':
+      return LocationPermissionStatus.WHEN_IN_USE;
+    case 'denied':
+      return LocationPermissionStatus.DENIED;
+    case 'blocked':
+      return LocationPermissionStatus.BLOCKED;
+    default:
+      return LocationPermissionStatus.UNDETERMINED;
+  }
+}
+
+/**
+ * Converts a native PermissionStatusResult to a PermissionState
+ */
+function toPermissionState(result: PermissionStatusResult): PermissionState {
+  const status = mapNativeStatus(result.status);
+  return {
+    hasPermission:
+      status === LocationPermissionStatus.GRANTED ||
+      status === LocationPermissionStatus.WHEN_IN_USE,
+    status,
+    canRequestAgain: result.canRequestAgain,
+  };
+}
 
 /**
  * Hook to manage location permissions for background tracking
  *
- * Handles requesting and checking location permissions on Android.
- * Includes foreground (FINE, COARSE) and background permissions.
+ * Handles requesting and checking location permissions on Android and iOS.
+ * Android: Uses PermissionsAndroid for foreground, background, and notification permissions.
+ * iOS: Uses CLLocationManager authorization (WhenInUse → Always two-step flow).
  *
  * @example
  * ```tsx
@@ -34,13 +69,19 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
    * Check current permission status without requesting
    */
   const checkPermissions = useCallback(async (): Promise<boolean> => {
+    if (Platform.OS === 'ios') {
+      try {
+        const result = await BackgroundLocationModule.checkLocationPermission();
+        const state = toPermissionState(result);
+        setPermissionStatus(state);
+        return state.hasPermission;
+      } catch (error) {
+        console.error('Error checking iOS permissions:', error);
+        return false;
+      }
+    }
+
     if (Platform.OS !== 'android') {
-      // iOS to be implemented
-      setPermissionStatus({
-        hasPermission: false,
-        status: LocationPermissionStatus.UNDETERMINED,
-        canRequestAgain: true,
-      });
       return false;
     }
 
@@ -93,9 +134,28 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
    * Request all required location permissions
    */
   const requestPermissions = useCallback(async (): Promise<boolean> => {
+    if (Platform.OS === 'ios') {
+      setIsRequesting(true);
+      try {
+        const result =
+          await BackgroundLocationModule.requestLocationPermission(false);
+        const state = toPermissionState(result);
+        setPermissionStatus(state);
+        return state.hasPermission;
+      } catch (error) {
+        console.error('Error requesting iOS permissions:', error);
+        setPermissionStatus({
+          hasPermission: false,
+          status: LocationPermissionStatus.DENIED,
+          canRequestAgain: false,
+        });
+        return false;
+      } finally {
+        setIsRequesting(false);
+      }
+    }
+
     if (Platform.OS !== 'android') {
-      // iOS to be implemented
-      console.warn('iOS permissions not yet implemented');
       return false;
     }
 
