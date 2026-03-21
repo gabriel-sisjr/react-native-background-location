@@ -106,6 +106,12 @@ jest.mock('../NativeBackgroundLocation', () => {
     clearTrip: jest.fn(() => {
       return Promise.resolve();
     }),
+    checkLocationPermission: jest.fn(() => {
+      return Promise.resolve({ status: 'undetermined', canRequestAgain: true });
+    }),
+    requestLocationPermission: jest.fn(() => {
+      return Promise.resolve({ status: 'granted', canRequestAgain: false });
+    }),
   };
 
   return {
