@@ -1161,6 +1161,103 @@ describe('useLocationUpdates', () => {
     });
   });
 
+  describe('onNotificationAction handler', () => {
+    const simulateNotificationAction = (data: any) => {
+      (global as any).simulateNotificationActionEvent(data);
+    };
+
+    it('should call onNotificationAction callback when event matches tripId', async () => {
+      const onNotificationAction = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, onNotificationAction })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const actionEvent = {
+        tripId: mockTripId,
+        actionId: 'stop_tracking',
+      };
+
+      act(() => {
+        simulateNotificationAction(actionEvent);
+      });
+
+      expect(onNotificationAction).toHaveBeenCalledWith(actionEvent);
+    });
+
+    it('should call onNotificationAction when no tripId is specified (all events)', async () => {
+      const onNotificationAction = jest.fn();
+      renderHook(() => useLocationUpdates({ onNotificationAction }));
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const actionEvent = {
+        tripId: 'any-trip-id',
+        actionId: 'pause_tracking',
+      };
+
+      act(() => {
+        simulateNotificationAction(actionEvent);
+      });
+
+      expect(onNotificationAction).toHaveBeenCalledWith(actionEvent);
+    });
+
+    it('should filter notification action events by tripId when provided', async () => {
+      const onNotificationAction = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, onNotificationAction })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Event for a different trip - should be filtered out
+      act(() => {
+        simulateNotificationAction({
+          tripId: 'different-trip',
+          actionId: 'stop_tracking',
+        });
+      });
+
+      expect(onNotificationAction).not.toHaveBeenCalled();
+    });
+
+    it('should not subscribe when onNotificationAction is not provided', async () => {
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Simulate event - should not crash even without handler
+      act(() => {
+        simulateNotificationAction({
+          tripId: mockTripId,
+          actionId: 'stop_tracking',
+        });
+      });
+
+      // No crash means the early return worked
+      expect(result.current.error).toBeNull();
+    });
+
+    it('should cleanup notification action listener on unmount', () => {
+      const onNotificationAction = jest.fn();
+      const { unmount } = renderHook(() =>
+        useLocationUpdates({ onNotificationAction })
+      );
+
+      expect(() => unmount()).not.toThrow();
+    });
+  });
+
   describe('onUpdateInterval throttling', () => {
     it('should call callback immediately on first location update', async () => {
       const onLocationUpdate = jest.fn();

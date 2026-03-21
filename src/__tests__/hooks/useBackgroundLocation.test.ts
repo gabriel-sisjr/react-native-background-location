@@ -270,6 +270,85 @@ describe('useBackgroundLocation', () => {
       );
     });
 
+    it('should convert notificationActions to JSON string (sliced to 3)', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        notificationActions: [
+          { id: 'stop', label: 'Stop' },
+          { id: 'pause', label: 'Pause' },
+          { id: 'resume', label: 'Resume' },
+          { id: 'extra', label: 'Extra' },
+        ],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, options);
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          updateInterval: 5000,
+          notificationActions: JSON.stringify([
+            { id: 'stop', label: 'Stop' },
+            { id: 'pause', label: 'Pause' },
+            { id: 'resume', label: 'Resume' },
+          ]),
+        })
+      );
+    });
+
+    it('should pass undefined for notificationActions when not provided', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, options);
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          updateInterval: 5000,
+          notificationActions: undefined,
+        })
+      );
+    });
+
+    it('should pass undefined for accuracy when not provided', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, options);
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          updateInterval: 5000,
+          accuracy: undefined,
+        })
+      );
+    });
+
     it('should handle when module is not available', async () => {
       Object.defineProperty(BackgroundLocationModule, 'startTracking', {
         value: undefined,
