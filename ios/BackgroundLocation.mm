@@ -1,10 +1,369 @@
 #import "BackgroundLocation.h"
+#import <CoreLocation/CoreLocation.h>
+#import <React/RCTBridge.h>
+
+#if __has_include("BackgroundLocation-Swift.h")
+#import "BackgroundLocation-Swift.h"
+#else
+#import <BackgroundLocation/BackgroundLocation-Swift.h>
+#endif
 
 @implementation BackgroundLocation
-- (NSNumber *)multiply:(double)a b:(double)b {
-    NSNumber *result = @(a * b);
 
-    return result;
+@synthesize bridge = _bridge;
+
+// MARK: - Lifecycle
+
+- (instancetype)init
+{
+  self = [super init];
+  if (self) {
+    // Attempt crash recovery on module initialization
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [self performRecoveryCheck];
+    });
+  }
+  return self;
+}
+
+- (void)performRecoveryCheck
+{
+  [self configureEventEmitters];
+  [[RecoveryManager shared] attemptRecoveryIfNeeded];
+
+  // If recovery resumed tracking, register lifecycle observers
+  NSDictionary *trackingStatus = [[LocationManagerWrapper shared] isTracking];
+  BOOL isActive = [trackingStatus[@"active"] boolValue];
+  if (isActive) {
+    [self registerLifecycleObservers];
+  }
+}
+
+- (void)dealloc
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)registerLifecycleObservers
+{
+  // Remove any existing observers first to avoid duplicates
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:UIApplicationDidEnterBackgroundNotification
+                                                object:nil];
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:UIApplicationWillEnterForegroundNotification
+                                                object:nil];
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:UIApplicationDidBecomeActiveNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleAppDidEnterBackground:)
+                                               name:UIApplicationDidEnterBackgroundNotification
+                                             object:nil];
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleAppWillEnterForeground:)
+                                               name:UIApplicationWillEnterForegroundNotification
+                                             object:nil];
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleAppDidBecomeActive:)
+                                               name:UIApplicationDidBecomeActiveNotification
+                                             object:nil];
+}
+
+- (void)unregisterLifecycleObservers
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:UIApplicationDidEnterBackgroundNotification
+                                                object:nil];
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:UIApplicationWillEnterForegroundNotification
+                                                object:nil];
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:UIApplicationDidBecomeActiveNotification
+                                                object:nil];
+}
+
+- (void)handleAppDidEnterBackground:(NSNotification *)notification
+{
+  [[LocationManagerWrapper shared] pauseTrackingForBackground];
+}
+
+- (void)handleAppWillEnterForeground:(NSNotification *)notification
+{
+  [[LocationManagerWrapper shared] resumeTrackingFromBackground];
+}
+
+- (void)handleAppDidBecomeActive:(NSNotification *)notification
+{
+  // Scheduled recovery on app resume (matches Android onHostResume pattern)
+  NSDictionary *trackingStatus = [[LocationManagerWrapper shared] isTracking];
+  BOOL isActive = [trackingStatus[@"active"] boolValue];
+  if (!isActive) {
+    [[RecoveryManager shared] attemptRecoveryIfNeeded];
+
+    // If recovery started tracking, register lifecycle observers
+    NSDictionary *statusAfterRecovery = [[LocationManagerWrapper shared] isTracking];
+    if ([statusAfterRecovery[@"active"] boolValue]) {
+      [self configureEventEmitters];
+      [self registerLifecycleObservers];
+    }
+  }
+}
+
+// MARK: - Options Parsing
+
+- (NSDictionary *)optionsDictionaryFrom:(JS::NativeBackgroundLocation::TrackingOptionsSpec &)options
+{
+  NSMutableDictionary *dict = [NSMutableDictionary new];
+
+  NSString *accuracy = options.accuracy();
+  if (accuracy) {
+    dict[@"accuracy"] = accuracy;
+  }
+
+  auto distanceFilter = options.distanceFilter();
+  if (distanceFilter.has_value()) {
+    dict[@"distanceFilter"] = @(distanceFilter.value());
+  }
+
+  auto updateInterval = options.updateInterval();
+  if (updateInterval.has_value()) {
+    dict[@"updateInterval"] = @(updateInterval.value());
+  }
+
+  auto foregroundOnly = options.foregroundOnly();
+  if (foregroundOnly.has_value()) {
+    dict[@"foregroundOnly"] = @(foregroundOnly.value());
+  }
+
+  auto waitForAccurateLocation = options.waitForAccurateLocation();
+  if (waitForAccurateLocation.has_value()) {
+    dict[@"waitForAccurateLocation"] = @(waitForAccurateLocation.value());
+  }
+
+  // Notification fields — no-op on iOS (no foreground service notification)
+  // Parsed and stored to avoid crashes when consumers pass Android notification options
+  NSString *notificationTitle = options.notificationTitle();
+  if (notificationTitle) {
+    dict[@"notificationTitle"] = notificationTitle;
+  }
+
+  NSString *notificationText = options.notificationText();
+  if (notificationText) {
+    dict[@"notificationText"] = notificationText;
+  }
+
+  NSString *notificationSmallIcon = options.notificationSmallIcon();
+  if (notificationSmallIcon) {
+    dict[@"notificationSmallIcon"] = notificationSmallIcon;
+  }
+
+  NSString *notificationColor = options.notificationColor();
+  if (notificationColor) {
+    dict[@"notificationColor"] = notificationColor;
+  }
+
+  auto notificationShowTimestamp = options.notificationShowTimestamp();
+  if (notificationShowTimestamp.has_value()) {
+    dict[@"notificationShowTimestamp"] = @(notificationShowTimestamp.value());
+  }
+
+  NSString *notificationLargeIcon = options.notificationLargeIcon();
+  if (notificationLargeIcon) {
+    dict[@"notificationLargeIcon"] = notificationLargeIcon;
+  }
+
+  NSString *notificationSubtext = options.notificationSubtext();
+  if (notificationSubtext) {
+    dict[@"notificationSubtext"] = notificationSubtext;
+  }
+
+  NSString *notificationChannelId = options.notificationChannelId();
+  if (notificationChannelId) {
+    dict[@"notificationChannelId"] = notificationChannelId;
+  }
+
+  NSString *notificationChannelName = options.notificationChannelName();
+  if (notificationChannelName) {
+    dict[@"notificationChannelName"] = notificationChannelName;
+  }
+
+  NSString *notificationPriority = options.notificationPriority();
+  if (notificationPriority) {
+    dict[@"notificationPriority"] = notificationPriority;
+  }
+
+  NSString *notificationActions = options.notificationActions();
+  if (notificationActions) {
+    dict[@"notificationActions"] = notificationActions;
+  }
+
+  return dict;
+}
+
+- (void)emitEventWithName:(NSString *)name body:(NSDictionary *)body
+{
+  if (_bridge) {
+    [_bridge enqueueJSCall:@"RCTDeviceEventEmitter"
+                    method:@"emit"
+                      args:@[name, body ?: [NSNull null]]
+                completion:nil];
+  }
+}
+
+- (void)configureEventEmitters
+{
+  __weak __typeof(self) weakSelf = self;
+
+  [LocationManagerWrapper shared].onLocationUpdate = ^(NSDictionary *eventData) {
+    [weakSelf emitEventWithName:@"onLocationUpdate" body:eventData];
+  };
+
+  [LocationManagerWrapper shared].onLocationWarning = ^(NSDictionary *eventData) {
+    [weakSelf emitEventWithName:@"onLocationWarning" body:eventData];
+  };
+}
+
+- (void)startTracking:(NSString *)tripId
+              options:(JS::NativeBackgroundLocation::TrackingOptionsSpec &)options
+              resolve:(RCTPromiseResolveBlock)resolve
+               reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    // Check permission before starting
+    NSDictionary *permStatus = [[LocationManagerWrapper shared] checkLocationPermission];
+    NSString *status = permStatus[@"status"];
+    if ([status isEqualToString:@"denied"] || [status isEqualToString:@"blocked"]) {
+      reject(@"PERMISSION_DENIED", @"Location permission is not granted. Request permission before starting tracking.", nil);
+      return;
+    }
+
+    [self configureEventEmitters];
+
+    NSDictionary *optionsDict = [self optionsDictionaryFrom:options];
+    TrackingOptions *trackingOptions = [[TrackingOptions alloc] initWithDictionary:optionsDict];
+
+    // Register for app lifecycle notifications (foregroundOnly mode support)
+    __weak __typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [weakSelf registerLifecycleObservers];
+    });
+
+    NSString *resultTripId = [[LocationManagerWrapper shared] startTrackingWithTripId:tripId
+                                                                              options:trackingOptions];
+    resolve(resultTripId);
+  } @catch (NSException *exception) {
+    reject(@"START_TRACKING_ERROR", [NSString stringWithFormat:@"Failed to start tracking: %@", exception.reason], nil);
+  }
+}
+
+- (void)stopTracking:(RCTPromiseResolveBlock)resolve
+              reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    // Force flush any buffered locations before stopping
+    [[LocationStorage shared] forceFlush];
+
+    // Unregister lifecycle observers before stopping
+    __weak __typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [weakSelf unregisterLifecycleObservers];
+    });
+
+    [[LocationManagerWrapper shared] stopTracking];
+    resolve(nil);
+  } @catch (NSException *exception) {
+    reject(@"STOP_TRACKING_ERROR", [NSString stringWithFormat:@"Failed to stop tracking: %@", exception.reason], nil);
+  }
+}
+
+- (void)isTracking:(RCTPromiseResolveBlock)resolve
+            reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    NSDictionary *status = [[LocationManagerWrapper shared] isTracking];
+    resolve(status);
+  } @catch (NSException *exception) {
+    reject(@"IS_TRACKING_ERROR", [NSString stringWithFormat:@"Failed to get tracking state: %@", exception.reason], nil);
+  }
+}
+
+- (void)getLocations:(NSString *)tripId
+             resolve:(RCTPromiseResolveBlock)resolve
+              reject:(RCTPromiseRejectBlock)reject
+{
+  if (!tripId || [tripId length] == 0) {
+    reject(@"INVALID_TRIP_ID", @"Trip ID cannot be empty", nil);
+    return;
+  }
+
+  @try {
+    NSArray *locations = [[LocationManagerWrapper shared] getLocationsWithTripId:tripId];
+    resolve(locations);
+  } @catch (NSException *exception) {
+    reject(@"GET_LOCATIONS_ERROR", [NSString stringWithFormat:@"Failed to get locations: %@", exception.reason], nil);
+  }
+}
+
+- (void)clearTrip:(NSString *)tripId
+          resolve:(RCTPromiseResolveBlock)resolve
+           reject:(RCTPromiseRejectBlock)reject
+{
+  if (!tripId || [tripId length] == 0) {
+    reject(@"INVALID_TRIP_ID", @"Trip ID cannot be empty", nil);
+    return;
+  }
+
+  @try {
+    [[LocationManagerWrapper shared] clearTripWithTripId:tripId];
+    resolve(nil);
+  } @catch (NSException *exception) {
+    reject(@"CLEAR_TRIP_ERROR", [NSString stringWithFormat:@"Failed to clear trip: %@", exception.reason], nil);
+  }
+}
+
+- (void)updateNotification:(NSString *)title
+                      text:(NSString *)text
+                   resolve:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject
+{
+  // No-op on iOS: no foreground service notification concept
+  resolve(nil);
+}
+
+- (void)checkLocationPermission:(RCTPromiseResolveBlock)resolve
+                         reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    NSDictionary *result = [[LocationManagerWrapper shared] checkLocationPermission];
+    resolve(result);
+  } @catch (NSException *exception) {
+    reject(@"CHECK_PERMISSION_ERROR", [NSString stringWithFormat:@"Failed to check permission: %@", exception.reason], nil);
+  }
+}
+
+- (void)addListener:(NSString *)eventName
+{
+  // Required by NativeEventEmitter — no-op on iOS (events emitted via RCTDeviceEventEmitter)
+}
+
+- (void)removeListeners:(double)count
+{
+  // Required by NativeEventEmitter — no-op
+}
+
+- (void)requestLocationPermission:(BOOL)foregroundOnly
+                          resolve:(RCTPromiseResolveBlock)resolve
+                           reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    [[LocationManagerWrapper shared] requestLocationPermissionWithForegroundOnly:foregroundOnly completion:^(NSDictionary * _Nonnull result) {
+      resolve(result);
+    }];
+  } @catch (NSException *exception) {
+    reject(@"REQUEST_PERMISSION_ERROR", [NSString stringWithFormat:@"Failed to request permission: %@", exception.reason], nil);
+  }
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
