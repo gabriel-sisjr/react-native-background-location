@@ -1,6 +1,6 @@
 # Implementation Summary
 
-React Native TurboModule library for background location tracking on Android. Published as `@gabriel-sisjr/react-native-background-location`. Provides a foreground service backed by Room DB persistence, dual location providers with automatic fallback, configurable notification appearance, real-time event streaming to JavaScript, and WorkManager-based crash recovery.
+Cross-platform React Native TurboModule library for background location tracking on Android and iOS. Published as `@gabriel-sisjr/react-native-background-location`. On Android, provides a foreground service backed by Room DB persistence, dual location providers with automatic fallback, configurable notification appearance, real-time event streaming to JavaScript, and WorkManager-based crash recovery. On iOS, provides CLLocationManager-based tracking with Core Data persistence, significant location monitoring for crash recovery, and the same event streaming interface.
 
 ## Architecture Overview
 
@@ -12,41 +12,48 @@ The library follows the React Native New Architecture (TurboModules) communicati
 JS Hook
   |
   v
-src/index.tsx          -- Public API, enum-to-string conversion
+src/index.tsx                   -- Public API, enum-to-string conversion
   |
   v
-NativeBackgroundLocation.ts   -- TurboModule Spec (Codegen contract)
+NativeBackgroundLocation.ts    -- TurboModule Spec (Codegen contract)
   |
-  v
-BackgroundLocationModule.kt   -- Native TurboModule implementation
-  |
-  v
-LocationService.kt            -- Android foreground service
+  +-----------+-----------+
+  |                       |
+  v                       v
+[Android]               [iOS]
+BackgroundLocationModule.kt    BackgroundLocation.mm (ObjC++ bridge)
   |                               |
   v                               v
-LocationProvider (Fused/Android)  LocationStorage (Room DB, batched writes)
+LocationService.kt             LocationManagerWrapper.swift
+  |              |                 |              |
+  v              v                 v              v
+LocationProvider  LocationStorage  CLLocationMgr  LocationStorage.swift
+(Fused/Android)  (Room DB)        Delegate        (Core Data)
+  |              |                 |              |
+  v              v                 v              v
+LocationEventBroadcaster        RCTEventEmitter (direct)
   |                               |
   v                               v
-LocationEventBroadcaster ---------> LocalBroadcastManager
+LocalBroadcastManager           RCTDeviceEventEmitter
+  |                               |
+  v                               v
+BackgroundLocationModule.kt     NativeEventEmitter -- JS subscription
   |
   v
-BackgroundLocationModule.kt  -- BroadcastReceiver
+DeviceEventManagerModule
   |
   v
-DeviceEventManagerModule     -- RCTDeviceEventEmitter
-  |
-  v
-NativeEventEmitter           -- JS subscription (useLocationUpdates)
+NativeEventEmitter             -- JS subscription (useLocationUpdates)
 ```
 
 ### Native Event Names
 
-| Event                  | Direction     | Description                                  |
-|------------------------|---------------|----------------------------------------------|
-| `onLocationUpdate`     | Native --> JS | New location coordinate received             |
-| `onLocationError`      | Native --> JS | Fatal error (PERMISSION_REVOKED, PROVIDER_ERROR) |
+| Event                  | Direction     | Description                                                             |
+| ---------------------- | ------------- | ----------------------------------------------------------------------- |
+| `onLocationUpdate`     | Native --> JS | New location coordinate received                                        |
+| `onLocationError`      | Native --> JS | Fatal error (PERMISSION_REVOKED, PROVIDER_ERROR)                        |
 | `onLocationWarning`    | Native --> JS | Non-fatal warning (SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE) |
-| `onNotificationAction` | Native --> JS | Notification action button pressed            |
+| `onNotificationAction` | Native --> JS | Notification action button pressed                                      |
 
 ---
 
@@ -70,21 +77,21 @@ Defines the `Spec extends TurboModule` interface consumed by Codegen. Uses a sep
 
 ### Types
 
-| File              | Contents                                                                                        |
-|-------------------|-------------------------------------------------------------------------------------------------|
-| `types/enums.ts`  | `LocationPermissionStatus`, `LocationAccuracy` (5 levels), `NotificationPriority` (4 levels)    |
-| `types/tracking.ts` | `Coords` (14 fields), `TrackingStatus`, `LocationUpdateEvent`, `TrackingOptions` (22 fields), `LocationWarningEvent`, `LocationWarningType`, `NotificationAction`, `NotificationActionEvent` |
-| `types/permissions.ts` | `PermissionState`, `UseLocationPermissionsResult`                                          |
-| `types/hooks.ts`  | `UseBackgroundLocationResult`, `UseLocationTrackingOptions`, `UseLocationUpdatesOptions`, `UseLocationUpdatesResult` |
-| `types/index.ts`  | Barrel re-exports for all of the above                                                          |
+| File                   | Contents                                                                                                                                                                                     |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types/enums.ts`       | `LocationPermissionStatus`, `LocationAccuracy` (5 levels), `NotificationPriority` (4 levels)                                                                                                 |
+| `types/tracking.ts`    | `Coords` (14 fields), `TrackingStatus`, `LocationUpdateEvent`, `TrackingOptions` (22 fields), `LocationWarningEvent`, `LocationWarningType`, `NotificationAction`, `NotificationActionEvent` |
+| `types/permissions.ts` | `PermissionState`, `UseLocationPermissionsResult`                                                                                                                                            |
+| `types/hooks.ts`       | `UseBackgroundLocationResult`, `UseLocationTrackingOptions`, `UseLocationUpdatesOptions`, `UseLocationUpdatesResult`                                                                         |
+| `types/index.ts`       | Barrel re-exports for all of the above                                                                                                                                                       |
 
 ### Hooks
 
-| Hook                     | Purpose                                                                                        |
-|--------------------------|------------------------------------------------------------------------------------------------|
-| `useLocationPermissions` | Two-step Android permission flow (foreground, then background on API 29+, then notification on API 33+). Tracks `hasPermission`, `status`, `canRequestAgain`. |
-| `useBackgroundLocation`  | Full tracking lifecycle management. Start/stop, auto-start option, location polling via `getLocations`, error handling, trip clearing. Converts options to `TrackingOptionsSpec` internally. |
-| `useLocationTracking`    | Lightweight read-only tracking status monitor. Returns `isTracking`, `tripId`, `refresh`. No start/stop control. |
+| Hook                     | Purpose                                                                                                                                                                                                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useLocationPermissions` | Two-step Android permission flow (foreground, then background on API 29+, then notification on API 33+). Tracks `hasPermission`, `status`, `canRequestAgain`.                                                                                                                             |
+| `useBackgroundLocation`  | Full tracking lifecycle management. Start/stop, auto-start option, location polling via `getLocations`, error handling, trip clearing. Converts options to `TrackingOptionsSpec` internally.                                                                                              |
+| `useLocationTracking`    | Lightweight read-only tracking status monitor. Returns `isTracking`, `tripId`, `refresh`. No start/stop control.                                                                                                                                                                          |
 | `useLocationUpdates`     | Real-time location streaming via `NativeEventEmitter`. Subscribes to `onLocationUpdate`, `onLocationWarning`, and `onNotificationAction`. Supports `onUpdateInterval` callback throttling, `autoLoad` of existing locations, and `clearLocations`. Polls tracking status every 5 seconds. |
 
 ---
@@ -167,23 +174,23 @@ Values are cached after first resolution.
 
 ### Provider Pattern (`provider/`)
 
-| File                       | Role                                                                                       |
-|----------------------------|--------------------------------------------------------------------------------------------|
-| `LocationProvider.kt`      | Interface defining `requestLocationUpdates`, `removeLocationUpdates`, `getLastLocation`, `isAvailable`, `cleanup`. Also defines `LocationUpdateCallback` with `onLocationUpdate`, `onLocationBatch`, `onLocationAvailabilityChanged`, `onError`. |
-| `FusedLocationProvider.kt` | Primary provider using Google Play Services `FusedLocationProviderClient`. Supports distance filter via `setMinUpdateDistanceMeters`. Checks availability via `GoogleApiAvailability`. |
-| `AndroidLocationProvider.kt` | Fallback provider using Android `LocationManager`. Maps priority to `GPS_PROVIDER`, `NETWORK_PROVIDER`, or `PASSIVE_PROVIDER`. For devices without Google Play Services. |
-| `LocationProviderFactory.kt` | Factory selecting best available provider. Tries Fused first; falls back to Android if Google Play Services unavailable. Also supports explicit provider type selection. |
+| File                         | Role                                                                                                                                                                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `LocationProvider.kt`        | Interface defining `requestLocationUpdates`, `removeLocationUpdates`, `getLastLocation`, `isAvailable`, `cleanup`. Also defines `LocationUpdateCallback` with `onLocationUpdate`, `onLocationBatch`, `onLocationAvailabilityChanged`, `onError`. |
+| `FusedLocationProvider.kt`   | Primary provider using Google Play Services `FusedLocationProviderClient`. Supports distance filter via `setMinUpdateDistanceMeters`. Checks availability via `GoogleApiAvailability`.                                                           |
+| `AndroidLocationProvider.kt` | Fallback provider using Android `LocationManager`. Maps priority to `GPS_PROVIDER`, `NETWORK_PROVIDER`, or `PASSIVE_PROVIDER`. For devices without Google Play Services.                                                                         |
+| `LocationProviderFactory.kt` | Factory selecting best available provider. Tries Fused first; falls back to Android if Google Play Services unavailable. Also supports explicit provider type selection.                                                                         |
 
 ### Database Layer (`database/`)
 
-| File                     | Role                                                                                          |
-|--------------------------|-----------------------------------------------------------------------------------------------|
-| `LocationDatabase.kt`   | Room database singleton (version 4). Two tables: `locations`, `tracking_state`. No destructive fallback -- migrations are mandatory. Provides `getInMemoryInstance()` for testing. |
-| `LocationEntity.kt`     | `@Entity` for `locations` table. 14 fields (id, tripId, lat, lng, timestamp + 9 optional). Indexed on `tripId`. |
-| `TrackingStateEntity.kt`| `@Entity` for `tracking_state` table. Single-row (id=1). Stores full `TrackingOptions` for crash recovery (17 option columns). |
-| `LocationDao.kt`        | DAO with `insert`, `insertAll` (batch), `getLocationsByTripId`, `getLocationsByTripIdFlow` (reactive), `getLocationCount`, `deleteLocationsByTripId`, `deleteAllLocations`, `getAllTripIds`. |
-| `TrackingStateDao.kt`   | DAO with `upsert` (INSERT OR REPLACE), `getTrackingState`, `clearTrackingState`. |
-| `Migrations.kt`         | Incremental migrations: v1->v2 (icon/color/timestamp columns), v2->v3 (actions column), v3->v4 (largeIcon/subtext/channelId columns). Includes `validateMigrationPath()` and `getMigrationHistory()` helpers. |
+| File                     | Role                                                                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LocationDatabase.kt`    | Room database singleton (version 4). Two tables: `locations`, `tracking_state`. No destructive fallback -- migrations are mandatory. Provides `getInMemoryInstance()` for testing.                            |
+| `LocationEntity.kt`      | `@Entity` for `locations` table. 14 fields (id, tripId, lat, lng, timestamp + 9 optional). Indexed on `tripId`.                                                                                               |
+| `TrackingStateEntity.kt` | `@Entity` for `tracking_state` table. Single-row (id=1). Stores full `TrackingOptions` for crash recovery (17 option columns).                                                                                |
+| `LocationDao.kt`         | DAO with `insert`, `insertAll` (batch), `getLocationsByTripId`, `getLocationsByTripIdFlow` (reactive), `getLocationCount`, `deleteLocationsByTripId`, `deleteAllLocations`, `getAllTripIds`.                  |
+| `TrackingStateDao.kt`    | DAO with `upsert` (INSERT OR REPLACE), `getTrackingState`, `clearTrackingState`.                                                                                                                              |
+| `Migrations.kt`          | Incremental migrations: v1->v2 (icon/color/timestamp columns), v2->v3 (actions column), v3->v4 (largeIcon/subtext/channelId columns). Includes `validateMigrationPath()` and `getMigrationHistory()` helpers. |
 
 ### Location Processor (`processor/`)
 
@@ -193,11 +200,75 @@ Values are cached after first resolution.
 
 ### Supporting Files
 
-| File                          | Role                                                     |
-|-------------------------------|----------------------------------------------------------|
-| `TrackingOptions.kt`         | Kotlin data class mirroring JS `TrackingOptions`. 18 fields with companion defaults and `getXxxOrDefault()` accessors. |
-| `LocationAccuracy.kt`        | Kotlin enum with 5 levels mapping to Android `Priority` constants. `fromString()` factory with `HIGH_ACCURACY` default. |
-| `BackgroundLocationPackage.kt`| React Native package registration for the TurboModule.   |
+| File                           | Role                                                                                                                    |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `TrackingOptions.kt`           | Kotlin data class mirroring JS `TrackingOptions`. 18 fields with companion defaults and `getXxxOrDefault()` accessors.  |
+| `LocationAccuracy.kt`          | Kotlin enum with 5 levels mapping to Android `Priority` constants. `fromString()` factory with `HIGH_ACCURACY` default. |
+| `BackgroundLocationPackage.kt` | React Native package registration for the TurboModule.                                                                  |
+
+---
+
+## iOS Native Layer
+
+All Swift sources live under `ios/` alongside the Objective-C++ bridge file.
+
+### TurboModule Bridge
+
+**`BackgroundLocation.mm`** -- Objective-C++ bridge file that connects the TurboModule Codegen spec to the Swift implementation. Uses `@objc` protocol conformance to forward all spec methods to Swift classes. Handles type conversion between React Native `ReadableMap`/`WritableMap` and Swift types.
+
+### Core Components
+
+**`LocationManagerWrapper.swift`** -- Central orchestrator for all CLLocationManager operations. Responsibilities:
+
+- Creates and configures `CLLocationManager` with accuracy, distance filter, and activity type
+- Sets `allowsBackgroundLocationUpdates = true` and `pausesLocationUpdatesAutomatically` based on options
+- Manages start/stop of `startUpdatingLocation()` and `startMonitoringSignificantLocationChanges()`
+- Coordinates with `LocationManagerDelegate` for callback handling
+- Applies stop token checks before processing location updates
+
+**`LocationManagerDelegate.swift`** -- Implements `CLLocationManagerDelegate` protocol. Handles:
+
+- `didUpdateLocations:` -- Processes new locations, forwards to storage and event emission
+- `didFailWithError:` -- Handles location errors and emits error events
+- `didChangeAuthorization:` -- Monitors permission changes, emits `PERMISSION_REVOKED` or `PERMISSION_DOWNGRADED` warnings if permissions change while tracking
+
+**`LocationStorage.swift`** -- Core Data persistence layer with batched async writes. Features:
+
+- Batched writes matching Android behavior (batch size and timeout-based flushing)
+- `forceFlush()` for consistent reads
+- Tracking state stored as a Core Data entity for crash recovery
+- Thread-safe access via Core Data's `performBackgroundTask`
+- Uses `NSPersistentContainer` with SQLite store
+
+**`RecoveryManager.swift`** -- Crash recovery using significant location monitoring. Features:
+
+- Stop token pattern (UserDefaults-based) prevents recovery after explicit stop
+- Rate limiting: 5 recoveries per hour maximum
+- On recovery: reads tracking state from Core Data, resumes CLLocationManager with saved options
+- Triggered when the app is relaunched by significant location change
+
+**`TrackingOptions.swift`** -- Swift data model mapping TypeScript `TrackingOptions` to iOS-native values. Handles:
+
+- Conversion of string-typed accuracy to `CLLocationAccuracy` constants
+- Distance filter mapping to `CLLocationManager.distanceFilter`
+- Activity type mapping for battery optimization
+- Ignoring Android-specific notification fields
+
+**`LocationAccuracy.swift`** -- Maps the library's accuracy enum values to `CLLocationAccuracy` constants:
+
+| Library Value             | iOS Constant                         |
+| ------------------------- | ------------------------------------ |
+| `HIGH_ACCURACY`           | `kCLLocationAccuracyBest`            |
+| `BALANCED_POWER_ACCURACY` | `kCLLocationAccuracyHundredMeters`   |
+| `LOW_POWER`               | `kCLLocationAccuracyKilometer`       |
+| `NO_POWER` / `PASSIVE`    | `kCLLocationAccuracyThreeKilometers` |
+
+**`CoreDataStack.swift`** -- Core Data setup and lifecycle management:
+
+- `NSPersistentContainer` configuration with the library's data model
+- Background context creation for write operations
+- Main context for read operations
+- Migration support for schema changes
 
 ---
 
@@ -239,41 +310,47 @@ Each location point includes up to 14 fields beyond lat/lng/timestamp: accuracy,
 
 ## Current Status
 
-| Property            | Value                                             |
-|---------------------|---------------------------------------------------|
-| Version             | 0.9.0                                             |
-| Package             | `@gabriel-sisjr/react-native-background-location`  |
-| Android support     | Min SDK 24, Target SDK 34                         |
-| iOS support         | Stub only (not implemented)                       |
-| Architecture        | React Native New Architecture (TurboModules)       |
-| Database schema     | Version 4 (4 incremental migrations)              |
-| Build system        | react-native-builder-bob (ESM + TypeScript declarations) |
-| Package manager     | Yarn 3.6.1 workspaces with Turborepo              |
+| Property          | Value                                                    |
+| ----------------- | -------------------------------------------------------- |
+| Version           | 0.10.0                                                    |
+| Package           | `@gabriel-sisjr/react-native-background-location`        |
+| Android support   | Min SDK 24, Target SDK 34                                |
+| iOS support       | iOS 13+, Swift, CLLocationManager, Core Data             |
+| Architecture      | React Native New Architecture (TurboModules)             |
+| Android DB schema | Room Database version 4 (4 incremental migrations)       |
+| iOS persistence   | Core Data with SQLite store                              |
+| Build system      | react-native-builder-bob (ESM + TypeScript declarations) |
+| Package manager   | Yarn 3.6.1 workspaces with Turborepo                     |
 
 ### Feature Completeness
 
-| Feature                              | Status      |
-|--------------------------------------|-------------|
-| Background location tracking         | Complete    |
-| Session-based tracking (trip IDs)    | Complete    |
-| Auto-generated trip IDs              | Complete    |
-| Idempotent start/stop                | Complete    |
-| Room DB persistent storage           | Complete    |
-| Foreground service with notification | Complete    |
-| Configurable location accuracy       | Complete    |
-| Configurable update intervals        | Complete    |
-| Distance filter                      | Complete    |
-| Foreground-only mode                 | Complete    |
-| Notification visual customization    | Complete    |
-| Notification action buttons          | Complete    |
-| Dynamic notification updates         | Complete    |
-| Real-time event streaming to JS      | Complete    |
+| Feature                                          | Status   |
+| ------------------------------------------------ | -------- |
+| Background location tracking                     | Complete |
+| Session-based tracking (trip IDs)                | Complete |
+| Auto-generated trip IDs                          | Complete |
+| Idempotent start/stop                            | Complete |
+| Room DB persistent storage                       | Complete |
+| Foreground service with notification             | Complete |
+| Configurable location accuracy                   | Complete |
+| Configurable update intervals                    | Complete |
+| Distance filter                                  | Complete |
+| Foreground-only mode                             | Complete |
+| Notification visual customization                | Complete |
+| Notification action buttons                      | Complete |
+| Dynamic notification updates                     | Complete |
+| Real-time event streaming to JS                  | Complete |
 | Warning events (timeout, task removed, GPS lost) | Complete |
-| WorkManager crash recovery           | Complete    |
-| Restart loop detection               | Complete    |
-| Stop token anti-restart mechanism    | Complete    |
-| React hooks (4 hooks)               | Complete    |
-| Permission management hook           | Complete    |
-| Dual location provider (Fused + Android) | Complete |
-| Extended location data (14 fields)   | Complete    |
-| iOS implementation                   | Not started |
+| WorkManager crash recovery                       | Complete |
+| Restart loop detection                           | Complete |
+| Stop token anti-restart mechanism                | Complete |
+| React hooks (4 hooks)                            | Complete |
+| Permission management hook                       | Complete |
+| Dual location provider (Fused + Android)         | Complete |
+| Extended location data (14 fields)               | Complete |
+| iOS implementation                               | Complete |
+| iOS CLLocationManager tracking                   | Complete |
+| iOS Core Data persistence                        | Complete |
+| iOS crash recovery (significant location)        | Complete |
+| iOS two-step permission flow                     | Complete |
+| Cross-platform permission hooks                  | Complete |

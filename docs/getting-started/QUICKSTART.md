@@ -4,7 +4,7 @@ Get started with `@gabriel-sisjr/react-native-background-location` in 5 minutes.
 
 ![Starting and stopping location tracking](../assets/tracking.gif)
 
-*Example: Starting and stopping location tracking with the library.*
+_Example: Starting and stopping location tracking with the library._
 
 ## Installation
 
@@ -14,7 +14,9 @@ npm install @gabriel-sisjr/react-native-background-location
 yarn add @gabriel-sisjr/react-native-background-location
 ```
 
-## Android Setup
+## Platform Setup
+
+### Android Setup
 
 ### 1. Add Permissions
 
@@ -22,7 +24,7 @@ Edit `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  
+
   <!-- Add these permissions -->
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -116,9 +118,49 @@ if (hasPermission) {
   const autoTripId = await BackgroundLocation.startTracking(options);
 
   // Or with custom tripId
-  const customTripId = await BackgroundLocation.startTracking('my-custom-trip-id', options);
+  const customTripId = await BackgroundLocation.startTracking(
+    'my-custom-trip-id',
+    options
+  );
 }
 ```
+
+### iOS Setup
+
+#### 1. Add Info.plist Entries
+
+Add the following keys to your `ios/<YourApp>/Info.plist`:
+
+```xml
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>We need your location to track your trips.</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>We need your location in the background to continue tracking your trips.</string>
+```
+
+#### 2. Enable Background Modes
+
+In Xcode, go to your target's **Signing & Capabilities** tab:
+
+1. Click **+ Capability**
+2. Add **Background Modes**
+3. Check **Location updates**
+
+#### 3. Install CocoaPods
+
+```bash
+cd ios && pod install && cd ..
+```
+
+#### 4. Run on iOS
+
+```bash
+yarn example ios
+```
+
+> **iOS:** The iOS simulator has limited location simulation capabilities. Use **Debug > Simulate Location** in the Simulator menu or configure a GPX file in your Xcode scheme for more realistic testing. For best results, test on a physical iOS device.
+
+> **iOS:** On iOS, there is no foreground notification. Instead, the system displays a blue status bar indicator when the app is tracking location in the background. Notification-related `TrackingOptions` fields are silently ignored on iOS.
 
 ### 4. Get Locations
 
@@ -126,7 +168,7 @@ if (hasPermission) {
 // Get all locations for the trip
 const locations = await BackgroundLocation.getLocations(tripId);
 
-locations.forEach(location => {
+locations.forEach((location) => {
   console.log('Lat:', location.latitude);
   console.log('Lng:', location.longitude);
   console.log('Time:', new Date(location.timestamp));
@@ -302,6 +344,7 @@ const options: TrackingOptions = {
 ```
 
 Recommended values:
+
 - **Walking**: 10-25 meters
 - **Driving**: 50-100 meters
 - **Stationary with movement detection**: 5-10 meters
@@ -314,8 +357,8 @@ Use `onUpdateInterval` in hooks to throttle server sync without affecting locati
 import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
 
 const { locations } = useBackgroundLocation({
-  updateInterval: 5000,      // Collect location every 5 seconds
-  onUpdateInterval: 30000,   // Sync to server every 30 seconds
+  updateInterval: 5000, // Collect location every 5 seconds
+  onUpdateInterval: 30000, // Sync to server every 30 seconds
   onLocationUpdate: async (locations) => {
     // Only called every 30 seconds
     await syncToServer(locations);
@@ -359,13 +402,14 @@ If background permission is denied or not needed:
 
 ```typescript
 const tripId = await BackgroundLocation.startTracking(undefined, {
-  foregroundOnly: true,  // No background permission required
+  foregroundOnly: true, // No background permission required
 });
 ```
 
 ### Google Play Compliance
 
 Before publishing, ensure you:
+
 1. Add prominent in-app disclosure before requesting permissions
 2. Update your privacy policy to mention location tracking
 3. Fill out the Play Console permissions declaration form
@@ -382,28 +426,47 @@ See [Google Play Compliance](../production/GOOGLE_PLAY_COMPLIANCE.md) for detail
 
 ## Testing
 
-### On Device
+### On Android Device
+
 1. Run on a real Android device (recommended)
 2. Grant all location permissions
 3. Start tracking and minimize the app
 4. Move around with your device
 5. Open the app and check locations
 
+### On iOS Device
+
+1. Run on a real iOS device (recommended) or use Simulator with location simulation
+2. Grant "While Using" location permission, then grant "Always" when prompted
+3. Start tracking and minimize the app
+4. Move around with your device
+5. Open the app and check locations
+
 ### Important Notes
 
-- **Always test on a real device** - emulator GPS is unreliable
-- **Background permission** is critical for Android 10+
-- **Foreground notification** will appear when tracking
-- **Battery usage** can be significant with high-frequency updates
+- **Always test on a real device** - emulator/simulator GPS is unreliable
+- **Android:** Background permission is critical for Android 10+
+- **Android:** Foreground notification will appear when tracking
+- **iOS:** Blue status bar indicator will appear when tracking in background
+- **iOS:** Use Xcode's location simulation (GPX files) for consistent test data
+- **Battery usage** can be significant with high-frequency updates on both platforms
 
 ## Common Issues
 
-### Not tracking in background
+### Not tracking in background (Android)
+
 - Ensure `ACCESS_BACKGROUND_LOCATION` is granted
 - Check battery optimization settings
 - Verify foreground service is running (notification visible)
 
-### Build errors
+### Not tracking in background (iOS)
+
+- Ensure "Always" location permission is granted (not just "While Using")
+- Verify "Location updates" Background Mode is enabled in Xcode
+- Check that `NSLocationAlwaysAndWhenInUseUsageDescription` is in Info.plist
+
+### Build errors (Android)
+
 ```bash
 cd android && ./gradlew clean
 cd ..
@@ -411,7 +474,16 @@ yarn start --reset-cache
 yarn android
 ```
 
+### Build errors (iOS)
+
+```bash
+cd ios && pod install && cd ..
+yarn start --reset-cache
+yarn example ios
+```
+
 ### No locations captured
+
 - Check GPS is enabled on device
 - Ensure you're outdoors or near windows
 - Wait a few seconds after starting tracking
@@ -422,4 +494,3 @@ yarn android
 - [GitHub Issues](https://github.com/gabriel-sisjr/react-native-background-location/issues)
 - [Full Documentation](README.md)
 - [Example App](example/)
-
