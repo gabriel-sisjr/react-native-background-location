@@ -13,6 +13,7 @@ export type {
   TrackingStatus,
   LocationUpdateEvent,
   TrackingOptions,
+  PermissionStatusResult,
 } from './NativeBackgroundLocation';
 export type {
   PermissionState,
