@@ -221,9 +221,10 @@ export function useLocationUpdates(
       return;
     }
 
-    // Create event emitter without passing the module (for TurboModule compatibility)
-    // The native module emits events via DeviceEventManagerModule
-    const eventEmitter = new NativeEventEmitter();
+    // Pass native module to NativeEventEmitter (required on iOS, optional on Android)
+    const eventEmitter = new NativeEventEmitter(
+      BackgroundLocationModule as any
+    );
 
     const subscription = eventEmitter.addListener(
       'onLocationUpdate',
@@ -282,7 +283,9 @@ export function useLocationUpdates(
       return;
     }
 
-    const eventEmitter = new NativeEventEmitter();
+    const eventEmitter = new NativeEventEmitter(
+      BackgroundLocationModule as any
+    );
 
     const warningSubscription = eventEmitter.addListener(
       'onLocationWarning',
@@ -309,7 +312,9 @@ export function useLocationUpdates(
       return;
     }
 
-    const eventEmitter = new NativeEventEmitter();
+    const eventEmitter = new NativeEventEmitter(
+      BackgroundLocationModule as any
+    );
 
     const actionSubscription = eventEmitter.addListener(
       'onNotificationAction',
