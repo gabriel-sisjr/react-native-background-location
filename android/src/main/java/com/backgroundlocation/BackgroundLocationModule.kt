@@ -208,6 +208,10 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   override fun getName(): String = NAME
 
+  // Required by NativeEventEmitter contract (no-op on Android, events use RCTDeviceEventEmitter)
+  override fun addListener(eventName: String?) {}
+  override fun removeListeners(count: Double) {}
+
   /**
    * Starts location tracking for a specific trip
    * If tripId is null or empty, generates a new UUID
