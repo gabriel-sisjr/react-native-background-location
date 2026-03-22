@@ -18,16 +18,30 @@ react-native-background-location/
 │   ├── README.md                       # Documentation index
 │   ├── STRUCTURE.md                    # This file
 │   │
-│   ├── getting-started/                # 🚀 New users start here
+│   ├── getting-started/                # New users start here
 │   │   ├── QUICKSTART.md               # 5-minute quick start guide
 │   │   ├── INTEGRATION_GUIDE.md        # Detailed integration steps
-│   │   └── hooks.md                    # React Hooks API guide
+│   │   ├── IOS_SETUP.md                # iOS-specific setup guide
+│   │   ├── hooks.md                    # React Hooks API guide
+│   │   └── REAL_TIME_UPDATES.md        # useLocationUpdates guide
 │   │
-│   └── development/                    # 🛠 For maintainers/contributors
-│       ├── CICD.md                     # CI/CD workflows
-│       ├── PUBLISHING.md               # Publishing to npm
-│       ├── TESTING.md                  # Testing procedures
-│       └── IMPLEMENTATION_SUMMARY.md   # Technical implementation
+│   ├── production/                     # Before publishing your app
+│   │   ├── GOOGLE_PLAY_COMPLIANCE.md   # Play Store requirements
+│   │   ├── APP_STORE_COMPLIANCE.md     # App Store requirements (iOS)
+│   │   ├── BATTERY_OPTIMIZATION.md     # Platform-specific battery management
+│   │   ├── CRASH_RECOVERY.md           # Session persistence
+│   │   └── PLATFORM_COMPARISON.md      # Android vs iOS differences
+│   │
+│   ├── development/                    # For maintainers/contributors
+│   │   ├── CICD.md                     # CI/CD workflows
+│   │   ├── PUBLISHING.md               # Publishing to npm
+│   │   ├── TESTING.md                  # Testing procedures
+│   │   ├── IMPLEMENTATION_SUMMARY.md   # Technical implementation
+│   │   └── REALTIME_DEBUG_GUIDE.md     # Real-time debugging
+│   │
+│   └── ios/                            # iOS planning & analysis
+│       ├── BUSINESS_REQUIREMENTS.md    # iOS requirements analysis
+│       └── IOS_IMPLEMENTATION_PLAN.md  # Implementation plan
 │
 ├── .github/                            # GitHub configuration
 │   ├── workflows/                      # GitHub Actions workflows
@@ -39,13 +53,14 @@ react-native-background-location/
 │
 ├── src/                                # Library source code
 ├── android/                            # Android native code
-├── ios/                                # iOS native code (coming soon)
+├── ios/                                # iOS native code (Swift + Objective-C++)
 └── example/                            # Example app
 ```
 
 ## 📖 Documentation Categories
 
 ### Root Level
+
 Files that should be immediately accessible:
 
 - **README.md** - Main entry point, API reference, installation instructions
@@ -54,27 +69,44 @@ Files that should be immediately accessible:
 - **LICENSE** - MIT license
 
 ### docs/getting-started/
+
 Documentation for **new users** and **integration**:
 
-| File | Purpose | Audience |
-|------|---------|----------|
-| **QUICKSTART.md** | Get running in 5 minutes | New users |
-| **INTEGRATION_GUIDE.md** | Step-by-step integration | Developers adding to existing app |
-| **hooks.md** | React Hooks API guide | Developers using React Hooks |
+| File                     | Purpose                     | Audience                            |
+| ------------------------ | --------------------------- | ----------------------------------- |
+| **QUICKSTART.md**        | Get running in 5 minutes    | New users                           |
+| **INTEGRATION_GUIDE.md** | Step-by-step integration    | Developers adding to existing app   |
+| **IOS_SETUP.md**         | iOS-specific configuration  | Developers building for iOS         |
+| **hooks.md**             | React Hooks API guide       | Developers using React Hooks        |
+| **REAL_TIME_UPDATES.md** | Real-time location watching | Developers using useLocationUpdates |
 
+### docs/production/
+
+Documentation for **production readiness**:
+
+| File                          | Purpose                              | Audience                            |
+| ----------------------------- | ------------------------------------ | ----------------------------------- |
+| **GOOGLE_PLAY_COMPLIANCE.md** | Play Store approval requirements     | Developers publishing to Play Store |
+| **APP_STORE_COMPLIANCE.md**   | App Store approval requirements      | Developers publishing to App Store  |
+| **BATTERY_OPTIMIZATION.md**   | Platform-specific battery management | Developers, QA                      |
+| **CRASH_RECOVERY.md**         | Session persistence and recovery     | Developers                          |
+| **PLATFORM_COMPARISON.md**    | Android vs iOS differences           | Developers targeting both platforms |
 ### docs/development/
+
 Documentation for **maintainers** and **contributors**:
 
-| File | Purpose | Audience |
-|------|---------|----------|
-| **CICD.md** | CI/CD workflows and automation | Maintainers, DevOps |
-| **PUBLISHING.md** | How to publish to npm | Maintainers |
-| **TESTING.md** | Testing procedures | Contributors |
-| **IMPLEMENTATION_SUMMARY.md** | Technical details | Contributors, advanced users |
+| File                          | Purpose                        | Audience                     |
+| ----------------------------- | ------------------------------ | ---------------------------- |
+| **CICD.md**                   | CI/CD workflows and automation | Maintainers, DevOps          |
+| **PUBLISHING.md**             | How to publish to npm          | Maintainers                  |
+| **TESTING.md**                | Testing procedures             | Contributors                 |
+| **IMPLEMENTATION_SUMMARY.md** | Technical details              | Contributors, advanced users |
+| **REALTIME_DEBUG_GUIDE.md**   | Real-time debugging tools      | Contributors, maintainers    |
 
 ## 🔗 Navigation Flow
 
 ### For New Users
+
 ```
 README.md
    ↓
@@ -86,6 +118,7 @@ example/src/App.tsx (reference implementation)
 ```
 
 ### For Contributors
+
 ```
 CONTRIBUTING.md
    ↓
@@ -95,6 +128,7 @@ docs/development/PUBLISHING.md
 ```
 
 ### For Maintainers
+
 ```
 docs/development/CICD.md (setup)
    ↓
@@ -137,16 +171,21 @@ Create new documentation files in:
 ## 🔄 Cross-References
 
 ### From README.md
+
 Links to detailed guides in `docs/`:
+
 - Quick Start → `docs/getting-started/QUICKSTART.md`
 - Integration → `docs/getting-started/INTEGRATION_GUIDE.md`
 - Publishing → `docs/development/PUBLISHING.md`
 
 ### From docs/README.md
+
 Central hub linking to all documentation categories
 
 ### Within docs/
+
 Use relative paths:
+
 - Same level: `[Link](FILENAME.md)`
 - Up one level: `[Link](../FILENAME.md)`
 - Different category: `[Link](../other-category/FILENAME.md)`
@@ -192,16 +231,17 @@ When adding new documentation:
 - [ ] Add cross-references to related docs
 - [ ] Update this STRUCTURE.md if adding new categories
 
-## 📊 Current Documentation Stats
+## Current Documentation Stats
 
-- **Total docs:** 12 files
-- **Getting Started:** 3 guides (Quick Start, Integration, Hooks)
-- **Development:** 4 guides (CI/CD, Publishing, Testing, Implementation)
+- **Total docs:** 24 files
+- **Getting Started:** 5 guides (Quick Start, Integration, iOS Setup, Hooks, Real-Time Updates)
+- **Production:** 6 guides (Google Play Compliance, App Store Compliance, Battery Optimization, Crash Recovery, Platform Comparison, Migration)
+- **Development:** 5 guides (CI/CD, Publishing, Testing, Implementation, Real-Time Debug)
+- **iOS Planning:** 2 files (Business Requirements, Implementation Plan)
 - **Root level:** 5 files (README, CHANGELOG, CONTRIBUTING, etc.)
 - **Workflows:** 3 automated workflows (CI, Publish, Pre-release)
 
 ---
 
-**Last Updated:** October 26, 2025  
-**Version:** 0.2.0
-
+**Last Updated:** March 21, 2026
+**Version:** 0.10.0

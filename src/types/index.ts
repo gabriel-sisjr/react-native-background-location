@@ -17,6 +17,8 @@ export type {
   LocationWarningEvent,
   LocationWarningType,
   TrackingOptions,
+  NotificationAction,
+  NotificationActionEvent,
 } from './tracking';
 
 // Permission types

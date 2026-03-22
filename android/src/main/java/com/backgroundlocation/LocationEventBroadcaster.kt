@@ -22,11 +22,13 @@ object LocationEventBroadcaster {
     const val ACTION_LOCATION_UPDATE = "com.backgroundlocation.LOCATION_UPDATE"
     const val ACTION_LOCATION_ERROR = "com.backgroundlocation.LOCATION_ERROR"
     const val ACTION_LOCATION_WARNING = "com.backgroundlocation.LOCATION_WARNING"
+    const val ACTION_NOTIFICATION_ACTION = "com.backgroundlocation.NOTIFICATION_ACTION"
 
     const val EXTRA_TRIP_ID = "tripId"
     const val EXTRA_LOCATION_DATA = "locationData"
     const val EXTRA_ERROR_TYPE = "errorType"
     const val EXTRA_ERROR_MESSAGE = "errorMessage"
+    const val EXTRA_ACTION_ID = "actionId"
 
     /**
      * Broadcasts a location update from the service
@@ -64,6 +66,17 @@ object LocationEventBroadcaster {
     }
 
     /**
+     * Broadcasts a notification action event from the service
+     */
+    fun broadcastNotificationAction(context: Context, tripId: String, actionId: String) {
+        val intent = Intent(ACTION_NOTIFICATION_ACTION).apply {
+            putExtra(EXTRA_TRIP_ID, tripId)
+            putExtra(EXTRA_ACTION_ID, actionId)
+        }
+        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+    }
+
+    /**
      * Creates an IntentFilter for all location events
      */
     fun createIntentFilter(): IntentFilter {
@@ -71,6 +84,7 @@ object LocationEventBroadcaster {
             addAction(ACTION_LOCATION_UPDATE)
             addAction(ACTION_LOCATION_ERROR)
             addAction(ACTION_LOCATION_WARNING)
+            addAction(ACTION_NOTIFICATION_ACTION)
         }
     }
 

@@ -11,23 +11,45 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *
  * SCHEMA VERSION HISTORY:
  * - Version 1: Initial schema (locations, tracking_state tables)
+ * - Version 2: Added notification customization columns to tracking_state
+ * - Version 3: Added notificationActions column to tracking_state
+ * - Version 4: Added notificationLargeIcon, notificationSubtext, notificationChannelId columns
  */
 object Migrations {
 
     /**
      * Migration from version 1 to 2
-     * Example: Adding a new column
-     *
-     * To be used when adding new fields to LocationEntity or TrackingStateEntity
-     *
-     * Example implementation (uncomment when needed):
-     * val MIGRATION_1_2 = object : Migration(1, 2) {
-     *     override fun migrate(database: SupportSQLiteDatabase) {
-     *         // Example: Add batteryLevel column to locations table
-     *         database.execSQL("ALTER TABLE locations ADD COLUMN batteryLevel REAL")
-     *     }
-     * }
+     * Adds notification customization columns to tracking_state table
      */
+    val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationSmallIcon TEXT")
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationColor TEXT")
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationShowTimestamp INTEGER")
+        }
+    }
+
+    /**
+     * Migration from version 2 to 3
+     * Adds notificationActions column to tracking_state table
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationActions TEXT")
+        }
+    }
+
+    /**
+     * Migration from version 3 to 4
+     * Adds notificationLargeIcon, notificationSubtext, notificationChannelId columns
+     */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationLargeIcon TEXT")
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationSubtext TEXT")
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationChannelId TEXT")
+        }
+    }
 
     /**
      * Get all migrations in order
@@ -35,10 +57,9 @@ object Migrations {
      */
     fun getAllMigrations(): Array<Migration> {
         return arrayOf(
-            // Add migrations here as they are created
-            // Example:
-            // MIGRATION_1_2,
-            // MIGRATION_2_3,
+            MIGRATION_1_2,
+            MIGRATION_2_3,
+            MIGRATION_3_4,
         )
     }
 

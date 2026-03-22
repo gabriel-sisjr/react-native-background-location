@@ -10,12 +10,18 @@ Pod::Spec.new do |s|
   s.license      = package["license"]
   s.authors      = package["author"]
 
-  s.platforms    = { :ios => min_ios_version_supported }
+  s.platforms    = { :ios => '16.0' }
   s.source       = { :git => "https://github.com/gabriel-sisjr/react-native-background-location.git", :tag => "#{s.version}" }
 
-  s.source_files = "ios/**/*.{h,m,mm,cpp}"
+  s.source_files = "ios/**/*.{h,m,mm,cpp,swift}"
   s.private_header_files = "ios/**/*.h"
 
+  s.frameworks = "CoreLocation", "CoreData"
+
+  s.resource_bundles = {
+    'BackgroundLocationPrivacy' => ['ios/PrivacyInfo.xcprivacy'],
+    'BackgroundLocationCoreData' => ['ios/Database/BackgroundLocationModel.xcdatamodeld']
+  }
 
   install_modules_dependencies(s)
 end

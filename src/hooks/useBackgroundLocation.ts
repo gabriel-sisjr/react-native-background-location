@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
+import type { TrackingOptionsSpec } from '../NativeBackgroundLocation';
 import type {
   UseBackgroundLocationResult,
   Coords,
@@ -150,9 +151,41 @@ export function useBackgroundLocation(
       try {
         // Use provided options or fallback to options from hook config
         const effectiveOptions = trackingOptionsOverride || trackingOptions;
+        // Convert TrackingOptions to TrackingOptionsSpec for native module
+        const specOptions: TrackingOptionsSpec | undefined = effectiveOptions
+          ? {
+              updateInterval: effectiveOptions.updateInterval,
+              fastestInterval: effectiveOptions.fastestInterval,
+              maxWaitTime: effectiveOptions.maxWaitTime,
+              accuracy: effectiveOptions.accuracy
+                ? String(effectiveOptions.accuracy)
+                : undefined,
+              waitForAccurateLocation: effectiveOptions.waitForAccurateLocation,
+              notificationTitle: effectiveOptions.notificationTitle,
+              notificationText: effectiveOptions.notificationText,
+              notificationChannelName: effectiveOptions.notificationChannelName,
+              notificationPriority: effectiveOptions.notificationPriority
+                ? String(effectiveOptions.notificationPriority)
+                : undefined,
+              foregroundOnly: effectiveOptions.foregroundOnly,
+              distanceFilter: effectiveOptions.distanceFilter,
+              notificationSmallIcon: effectiveOptions.notificationSmallIcon,
+              notificationColor: effectiveOptions.notificationColor,
+              notificationShowTimestamp:
+                effectiveOptions.notificationShowTimestamp,
+              notificationActions: effectiveOptions.notificationActions
+                ? JSON.stringify(
+                    effectiveOptions.notificationActions.slice(0, 3)
+                  )
+                : undefined,
+              notificationLargeIcon: effectiveOptions.notificationLargeIcon,
+              notificationSubtext: effectiveOptions.notificationSubtext,
+              notificationChannelId: effectiveOptions.notificationChannelId,
+            }
+          : undefined;
         const effectiveTripId = await BackgroundLocationModule.startTracking(
           customTripId,
-          effectiveOptions
+          specOptions
         );
         setTripId(effectiveTripId);
         setIsTracking(true);

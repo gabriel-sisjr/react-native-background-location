@@ -50,8 +50,7 @@ Before using automated publishing, configure:
    ```
    
    This will trigger:
-   - CI checks
-   - Beta version publish to npm with `@beta` tag
+   - CI checks (lint, test, build)
 
 2. **Update version for production** (when ready):
    ```bash
@@ -279,7 +278,7 @@ npm pack --dry-run
 
 4. **After PR is merged**:
    - CI runs automatically
-   - Beta version is published to npm
+   - To publish beta: Go to Actions tab, select "Pre-release to NPM", click "Run workflow"
    - Team can test with `@beta` tag
 
 ### Bug Fixes

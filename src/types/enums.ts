@@ -7,6 +7,7 @@
  */
 export enum LocationPermissionStatus {
   GRANTED = 'granted',
+  WHEN_IN_USE = 'whenInUse',
   DENIED = 'denied',
   BLOCKED = 'blocked',
   UNDETERMINED = 'undetermined',

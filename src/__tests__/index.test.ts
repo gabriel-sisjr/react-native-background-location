@@ -32,6 +32,7 @@ describe('BackgroundLocation API', () => {
     (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
     (BackgroundLocationModule.clearTrip as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.updateNotification as jest.Mock) = jest.fn();
   });
 
   afterEach(() => {
@@ -41,6 +42,7 @@ describe('BackgroundLocation API', () => {
     (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     (BackgroundLocationModule.getLocations as jest.Mock) = jest.fn();
     (BackgroundLocationModule.clearTrip as jest.Mock) = jest.fn();
+    (BackgroundLocationModule.updateNotification as jest.Mock) = jest.fn();
   });
 
   describe('startTracking', () => {
@@ -341,6 +343,98 @@ describe('BackgroundLocation API', () => {
           distanceFilter: 75,
           foregroundOnly: false,
         })
+      );
+    });
+
+    it('should start tracking with notification customization options', async () => {
+      const options: TrackingOptions = {
+        notificationSmallIcon: 'ic_custom_notification',
+        notificationColor: '#FF5722',
+        notificationShowTimestamp: true,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          notificationSmallIcon: 'ic_custom_notification',
+          notificationColor: '#FF5722',
+          notificationShowTimestamp: true,
+        })
+      );
+    });
+
+    it('should pass undefined for notification customization when not provided', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      expect(calledOptions?.notificationSmallIcon).toBeUndefined();
+      expect(calledOptions?.notificationColor).toBeUndefined();
+      expect(calledOptions?.notificationShowTimestamp).toBeUndefined();
+    });
+
+    it('should start tracking with all options including notification customization', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        fastestInterval: 2000,
+        maxWaitTime: 10000,
+        accuracy: LocationAccuracy.HIGH_ACCURACY,
+        waitForAccurateLocation: true,
+        notificationTitle: 'Tracking',
+        notificationText: 'Location tracking active',
+        notificationChannelName: 'location',
+        notificationPriority: NotificationPriority.HIGH,
+        notificationSmallIcon: 'ic_location',
+        notificationColor: '#4CAF50',
+        notificationShowTimestamp: true,
+        distanceFilter: 50,
+        foregroundOnly: false,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        {
+          updateInterval: 5000,
+          fastestInterval: 2000,
+          maxWaitTime: 10000,
+          accuracy: 'HIGH_ACCURACY',
+          waitForAccurateLocation: true,
+          notificationTitle: 'Tracking',
+          notificationText: 'Location tracking active',
+          notificationChannelName: 'location',
+          notificationPriority: 'HIGH',
+          notificationSmallIcon: 'ic_location',
+          notificationColor: '#4CAF50',
+          notificationShowTimestamp: true,
+          distanceFilter: 50,
+          foregroundOnly: false,
+        }
       );
     });
 
@@ -798,6 +892,233 @@ describe('BackgroundLocation API', () => {
     });
   });
 
+  describe('updateNotification', () => {
+    it('should update notification with title and text', async () => {
+      (
+        BackgroundLocationModule.updateNotification as jest.Mock
+      ).mockResolvedValue(undefined);
+
+      await BackgroundLocation.updateNotification(
+        'New Title',
+        'New notification text'
+      );
+
+      expect(BackgroundLocationModule.updateNotification).toHaveBeenCalledWith(
+        'New Title',
+        'New notification text'
+      );
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('should handle when module is not available', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
+
+      await BackgroundLocation.updateNotification('Title', 'Text');
+
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('BackgroundLocation not available')
+      );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
+      (BackgroundLocationModule.updateNotification as jest.Mock) = jest.fn();
+    });
+
+    it('should propagate errors from native module', async () => {
+      const error = new Error('No active service');
+      (
+        BackgroundLocationModule.updateNotification as jest.Mock
+      ).mockRejectedValue(error);
+
+      await expect(
+        BackgroundLocation.updateNotification('Title', 'Text')
+      ).rejects.toThrow('No active service');
+    });
+
+    it('should pass exact title and text strings to native module', async () => {
+      (
+        BackgroundLocationModule.updateNotification as jest.Mock
+      ).mockResolvedValue(undefined);
+
+      const title = 'Delivery #1234';
+      const text = 'En route to destination - 2.5km remaining';
+
+      await BackgroundLocation.updateNotification(title, text);
+
+      expect(BackgroundLocationModule.updateNotification).toHaveBeenCalledWith(
+        title,
+        text
+      );
+    });
+  });
+
+  describe('notificationActions serialization', () => {
+    it('should serialize notification actions as JSON string', async () => {
+      const options: TrackingOptions = {
+        notificationActions: [
+          { id: 'stop', label: 'Stop' },
+          { id: 'pause', label: 'Pause' },
+        ],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          notificationActions: JSON.stringify([
+            { id: 'stop', label: 'Stop' },
+            { id: 'pause', label: 'Pause' },
+          ]),
+        })
+      );
+    });
+
+    it('should limit notification actions to maximum of 3', async () => {
+      const options: TrackingOptions = {
+        notificationActions: [
+          { id: 'a1', label: 'Action 1' },
+          { id: 'a2', label: 'Action 2' },
+          { id: 'a3', label: 'Action 3' },
+          { id: 'a4', label: 'Action 4' },
+        ],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      const parsedActions = JSON.parse(calledOptions?.notificationActions);
+      expect(parsedActions).toHaveLength(3);
+      expect(parsedActions[2].id).toBe('a3');
+    });
+
+    it('should not include notificationActions when not provided', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      expect(calledOptions?.notificationActions).toBeUndefined();
+    });
+
+    it('should handle empty notification actions array', async () => {
+      const options: TrackingOptions = {
+        notificationActions: [],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      expect(calledOptions?.notificationActions).toBe('[]');
+    });
+  });
+
+  describe('extended notification customization', () => {
+    it('should pass largeIcon, subtext, and channelId options', async () => {
+      const options: TrackingOptions = {
+        notificationLargeIcon: 'ic_large_logo',
+        notificationSubtext: '2.5km remaining',
+        notificationChannelId: 'custom_tracking_channel',
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          notificationLargeIcon: 'ic_large_logo',
+          notificationSubtext: '2.5km remaining',
+          notificationChannelId: 'custom_tracking_channel',
+        })
+      );
+    });
+
+    it('should not include extended options when not provided', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      const calledOptions = (
+        BackgroundLocationModule.startTracking as jest.Mock
+      ).mock.calls[0]?.[1];
+      expect(calledOptions?.notificationLargeIcon).toBeUndefined();
+      expect(calledOptions?.notificationSubtext).toBeUndefined();
+      expect(calledOptions?.notificationChannelId).toBeUndefined();
+    });
+
+    it('should pass all notification options together', async () => {
+      const options: TrackingOptions = {
+        notificationTitle: 'Tracking',
+        notificationText: 'Active',
+        notificationSmallIcon: 'ic_small',
+        notificationLargeIcon: 'ic_large',
+        notificationColor: '#FF0000',
+        notificationShowTimestamp: true,
+        notificationSubtext: 'Details here',
+        notificationChannelId: 'my_channel',
+        notificationActions: [{ id: 'stop', label: 'Stop' }],
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      await BackgroundLocation.startTracking(mockTripId, options);
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          notificationTitle: 'Tracking',
+          notificationText: 'Active',
+          notificationSmallIcon: 'ic_small',
+          notificationLargeIcon: 'ic_large',
+          notificationColor: '#FF0000',
+          notificationShowTimestamp: true,
+          notificationSubtext: 'Details here',
+          notificationChannelId: 'my_channel',
+          notificationActions: JSON.stringify([{ id: 'stop', label: 'Stop' }]),
+        })
+      );
+    });
+  });
+
   describe('Enum exports', () => {
     it('should export LocationAccuracy enum', () => {
       expect(LocationAccuracy).toBeDefined();
@@ -816,6 +1137,159 @@ describe('BackgroundLocation API', () => {
       expect(NotificationPriority.DEFAULT).toBe('DEFAULT');
       expect(NotificationPriority.LOW).toBe('LOW');
       expect(NotificationPriority.MAX).toBe('MAX');
+    });
+  });
+
+  describe('iOS-specific behavior', () => {
+    beforeEach(() => {
+      Platform.OS = 'ios';
+    });
+
+    it('should start tracking on iOS', async () => {
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(mockTripId);
+
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        undefined
+      );
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('should start tracking with tracking options and pass correct values on iOS', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        accuracy: LocationAccuracy.HIGH_ACCURACY,
+        distanceFilter: 10,
+        foregroundOnly: true,
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          updateInterval: 5000,
+          accuracy: 'HIGH_ACCURACY',
+          distanceFilter: 10,
+          foregroundOnly: true,
+        })
+      );
+    });
+
+    it('should pass notification-specific options as no-op on iOS', async () => {
+      const options: TrackingOptions = {
+        accuracy: LocationAccuracy.HIGH_ACCURACY,
+        notificationTitle: 'Tracking',
+        notificationText: 'Location tracking active',
+        notificationChannelName: 'location',
+        notificationPriority: NotificationPriority.HIGH,
+        notificationSmallIcon: 'ic_location',
+        notificationColor: '#4CAF50',
+        notificationShowTimestamp: true,
+        notificationLargeIcon: 'ic_large',
+        notificationSubtext: 'Subtext info',
+        notificationChannelId: 'custom_channel',
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const result = await BackgroundLocation.startTracking(
+        mockTripId,
+        options
+      );
+
+      // Should not crash - options are passed through, iOS native side ignores them
+      expect(result).toBe(mockTripId);
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          accuracy: 'HIGH_ACCURACY',
+          notificationTitle: 'Tracking',
+          notificationPriority: 'HIGH',
+        })
+      );
+    });
+
+    it('should resolve updateNotification on iOS (no-op behavior)', async () => {
+      (
+        BackgroundLocationModule.updateNotification as jest.Mock
+      ).mockResolvedValue(undefined);
+
+      await expect(
+        BackgroundLocation.updateNotification(
+          'Updated Title',
+          'Updated notification text'
+        )
+      ).resolves.toBeUndefined();
+
+      expect(BackgroundLocationModule.updateNotification).toHaveBeenCalledWith(
+        'Updated Title',
+        'Updated notification text'
+      );
+    });
+
+    it('should stop tracking on iOS', async () => {
+      (BackgroundLocationModule.stopTracking as jest.Mock).mockResolvedValue(
+        undefined
+      );
+
+      await BackgroundLocation.stopTracking();
+
+      expect(BackgroundLocationModule.stopTracking).toHaveBeenCalled();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('should check isTracking on iOS', async () => {
+      const mockStatus = { active: true, tripId: mockTripId };
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue(
+        mockStatus
+      );
+
+      const result = await BackgroundLocation.isTracking();
+
+      expect(result).toEqual(mockStatus);
+      expect(BackgroundLocationModule.isTracking).toHaveBeenCalled();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('should get locations on iOS', async () => {
+      (BackgroundLocationModule.getLocations as jest.Mock).mockResolvedValue(
+        mockLocations
+      );
+
+      const result = await BackgroundLocation.getLocations(mockTripId);
+
+      expect(result).toEqual(mockLocations);
+      expect(BackgroundLocationModule.getLocations).toHaveBeenCalledWith(
+        mockTripId
+      );
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    it('should clear trip on iOS', async () => {
+      (BackgroundLocationModule.clearTrip as jest.Mock).mockResolvedValue(
+        undefined
+      );
+
+      await BackgroundLocation.clearTrip(mockTripId);
+
+      expect(BackgroundLocationModule.clearTrip).toHaveBeenCalledWith(
+        mockTripId
+      );
+      expect(console.warn).not.toHaveBeenCalled();
     });
   });
 });

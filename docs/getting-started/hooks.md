@@ -13,7 +13,11 @@ The library includes four main hooks:
 
 ## useLocationPermissions
 
-Manages location permissions including foreground and background permissions.
+Manages location permissions on both Android and iOS.
+
+> **Android:** Uses `PermissionsAndroid` API with a multi-step flow: foreground permissions first, then background permission (Android 10+), then notification permission (Android 13+).
+
+> **iOS:** Uses native `CLLocationManager` via the TurboModule bridge. Calls `checkLocationPermission()` and `requestLocationPermission()` methods. Follows the two-step iOS flow: WhenInUse first, then Always authorization.
 
 ### Basic Usage
 
@@ -69,10 +73,13 @@ interface UseLocationPermissionsResult {
 
 ### Permission Status
 
-- **`granted`** - All permissions granted
+- **`granted`** - All permissions granted (full background access)
+- **`whenInUse`** - iOS only: WhenInUse permission granted. `hasPermission` is `true` at this level, but background tracking may be limited without Always authorization.
 - **`denied`** - User denied permissions, can request again
-- **`blocked`** - User permanently denied (never ask again)
+- **`blocked`** - User permanently denied (must open Settings)
 - **`undetermined`** - Permissions not yet requested
+
+> **iOS:** On iOS, `whenInUse` is treated as `hasPermission = true` because tracking can still function. However, for reliable background tracking, encourage the user to grant "Always" permission. The hook will automatically request the upgrade from WhenInUse to Always when `requestPermissions()` is called.
 
 ### Example: Handling Permission States
 
@@ -111,7 +118,7 @@ Complete hook for managing background location tracking, including starting/stop
 
 ![Example app using useBackgroundLocation](../assets/background.gif)
 
-*Example app using `useBackgroundLocation` to start/stop a trip and refresh locations.*
+_Example app using `useBackgroundLocation` to start/stop a trip and refresh locations._
 
 ### Basic Usage
 
@@ -185,15 +192,36 @@ interface TrackingOptions {
   // @platform Android
   distanceFilter?: number;
 
-  // Notification configuration
+  // Notification configuration (Android only - ignored on iOS)
   notificationTitle?: string;
   notificationText?: string;
   notificationPriority?: NotificationPriority;
-  notificationIcon?: string;
-  notificationChannelId?: string;
   notificationChannelName?: string;
+
+  // Notification appearance (Android only, v0.9.0+)
+  notificationSmallIcon?: string; // Custom drawable resource name (falls back to manifest metadata → convention drawable → system default)
+  notificationColor?: string; // Hex color (e.g., "#FF5722")
+  notificationShowTimestamp?: boolean; // Show timestamp
+  notificationLargeIcon?: string; // Large icon drawable
+  notificationSubtext?: string; // Subtext below content
+  notificationChannelId?: string; // Custom channel ID
+  notificationActions?: NotificationAction[]; // Up to 3 action buttons
 }
 ```
+
+#### Platform-Specific Options
+
+| Option           | Android                      | iOS                                                     | Notes                                   |
+| ---------------- | ---------------------------- | ------------------------------------------------------- | --------------------------------------- |
+| `accuracy`       | All 5 levels                 | `HIGH_ACCURACY`, `BALANCED_POWER_ACCURACY`, `LOW_POWER` | iOS maps to `kCLLocationAccuracy*`      |
+| `updateInterval` | Used directly                | Used as hint                                            | iOS may deliver updates more frequently |
+| `distanceFilter` | `setMinUpdateDistanceMeters` | `CLLocationManager.distanceFilter`                      | Works on both platforms                 |
+| `foregroundOnly` | Skips background permission  | Limits to WhenInUse                                     | Both platforms                          |
+| `notification*`  | Full customization           | Ignored                                                 | iOS uses system blue bar instead        |
+
+> **iOS:** On iOS, the system manages background location behavior. There is no foreground service or notification -- the blue status bar indicator appears automatically when the app uses location in the background.
+
+> **Tip:** You can set default notification icons via AndroidManifest `<meta-data>` instead of passing them at runtime. See the [README — Static Notification Defaults](../../README.md#static-notification-defaults) for details.
 
 ### Options
 
@@ -243,7 +271,10 @@ interface UseBackgroundLocationResult {
 
   // Start tracking (returns trip ID or null on error)
   // ⚠️ existingTripId is for RESUMING interrupted sessions only
-  startTracking: (existingTripId?: string, options?: TrackingOptions) => Promise<string | null>;
+  startTracking: (
+    existingTripId?: string,
+    options?: TrackingOptions
+  ) => Promise<string | null>;
 
   // Stop tracking
   stopTracking: () => Promise<void>;
@@ -268,7 +299,7 @@ function AutoTrackingScreen() {
   const { isTracking, locations } = useBackgroundLocation({
     autoStart: true, // Start immediately on mount
     // Don't provide tripId for new trips - let the library generate a UUID
-    trackingOptions: {
+    options: {
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       updateInterval: 5000,
       notificationPriority: NotificationPriority.LOW,
@@ -474,7 +505,7 @@ Hook for watching location updates in real-time. This hook automatically receive
 
 ![Real-time updates using useLocationUpdates](../assets/background.gif)
 
-*Real‑time updates using `useLocationUpdates`, receiving new locations automatically.*
+_Real‑time updates using `useLocationUpdates`, receiving new locations automatically._
 
 ### Basic Usage
 
@@ -549,8 +580,11 @@ interface UseLocationUpdatesOptions {
   // Callback when a service warning is emitted (Android 14+/15+)
   onLocationWarning?: (warning: LocationWarningEvent) => void;
 
+  // Callback when a notification action button is pressed (v0.9.0+)
+  onNotificationAction?: (event: NotificationActionEvent) => void;
+
   // Whether to automatically load existing locations on mount
-  autoLoad?: boolean;  // Default: true
+  autoLoad?: boolean; // Default: true
 }
 ```
 
@@ -636,21 +670,65 @@ function TrackingWithWarnings() {
 
 ### Warning Types
 
-| Type | Description | Action |
-|------|-------------|--------|
-| `SERVICE_TIMEOUT` | Android 15+ foreground service timeout reached | Service auto-restarts, no action needed |
-| `TASK_REMOVED` | App swiped from recents | Tracking continues, inform user if needed |
-| `LOCATION_UNAVAILABLE` | GPS signal lost or disabled | Prompt user to check settings |
+| Type                   | Description                                    | Action                                    |
+| ---------------------- | ---------------------------------------------- | ----------------------------------------- |
+| `SERVICE_TIMEOUT`      | Android 15+ foreground service timeout reached | Service auto-restarts, no action needed   |
+| `TASK_REMOVED`         | App swiped from recents                        | Tracking continues, inform user if needed |
+| `LOCATION_UNAVAILABLE` | GPS signal lost or disabled                    | Prompt user to check settings             |
+
+### Notification Action Buttons (v0.9.0+)
+
+Add interactive buttons to the tracking notification and listen for presses:
+
+```typescript
+import BackgroundLocation, {
+  useLocationUpdates,
+  type NotificationActionEvent,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function TrackingWithActions() {
+  const { locations } = useLocationUpdates({
+    onNotificationAction: (event: NotificationActionEvent) => {
+      switch (event.actionId) {
+        case 'stop':
+          BackgroundLocation.stopTracking();
+          break;
+        case 'emergency':
+          callEmergencyService();
+          break;
+      }
+    },
+  });
+
+  const startWithActions = async () => {
+    await BackgroundLocation.startTracking('trip-123', {
+      notificationTitle: 'Delivery in Progress',
+      notificationText: 'En route to destination',
+      notificationActions: [
+        { id: 'stop', label: 'Stop' },
+        { id: 'emergency', label: 'Emergency' },
+      ],
+    });
+  };
+
+  return (
+    <View>
+      <Button title="Start" onPress={startWithActions} />
+      <Text>Locations: {locations.length}</Text>
+    </View>
+  );
+}
+```
 
 ### Key Differences from useBackgroundLocation
 
-| Feature | useBackgroundLocation | useLocationUpdates |
-|---------|----------------------|-------------------|
-| Tracking control | ✅ Yes | ❌ No |
-| Automatic updates | ❌ No | ✅ Yes |
-| Manual refresh | ✅ Yes | ❌ Not needed |
-| Real-time events | ❌ No | ✅ Yes |
-| Use case | Control tracking | Watch live data |
+| Feature           | useBackgroundLocation | useLocationUpdates |
+| ----------------- | --------------------- | ------------------ |
+| Tracking control  | ✅ Yes                | ❌ No              |
+| Automatic updates | ❌ No                 | ✅ Yes             |
+| Manual refresh    | ✅ Yes                | ❌ Not needed      |
+| Real-time events  | ❌ No                 | ✅ Yes             |
+| Use case          | Control tracking      | Watch live data    |
 
 ### Example: Real-Time Map Updates
 
@@ -917,7 +995,11 @@ function StatusIcon() {
 
 ## Extended Location Properties
 
-Starting from version 0.5.0, location objects (`Coords`) include extended properties from the Android location API. All properties are optional and only available when provided by the location provider.
+Location objects (`Coords`) include extended properties from the platform-native location APIs. All properties are optional and only available when provided by the location provider.
+
+> **Android:** Extended properties come from the Android Location API. Properties like `verticalAccuracyMeters`, `speedAccuracyMetersPerSecond`, and `bearingAccuracyDegrees` require Android API 26+.
+
+> **iOS:** Extended properties come from `CLLocation`. Properties like `verticalAccuracyMeters` and `speedAccuracyMetersPerSecond` are available on iOS 15+. The `provider` field on iOS is always `"cllocation"` and `isFromMockProvider` is always `false`.
 
 ### Available Properties
 
@@ -927,7 +1009,7 @@ interface Coords {
   latitude: string;
   longitude: string;
   timestamp: number;
-  
+
   // Extended properties (optional)
   accuracy?: number; // Horizontal accuracy in meters
   altitude?: number; // Altitude in meters above sea level
@@ -950,31 +1032,31 @@ function LocationDetails({ location }: { location: Coords }) {
     <View>
       <Text>Coordinates: {location.latitude}, {location.longitude}</Text>
       <Text>Time: {new Date(location.timestamp).toLocaleString()}</Text>
-      
+
       {/* Always check for undefined before using optional properties */}
       {location.accuracy !== undefined && (
         <Text>Accuracy: {location.accuracy.toFixed(2)} meters</Text>
       )}
-      
+
       {location.altitude !== undefined && (
         <Text>Altitude: {location.altitude.toFixed(2)} meters</Text>
       )}
-      
+
       {location.speed !== undefined && (
         <Text>
           Speed: {(location.speed * 3.6).toFixed(2)} km/h
           {' '}({location.speed.toFixed(2)} m/s)
         </Text>
       )}
-      
+
       {location.bearing !== undefined && (
         <Text>Bearing: {location.bearing.toFixed(2)}°</Text>
       )}
-      
+
       {location.provider && (
         <Text>Provider: {location.provider}</Text>
       )}
-      
+
       {location.isFromMockProvider !== undefined && (
         <Text>
           Mock Provider: {location.isFromMockProvider ? 'Yes' : 'No'}
@@ -1057,11 +1139,11 @@ The `locations` array grows with each collected point. For long tracking session
 
 ### Memory Estimates
 
-| Duration | Interval | Points | Memory |
-|----------|----------|--------|--------|
-| 1 hour | 5 sec | ~720 | ~360 KB |
-| 4 hours | 5 sec | ~2,880 | ~1.4 MB |
-| 8 hours | 5 sec | ~5,760 | ~2.8 MB |
+| Duration | Interval | Points | Memory  |
+| -------- | -------- | ------ | ------- |
+| 1 hour   | 5 sec    | ~720   | ~360 KB |
+| 4 hours  | 5 sec    | ~2,880 | ~1.4 MB |
+| 8 hours  | 5 sec    | ~5,760 | ~2.8 MB |
 
 ### Strategies
 
@@ -1121,6 +1203,8 @@ import type {
   LocationUpdateEvent,
   LocationWarningEvent,
   LocationWarningType,
+  NotificationAction,
+  NotificationActionEvent,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import {
@@ -1138,4 +1222,3 @@ import {
 - [Integration Guide](INTEGRATION_GUIDE.md)
 - [API Reference](../../README.md#api-reference)
 - [Example App](../../example/src/App.tsx)
-

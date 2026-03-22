@@ -26,6 +26,12 @@
       android:foregroundServiceType="location"
       android:stopWithTask="false" />
 
+    <!-- Receiver for notification action button clicks -->
+    <receiver
+      android:name=".NotificationActionReceiver"
+      android:enabled="true"
+      android:exported="false" />
+
     <!--
       WorkManager SystemForegroundService override.
       Required for Android 14+ when RecoveryWorker uses setForeground()

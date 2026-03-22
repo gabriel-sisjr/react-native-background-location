@@ -14,7 +14,14 @@ data class TrackingOptions(
   val notificationChannelName: String? = null,
   val notificationPriority: String? = null,
   val foregroundOnly: Boolean? = null,
-  val distanceFilter: Float? = null
+  val distanceFilter: Float? = null,
+  val notificationSmallIcon: String? = null,
+  val notificationColor: String? = null,
+  val notificationShowTimestamp: Boolean? = null,
+  val notificationActions: String? = null, // JSON serialized array of {id, label}
+  val notificationLargeIcon: String? = null,
+  val notificationSubtext: String? = null,
+  val notificationChannelId: String? = null
 ) {
   companion object {
     // Default values
@@ -28,6 +35,7 @@ data class TrackingOptions(
     const val DEFAULT_NOTIFICATION_PRIORITY = "LOW"
     const val DEFAULT_FOREGROUND_ONLY = false
     const val DEFAULT_DISTANCE_FILTER = 0f // No distance filter
+    const val DEFAULT_NOTIFICATION_SHOW_TIMESTAMP = false
   }
 
   /**
@@ -84,5 +92,10 @@ data class TrackingOptions(
    * Gets the distance filter with default fallback
    */
   fun getDistanceFilterOrDefault(): Float = distanceFilter ?: DEFAULT_DISTANCE_FILTER
+
+  /**
+   * Gets notificationShowTimestamp with default fallback
+   */
+  fun getNotificationShowTimestampOrDefault(): Boolean = notificationShowTimestamp ?: DEFAULT_NOTIFICATION_SHOW_TIMESTAMP
 }
 

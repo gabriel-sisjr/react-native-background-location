@@ -13,6 +13,7 @@ export type {
   TrackingStatus,
   LocationUpdateEvent,
   TrackingOptions,
+  PermissionStatusResult,
 } from './NativeBackgroundLocation';
 export type {
   PermissionState,
@@ -23,6 +24,8 @@ export type {
   UseLocationUpdatesResult,
   LocationWarningEvent,
   LocationWarningType,
+  NotificationAction,
+  NotificationActionEvent,
 } from './types';
 export type { UseLocationTrackingResult } from './hooks/useLocationTracking';
 
@@ -117,6 +120,15 @@ export default {
             : undefined,
           foregroundOnly: trackingOptions.foregroundOnly,
           distanceFilter: trackingOptions.distanceFilter,
+          notificationSmallIcon: trackingOptions.notificationSmallIcon,
+          notificationColor: trackingOptions.notificationColor,
+          notificationShowTimestamp: trackingOptions.notificationShowTimestamp,
+          notificationActions: trackingOptions.notificationActions
+            ? JSON.stringify(trackingOptions.notificationActions.slice(0, 3))
+            : undefined,
+          notificationLargeIcon: trackingOptions.notificationLargeIcon,
+          notificationSubtext: trackingOptions.notificationSubtext,
+          notificationChannelId: trackingOptions.notificationChannelId,
         }
       : undefined;
     return BackgroundLocationModule.startTracking(tripId, specOptions);
@@ -178,5 +190,22 @@ export default {
       return Promise.resolve();
     }
     return BackgroundLocationModule.clearTrip(tripId);
+  },
+
+  /**
+   * Updates the notification content while tracking is active
+   * Dynamic updates are transient and do not persist across service restarts
+   * @param title New notification title
+   * @param text New notification text
+   * @returns Promise that resolves when notification is updated
+   */
+  updateNotification(title: string, text: string): Promise<void> {
+    if (!isNativeModuleAvailable()) {
+      console.warn(
+        'BackgroundLocation not available - running in simulator or module not linked?'
+      );
+      return Promise.resolve();
+    }
+    return BackgroundLocationModule.updateNotification(title, text);
   },
 };

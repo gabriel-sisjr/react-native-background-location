@@ -9,6 +9,15 @@ import type {
 export type { Coords, TrackingStatus, LocationUpdateEvent, TrackingOptions };
 
 /**
+ * Permission status result from native permission check/request
+ * Must be defined inline for Codegen compatibility
+ */
+export interface PermissionStatusResult {
+  status: string;
+  canRequestAgain: boolean;
+}
+
+/**
  * Tracking options interface for TurboModule spec
  * Must be defined inline for Codegen compatibility
  */
@@ -24,6 +33,13 @@ export interface TrackingOptionsSpec {
   notificationPriority?: string;
   foregroundOnly?: boolean;
   distanceFilter?: number;
+  notificationSmallIcon?: string;
+  notificationColor?: string;
+  notificationShowTimestamp?: boolean;
+  notificationActions?: string; // JSON serialized - Codegen does not support typed object arrays
+  notificationLargeIcon?: string;
+  notificationSubtext?: string;
+  notificationChannelId?: string;
 }
 
 export interface Spec extends TurboModule {
@@ -61,6 +77,40 @@ export interface Spec extends TurboModule {
    * @param tripId The trip identifier to clear
    */
   clearTrip(tripId: string): Promise<void>;
+
+  /**
+   * Updates the notification content while tracking is active
+   * @param title New notification title
+   * @param text New notification text
+   */
+  updateNotification(title: string, text: string): Promise<void>;
+
+  /**
+   * Checks current location permission status without prompting
+   * @returns Permission status and whether the user can be asked again
+   */
+  checkLocationPermission(): Promise<PermissionStatusResult>;
+
+  /**
+   * Requests location permissions from the user
+   * @param foregroundOnly If true, only requests foreground (When In Use) permission
+   * @returns Permission status after the request completes
+   */
+  requestLocationPermission(
+    foregroundOnly: boolean
+  ): Promise<PermissionStatusResult>;
+
+  /**
+   * Required by NativeEventEmitter on iOS
+   * Called when a JS listener is added
+   */
+  addListener(eventName: string): void;
+
+  /**
+   * Required by NativeEventEmitter on iOS
+   * Called when JS listeners are removed
+   */
+  removeListeners(count: number): void;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('BackgroundLocation');

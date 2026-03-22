@@ -4,22 +4,31 @@ This guide explains how the library handles app crashes, restarts, and how to pr
 
 ## How Persistence Works
 
-The library persists data across app restarts using:
+The library persists data across app restarts using platform-native mechanisms:
+
+### Android
 
 1. **Room Database**: Stores tracking state and all collected location data
 2. **Foreground Service**: Continues running even after app crash
 3. **WorkManager**: Safely recovers sessions on Android 12+ respecting background restrictions
 4. **Crash Loop Protection**: Prevents infinite restart loops with SharedPreferences tracking
 
+### iOS
+
+1. **Core Data**: Stores tracking state and all collected location data (SQLite backend)
+2. **CLLocationManager**: Continues delivering location updates in the background
+3. **Significant Location Monitoring**: Wakes the app after termination to recover tracking sessions
+4. **RecoveryManager**: Manages recovery with stop token pattern and rate limiting (5 recoveries/hour)
+
 ### What Survives App Restart
 
-| Data | Persisted | Location |
-|------|-----------|----------|
-| Tracking state | Yes | Room Database |
-| Current tripId | Yes | Room Database |
-| TrackingOptions | Yes | Room Database (Phase 5+) |
-| Location data | Yes | Room Database |
-| Hook state | No | React state is lost |
+| Data            | Persisted | Android Location    | iOS Location        |
+| --------------- | --------- | ------------------- | ------------------- |
+| Tracking state  | Yes       | Room Database       | Core Data           |
+| Current tripId  | Yes       | Room Database       | Core Data           |
+| TrackingOptions | Yes       | Room Database       | Core Data           |
+| Location data   | Yes       | Room Database       | Core Data           |
+| Hook state      | No        | React state is lost | React state is lost |
 
 ## Android 12+ Background Recovery
 
@@ -28,12 +37,14 @@ Starting with Android 12 (API 31), Google introduced strict background start res
 ### Recovery Mechanism
 
 **Android 12+ (API 31+):**
+
 - Uses **WorkManager** to safely recover tracking sessions
 - Respects ForegroundServiceStartNotAllowedException restrictions
 - Executes recovery work in the background with proper foreground promotion
 - Implements exponential backoff retry (max 3 attempts)
 
 **Android 11 and below:**
+
 - Direct service recovery in `onHostResume`
 - No WorkManager overhead for older devices
 
@@ -48,6 +59,7 @@ The library prevents infinite restart loops that can drain battery:
 - Uses `START_REDELIVER_INTENT` for predictable restart behavior
 
 **Example scenario:**
+
 ```
 12:00 - Service starts (count: 1)
 12:05 - App crashes, service restarts (count: 2)
@@ -57,11 +69,41 @@ The library prevents infinite restart loops that can drain battery:
 12:25 - LOOP DETECTED - Service stops permanently, tracking state cleared
 ```
 
+## iOS Recovery Mechanism
+
+### Significant Location Monitoring
+
+On iOS, the library uses `startMonitoringSignificantLocationChanges()` to wake the app after termination. When the system detects a significant location change (typically 500+ meters), it relaunches the app in the background and the `RecoveryManager` checks for active tracking sessions.
+
+### RecoveryManager
+
+The iOS `RecoveryManager` follows a similar pattern to Android's `RecoveryWorker`:
+
+1. Check stop token (prevents recovery after explicit `stopTracking()`)
+2. Verify permissions are still granted
+3. Read tracking state from Core Data
+4. Resume `CLLocationManager` updates with saved `TrackingOptions`
+
+### Rate Limiting
+
+To prevent excessive recovery attempts (which would drain battery), the iOS `RecoveryManager` limits recoveries to **5 per hour**. If the limit is exceeded, recovery is deferred until the rate resets.
+
+### Differences from Android
+
+| Aspect                | Android                                 | iOS                                         |
+| --------------------- | --------------------------------------- | ------------------------------------------- |
+| Recovery mechanism    | WorkManager (API 31+) or direct restart | Significant location monitoring             |
+| Background restart    | Service restarts automatically          | App relaunched by system on location change |
+| Recovery notification | Shows a recovery notification           | No notification (system-managed)            |
+| Rate limiting         | 5 restarts/hour (crash loop detection)  | 5 recoveries/hour (RecoveryManager)         |
+| Stop token            | SharedPreferences with 60s TTL          | UserDefaults with similar TTL               |
+
 ## Scenarios
 
 ### Scenario 1: App Killed by System (Memory Pressure)
 
 **What happens:**
+
 1. Android kills your app due to memory pressure
 2. Foreground service continues running
 3. Locations continue to be collected
@@ -72,6 +114,7 @@ The library prevents infinite restart loops that can drain battery:
 ### Scenario 2: App Swiped from Recents
 
 **What happens:**
+
 1. User swipes app from recent apps
 2. React context is destroyed
 3. Foreground service continues (usually)
@@ -83,6 +126,7 @@ The library prevents infinite restart loops that can drain battery:
 ### Scenario 3: Device Reboot
 
 **What happens:**
+
 1. Device is rebooted
 2. Foreground service stops
 3. Tracking state shows last tripId but inactive
@@ -93,6 +137,7 @@ The library prevents infinite restart loops that can drain battery:
 ### Scenario 4: App Crash (Exception)
 
 **What happens:**
+
 1. App crashes due to unhandled exception
 2. Service uses `START_REDELIVER_INTENT` to restart automatically
 3. Crash loop protection monitors restart frequency
@@ -101,6 +146,7 @@ The library prevents infinite restart loops that can drain battery:
 6. On next successful app start, WorkManager (Android 12+) or direct recovery restores session
 
 **Your action:**
+
 - Check for orphaned trips on startup
 - Monitor crash reports to fix the underlying crash
 - Library will automatically stop service if crash loop detected
@@ -371,11 +417,14 @@ const cleanupOrphanedData = async () => {
 ```typescript
 // Use AsyncStorage, MMKV, or your state management
 const persistTrackingState = async (tripId: string, metadata: any) => {
-  await AsyncStorage.setItem('@tracking_state', JSON.stringify({
-    tripId,
-    startedAt: Date.now(),
-    metadata,
-  }));
+  await AsyncStorage.setItem(
+    '@tracking_state',
+    JSON.stringify({
+      tripId,
+      startedAt: Date.now(),
+      metadata,
+    })
+  );
 };
 ```
 
@@ -404,3 +453,4 @@ const persistTrackingState = async (tripId: string, metadata: any) => {
 - [Hooks Guide](../getting-started/hooks.md) - Hook behavior on mount
 - [Integration Guide](../getting-started/INTEGRATION_GUIDE.md) - Full implementation example
 - [Battery Optimization](./BATTERY_OPTIMIZATION.md) - Why services might be killed
+- [Platform Comparison](./PLATFORM_COMPARISON.md) - Android vs iOS behavior differences

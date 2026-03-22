@@ -1,6 +1,6 @@
 # Real-Time Location Updates
 
-This guide explains how to use the new automatic real-time location update system.
+This guide explains how to use the automatic real-time location update system on both Android and iOS.
 
 ## Overview
 
@@ -45,7 +45,7 @@ function LiveTrackingScreen() {
     <View>
       <Text>Status: {isTracking ? 'Tracking' : 'Stopped'}</Text>
       <Text>Locations collected: {locations.length}</Text>
-      
+
       {lastLocation && (
         <>
           <Text>
@@ -67,15 +67,17 @@ function LiveTrackingScreen() {
 ### Available Options
 
 #### `tripId` (optional)
+
 Specifies a specific tripId to watch. If not provided, watches any active trip.
 
 ```typescript
 useLocationUpdates({
-  tripId: 'my-trip-123'
+  tripId: 'my-trip-123',
 });
 ```
 
 #### `onLocationUpdate` (optional)
+
 Callback executed when a new location is received.
 
 ```typescript
@@ -83,36 +85,41 @@ useLocationUpdates({
   onLocationUpdate: (location) => {
     console.log('New location:', location);
     // Update map, send to server, etc.
-  }
+  },
 });
 ```
 
 #### `autoLoad` (optional)
+
 Defines whether to load existing locations when mounting the component. Default: `true`.
 
 ```typescript
 useLocationUpdates({
-  autoLoad: false // Doesn't load existing locations
+  autoLoad: false, // Doesn't load existing locations
 });
 ```
 
 ### Return Values
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `tripId` | `string \| null` | ID of the trip being watched |
-| `isTracking` | `boolean` | Whether tracking is active |
-| `locations` | `Coords[]` | Array with all received locations |
-| `lastLocation` | `Coords \| null` | Last location received |
-| `lastWarning` | `LocationWarningEvent \| null` | Last warning event (Android 14+/15+) |
-| `isLoading` | `boolean` | Whether data is being loaded |
-| `error` | `Error \| null` | Last error that occurred |
-| `clearError` | `() => void` | Function to clear the error state |
-| `clearLocations` | `() => Promise<void>` | Clear all locations for current trip |
+| Property         | Type                           | Description                          |
+| ---------------- | ------------------------------ | ------------------------------------ |
+| `tripId`         | `string \| null`               | ID of the trip being watched         |
+| `isTracking`     | `boolean`                      | Whether tracking is active           |
+| `locations`      | `Coords[]`                     | Array with all received locations    |
+| `lastLocation`   | `Coords \| null`               | Last location received               |
+| `lastWarning`    | `LocationWarningEvent \| null` | Last warning event (Android 14+/15+) |
+| `isLoading`      | `boolean`                      | Whether data is being loaded         |
+| `error`          | `Error \| null`                | Last error that occurred             |
+| `clearError`     | `() => void`                   | Function to clear the error state    |
+| `clearLocations` | `() => Promise<void>`          | Clear all locations for current trip |
 
 ### `onLocationWarning` Callback
 
-Handle service warnings (important for Android 14+ and especially Android 15+):
+Handle service warnings on both platforms:
+
+> **Android:** Warnings include `SERVICE_TIMEOUT` (Android 15+), `TASK_REMOVED`, and `LOCATION_UNAVAILABLE`.
+
+> **iOS:** Warnings include `PERMISSION_REVOKED` (user revoked location permission while tracking) and `PERMISSION_DOWNGRADED` (user downgraded from Always to WhenInUse).
 
 ```typescript
 useLocationUpdates({
@@ -142,7 +149,7 @@ export function LiveMapScreen() {
     onLocationUpdate: (location) => {
       // Send to server in real-time
       sendToServer(location);
-      
+
       // Update map marker
       updateMapMarker(location);
     },
@@ -154,8 +161,8 @@ export function LiveMapScreen() {
 
   if (error) {
     return (
-      <ErrorView 
-        error={error} 
+      <ErrorView
+        error={error}
         onDismiss={clearError}
       />
     );
@@ -217,8 +224,8 @@ const styles = StyleSheet.create({
   header: { padding: 16, backgroundColor: '#f5f5f5' },
   title: { fontSize: 20, fontWeight: 'bold' },
   tripId: { fontSize: 14, color: '#666', marginTop: 4 },
-  lastLocation: { 
-    padding: 16, 
+  lastLocation: {
+    padding: 16,
     backgroundColor: '#e8f5e9',
     borderLeftWidth: 4,
     borderLeftColor: '#4caf50',
@@ -234,9 +241,9 @@ You can combine `useLocationUpdates` with `useBackgroundLocation` for complete c
 
 ```typescript
 import React from 'react';
-import { 
-  useLocationUpdates, 
-  useBackgroundLocation 
+import {
+  useLocationUpdates,
+  useBackgroundLocation
 } from '@gabriel-sisjr/react-native-background-location';
 
 function AdvancedTrackingScreen() {
@@ -288,18 +295,19 @@ function AdvancedTrackingScreen() {
 
 ## Differences Between Hooks
 
-| Feature | useBackgroundLocation | useLocationUpdates |
-|---------|----------------------|-------------------|
-| Tracking control | ✅ Yes | ❌ No |
-| Automatic updates | ❌ No | ✅ Yes |
-| Manual refresh | ✅ Yes | ❌ Not needed |
-| Error management | ✅ Complete | ✅ Basic |
-| Clear trip data | ✅ Yes | ❌ No |
-| Recommended use | Tracking control | Real-time visualization |
+| Feature           | useBackgroundLocation | useLocationUpdates        |
+| ----------------- | --------------------- | ------------------------- |
+| Tracking control  | ✅ Yes                | ❌ No                     |
+| Automatic updates | ❌ No                 | ✅ Yes                    |
+| Manual refresh    | ✅ Yes                | ❌ Not needed             |
+| Error management  | ✅ Complete           | ✅ Basic                  |
+| Clear trip data   | ✅ Yes                | ✅ Yes (`clearLocations`) |
+| Recommended use   | Tracking control      | Real-time visualization   |
 
 ## Best Practices
 
 ### 1. Use useLocationUpdates for visualization
+
 ```typescript
 // ✅ Good: For screens that need to show data in real-time
 function MapScreen() {
@@ -309,6 +317,7 @@ function MapScreen() {
 ```
 
 ### 2. Use useBackgroundLocation for control
+
 ```typescript
 // ✅ Good: To control start/stop of tracking
 function ControlPanel() {
@@ -318,12 +327,13 @@ function ControlPanel() {
 ```
 
 ### 3. Combine both for complete functionality
+
 ```typescript
 // ✅ Best: Control + Real-time visualization
 function CompleteScreen() {
   const tracking = useBackgroundLocation();
   const updates = useLocationUpdates();
-  
+
   return (
     <>
       <Controls {...tracking} />
@@ -334,6 +344,7 @@ function CompleteScreen() {
 ```
 
 ### 4. Use callbacks for async actions
+
 ```typescript
 // ✅ Good: Send data to server as it arrives
 useLocationUpdates({
@@ -343,13 +354,13 @@ useLocationUpdates({
     } catch (error) {
       console.error('Error sending location:', error);
     }
-  }
+  },
 });
 ```
 
 ## Extended Location Properties
 
-Starting from version 0.5.0, location objects include extended properties from the Android location API. All properties are optional and only available when provided by the location provider.
+Location objects include extended properties from the platform-native location APIs. All properties are optional and only available when provided by the location provider.
 
 ### Available Properties
 
@@ -372,29 +383,29 @@ useLocationUpdates({
     // Basic properties (always available)
     console.log('Coordinates:', location.latitude, location.longitude);
     console.log('Timestamp:', new Date(location.timestamp).toLocaleString());
-    
+
     // Extended properties (check for undefined)
     if (location.accuracy !== undefined) {
       console.log(`Accuracy: ${location.accuracy.toFixed(2)} meters`);
     }
-    
+
     if (location.speed !== undefined) {
       const speedKmh = location.speed * 3.6;
       console.log(`Speed: ${speedKmh.toFixed(2)} km/h`);
     }
-    
+
     if (location.altitude !== undefined) {
       console.log(`Altitude: ${location.altitude.toFixed(2)} meters`);
     }
-    
+
     if (location.bearing !== undefined) {
       console.log(`Bearing: ${location.bearing.toFixed(2)}°`);
     }
-    
+
     if (location.provider) {
       console.log(`Provider: ${location.provider}`);
     }
-  }
+  },
 });
 ```
 
@@ -402,19 +413,21 @@ useLocationUpdates({
 
 1. **Always check for undefined** before using optional properties
 2. **Format values appropriately** (convert m/s to km/h, nanoseconds to milliseconds)
-3. **Handle API-level differences** (some properties require Android API 18+ or 26+)
+3. **Handle platform differences** (some properties require Android API 18+/26+ or iOS 15+)
 
 ## Handling Service Warnings
 
-Android 14+ and especially Android 15+ have stricter foreground service time limits. The hook provides warnings to help you handle these situations:
+Both platforms emit warnings for different scenarios. On Android, foreground service time limits (Android 14+/15+) produce warnings. On iOS, permission changes while tracking produce warnings.
 
 ### Warning Types
 
-| Type | Description | When It Occurs |
-|------|-------------|----------------|
-| `SERVICE_TIMEOUT` | Foreground service timeout reached | Android 15+: ~6 hour limit for location services |
-| `TASK_REMOVED` | App was swiped from recents | User action, tracking continues |
-| `LOCATION_UNAVAILABLE` | GPS signal lost or disabled | Poor signal, location services off |
+| Type                    | Platform | Description                              | When It Occurs                                   |
+| ----------------------- | -------- | ---------------------------------------- | ------------------------------------------------ |
+| `SERVICE_TIMEOUT`       | Android  | Foreground service timeout reached       | Android 15+: ~6 hour limit for location services |
+| `TASK_REMOVED`          | Android  | App was swiped from recents              | User action, tracking continues                  |
+| `LOCATION_UNAVAILABLE`  | Both     | GPS signal lost or disabled              | Poor signal, location services off               |
+| `PERMISSION_REVOKED`    | iOS      | User revoked location permission         | Settings change while tracking                   |
+| `PERMISSION_DOWNGRADED` | iOS      | User downgraded from Always to WhenInUse | Settings change while tracking                   |
 
 ### Example: Handling All Warnings
 
@@ -481,12 +494,12 @@ The `locations` array grows unbounded. For long tracking sessions, implement cle
 
 ### Memory Estimates
 
-| Duration | Interval | Points | Memory |
-|----------|----------|--------|--------|
-| 1 hour | 5 sec | ~720 | ~360 KB |
-| 4 hours | 5 sec | ~2,880 | ~1.4 MB |
-| 8 hours | 5 sec | ~5,760 | ~2.8 MB |
-| 24 hours | 5 sec | ~17,280 | ~8.6 MB |
+| Duration | Interval | Points  | Memory  |
+| -------- | -------- | ------- | ------- |
+| 1 hour   | 5 sec    | ~720    | ~360 KB |
+| 4 hours  | 5 sec    | ~2,880  | ~1.4 MB |
+| 8 hours  | 5 sec    | ~5,760  | ~2.8 MB |
+| 24 hours | 5 sec    | ~17,280 | ~8.6 MB |
 
 ### Strategy: Periodic Upload and Clear
 
@@ -560,23 +573,27 @@ const toNumeric = (loc: Coords) => ({
 ## Frequently Asked Questions
 
 ### Are locations persisted after app restart?
-Yes, locations are stored in SharedPreferences (Android) and persist between restarts.
+
+Yes. On Android, locations are stored in Room Database. On iOS, locations are stored in Core Data. Both persist between restarts.
 
 ### How many locations are stored?
+
 All locations collected during a trip are stored until you call `clearTrip()`.
 
 ### How does the event system work?
-The native module emits `onLocationUpdate` events whenever a new location is collected. The `useLocationUpdates` hook automatically subscribes to these events.
 
-### Can I use it on iOS?
-Currently, the event implementation is only available for Android. iOS support will be added soon.
+The native module emits `onLocationUpdate` events whenever a new location is collected. The `useLocationUpdates` hook automatically subscribes to these events. This works identically on both Android and iOS.
+
+### Does it work on iOS?
+
+Yes. Real-time events work identically on both platforms. The native iOS implementation uses `CLLocationManager` delegate callbacks to emit location events through the same `NativeEventEmitter` interface.
 
 ### What happens if the app is in the background?
-Locations continue to be collected and events are emitted, but React Native will only process them when the app returns to the foreground.
+
+Locations continue to be collected on both platforms. Events are emitted but React Native will only process them when the app returns to the foreground. On Android, a foreground service keeps tracking alive. On iOS, the system manages background location delivery.
 
 ## Next Steps
 
 - Read about [Hooks](./hooks.md)
 - See the [Integration Guide](./INTEGRATION_GUIDE.md)
 - Check out [Advanced Examples](../../example/README.md)
-

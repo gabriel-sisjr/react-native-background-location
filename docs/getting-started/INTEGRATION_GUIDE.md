@@ -4,14 +4,14 @@ Step-by-step guide to integrate `@gabriel-sisjr/react-native-background-location
 
 ![Background location tracking](../assets/background.gif)
 
-*Background location tracking in action - tracking continues even when the app is minimized.*
+_Background location tracking in action - tracking continues even when the app is minimized._
 
 ## Prerequisites
 
 - React Native 0.70 or higher
-- Android minSdkVersion 21+
-- Google Play Services available on device
 - New Architecture (TurboModules) enabled
+- **Android:** minSdkVersion 24+, Google Play Services available on device
+- **iOS:** iOS 13+, Xcode 15+, CocoaPods installed
 
 ## Step 1: Installation
 
@@ -33,14 +33,14 @@ Add the following permissions to `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  
+
   <!-- Location permissions -->
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-  
+
   <!-- Background location for Android 10+ -->
   <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-  
+
   <!-- Foreground service permissions -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
@@ -61,6 +61,44 @@ yarn start --reset-cache
 yarn android
 ```
 
+## Step 2b: iOS Configuration
+
+### 2b.1 Update Info.plist
+
+Add the following keys to `ios/<YourApp>/Info.plist`:
+
+```xml
+<!-- Required: WhenInUse permission description -->
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>We need your location to track your trips.</string>
+
+<!-- Required for background tracking: Always permission description -->
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>We need your location in the background to continue tracking your trips.</string>
+```
+
+### 2b.2 Enable Background Modes
+
+In Xcode:
+
+1. Select your app target
+2. Go to **Signing & Capabilities**
+3. Click **+ Capability** and add **Background Modes**
+4. Check **Location updates**
+
+### 2b.3 Privacy Manifest (iOS 17+)
+
+For iOS 17+ App Store submissions, you may need to add a privacy manifest (`PrivacyInfo.xcprivacy`) declaring location usage. See the [App Store Compliance Guide](../production/APP_STORE_COMPLIANCE.md) for details.
+
+### 2b.4 Install Pods and Rebuild
+
+```bash
+cd ios && pod install && cd ..
+yarn example ios
+```
+
+> **iOS:** Unlike Android, iOS does not use a foreground notification for background location. The system shows a blue status bar indicator instead. All notification-related `TrackingOptions` are silently ignored on iOS.
+
 ## Step 3: Request Permissions
 
 > **⚠️ Critical for Android 11+:** Background location must be requested **separately** from foreground permissions. Requesting them together will silently fail on Android 11 and above.
@@ -75,8 +113,15 @@ import { PermissionsAndroid, Platform, Alert, Linking } from 'react-native';
  * Request location permissions with proper Android 11+ sequencing
  */
 export const requestLocationPermissions = async (): Promise<boolean> => {
+  if (Platform.OS === 'ios') {
+    // iOS: Use the library's built-in permission methods
+    // The native layer handles the two-step WhenInUse → Always flow
+    const { requestPermissions } = useLocationPermissions();
+    return requestPermissions();
+  }
+
   if (Platform.OS !== 'android') {
-    return true; // iOS permissions to be implemented
+    return true;
   }
 
   try {
@@ -87,8 +132,10 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
     ]);
 
     const foregroundGranted =
-      foregroundResult['android.permission.ACCESS_FINE_LOCATION'] === 'granted' ||
-      foregroundResult['android.permission.ACCESS_COARSE_LOCATION'] === 'granted';
+      foregroundResult['android.permission.ACCESS_FINE_LOCATION'] ===
+        'granted' ||
+      foregroundResult['android.permission.ACCESS_COARSE_LOCATION'] ===
+        'granted';
 
     if (!foregroundGranted) {
       return false;
@@ -102,8 +149,8 @@ export const requestLocationPermissions = async (): Promise<boolean> => {
         Alert.alert(
           'Background Location Required',
           'To track your location when the app is closed or in the background, ' +
-          'please select "Allow all the time" on the next screen.\n\n' +
-          'This is required for trip tracking to work properly.',
+            'please select "Allow all the time" on the next screen.\n\n' +
+            'This is required for trip tracking to work properly.',
           [
             { text: 'Cancel', onPress: () => resolve(false), style: 'cancel' },
             { text: 'Continue', onPress: () => resolve(true) },
@@ -146,11 +193,12 @@ export const checkLocationPermissions = async (): Promise<{
   const coarse = await PermissionsAndroid.check(
     PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
   );
-  const background = Platform.Version >= 29
-    ? await PermissionsAndroid.check(
-        PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
-      )
-    : true;
+  const background =
+    Platform.Version >= 29
+      ? await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION
+        )
+      : true;
 
   return {
     foreground: fine || coarse,
@@ -172,7 +220,9 @@ export const openAppSettings = () => {
 
 ```typescript
 // services/LocationService.ts
-import BackgroundLocation, { type Coords } from '@gabriel-sisjr/react-native-background-location';
+import BackgroundLocation, {
+  type Coords,
+} from '@gabriel-sisjr/react-native-background-location';
 import { requestLocationPermissions } from '../utils/permissions';
 
 class LocationTrackingService {
@@ -181,7 +231,7 @@ class LocationTrackingService {
   async startTracking(customTripId?: string): Promise<string | null> {
     // Check permissions first
     const hasPermission = await requestLocationPermissions();
-    
+
     if (!hasPermission) {
       throw new Error('Location permissions not granted');
     }
@@ -212,7 +262,7 @@ class LocationTrackingService {
 
   async getLocations(tripId?: string): Promise<Coords[]> {
     const id = tripId || this.currentTripId;
-    
+
     if (!id) {
       throw new Error('No trip ID available');
     }
@@ -222,7 +272,7 @@ class LocationTrackingService {
 
   async clearTrip(tripId?: string): Promise<void> {
     const id = tripId || this.currentTripId;
-    
+
     if (!id) {
       throw new Error('No trip ID available');
     }
@@ -299,12 +349,12 @@ export default function TripScreen() {
     <View style={{ padding: 20 }}>
       <Text>Status: {isTracking ? 'Tracking' : 'Not tracking'}</Text>
       {tripId && <Text>Trip ID: {tripId}</Text>}
-      
+
       <Button
         title={isTracking ? 'End Trip' : 'Start Trip'}
         onPress={isTracking ? handleEndTrip : handleStartTrip}
       />
-      
+
       {isTracking && (
         <Button
           title="View Locations"
@@ -356,7 +406,7 @@ import LocationService from './LocationService';
 export const uploadTripData = async (tripId: string): Promise<void> => {
   try {
     const locations = await LocationService.getLocations(tripId);
-    
+
     const response = await fetch('https://your-api.com/trips', {
       method: 'POST',
       headers: {
@@ -364,7 +414,7 @@ export const uploadTripData = async (tripId: string): Promise<void> => {
       },
       body: JSON.stringify({
         tripId,
-        locations: locations.map(loc => ({
+        locations: locations.map((loc) => ({
           latitude: parseFloat(loc.latitude),
           longitude: parseFloat(loc.longitude),
           timestamp: loc.timestamp,
@@ -462,6 +512,7 @@ yarn android
 ### Module not found
 
 Ensure autolinking is working:
+
 ```bash
 npx react-native config
 ```
@@ -526,12 +577,12 @@ async function showLocationDisclosure(): Promise<boolean> {
     Alert.alert(
       'Location Tracking',
       'This app collects location data to track your trips even when the app is ' +
-      'closed or not in use.\n\n' +
-      'Your location data is used to:\n' +
-      '• Record your travel routes\n' +
-      '• Calculate trip statistics\n' +
-      '• [Add your specific use cases]\n\n' +
-      'You can stop tracking at any time from the app.',
+        'closed or not in use.\n\n' +
+        'Your location data is used to:\n' +
+        '• Record your travel routes\n' +
+        '• Calculate trip statistics\n' +
+        '• [Add your specific use cases]\n\n' +
+        'You can stop tracking at any time from the app.',
       [
         { text: 'Deny', onPress: () => resolve(false), style: 'cancel' },
         { text: 'Accept', onPress: () => resolve(true) },
@@ -555,6 +606,7 @@ const handleStartTracking = async () => {
 ### 8.2 Privacy Policy
 
 Your privacy policy **must** mention:
+
 - That you collect location data
 - Whether it's collected in the background
 - How the data is used
@@ -571,6 +623,7 @@ See [Google Play Compliance Guide](../production/GOOGLE_PLAY_COMPLIANCE.md) for 
 ## Production Checklist
 
 ### Permissions & Compliance
+
 - [ ] Android 11+ two-step permission flow implemented
 - [ ] In-app disclosure shown before permission request
 - [ ] Permission denial handled gracefully
@@ -580,6 +633,7 @@ See [Google Play Compliance Guide](../production/GOOGLE_PLAY_COMPLIANCE.md) for 
 - [ ] Play Console permissions declaration submitted
 
 ### Functionality
+
 - [ ] Crash recovery implemented (`isTracking()` on startup)
 - [ ] Error handling for all tracking operations
 - [ ] Location data uploaded to server
@@ -587,21 +641,27 @@ See [Google Play Compliance Guide](../production/GOOGLE_PLAY_COMPLIANCE.md) for 
 - [ ] Tracking stops when no longer needed
 
 ### User Experience
+
 - [ ] Battery usage disclosed to users
 - [ ] Foreground notification is clear and helpful
 - [ ] Loading states shown during operations
 - [ ] Errors displayed to users with recovery options
 
 ### Testing
-- [ ] Tested on real device (not emulator)
+
+- [ ] Tested on real device (not emulator/simulator)
 - [ ] Tested on Android 10, 11, 12, 13, 14, 15
-- [ ] Tested with battery optimization enabled
-- [ ] Tested app restart during tracking
+- [ ] Tested on iOS 13+ (if targeting iOS)
+- [ ] Tested with battery optimization enabled (Android)
+- [ ] Tested app restart during tracking (both platforms)
 - [ ] Tested app kill (swipe from recents)
 - [ ] Tested device reboot during tracking
 - [ ] Tested poor GPS conditions (indoors)
+- [ ] Tested iOS WhenInUse → Always permission upgrade flow
+- [ ] Tested iOS background tracking with blue bar indicator
 
 ### Performance
+
 - [ ] Long trip memory management implemented
 - [ ] Coordinate parsing for map libraries
 - [ ] Optional properties handled correctly
@@ -609,16 +669,19 @@ See [Google Play Compliance Guide](../production/GOOGLE_PLAY_COMPLIANCE.md) for 
 ## Troubleshooting
 
 ### Background location not working on Android 11+
+
 1. Verify you're requesting permissions in two steps
 2. Check that background permission is granted (not just foreground)
 3. Verify foreground service notification is visible
 
 ### Tracking stops on certain devices
+
 1. Check battery optimization settings
 2. See [Battery Optimization Guide](../production/BATTERY_OPTIMIZATION.md)
 3. Prompt users to whitelist your app
 
 ### Location updates are infrequent
+
 1. Verify `updateInterval` setting
 2. Check if in low-power mode
 3. Ensure GPS has clear sky view
@@ -626,8 +689,8 @@ See [Google Play Compliance Guide](../production/GOOGLE_PLAY_COMPLIANCE.md) for 
 ## Support
 
 For issues or questions:
+
 - [GitHub Issues](https://github.com/gabriel-sisjr/react-native-background-location/issues)
 - [Full Documentation](../../README.md)
 - [API Reference](../../README.md#api-reference)
 - [Hooks Guide](./hooks.md)
-
