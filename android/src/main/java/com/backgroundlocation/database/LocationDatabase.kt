@@ -16,6 +16,7 @@ import androidx.room.RoomDatabase
  *              (notificationSmallIcon, notificationColor, notificationShowTimestamp)
  * - Version 3: Added notificationActions column to tracking_state
  * - Version 4: Added notificationLargeIcon, notificationSubtext, notificationChannelId
+ * - Version 5: Added geofences and geofence_transitions tables for geofencing support
  *
  * IMPORTANT: When changing schema:
  * 1. Increment the version number
@@ -24,14 +25,20 @@ import androidx.room.RoomDatabase
  * 4. Test migration from all previous versions
  */
 @Database(
-  entities = [LocationEntity::class, TrackingStateEntity::class],
-  version = 4,
+  entities = [
+    LocationEntity::class,
+    TrackingStateEntity::class,
+    GeofenceEntity::class,
+    GeofenceTransitionEntity::class
+  ],
+  version = 5,
   exportSchema = true  // Changed to true for migration validation
 )
 abstract class LocationDatabase : RoomDatabase() {
 
   abstract fun locationDao(): LocationDao
   abstract fun trackingStateDao(): TrackingStateDao
+  abstract fun geofenceDao(): GeofenceDao
 
   companion object {
     @Volatile
