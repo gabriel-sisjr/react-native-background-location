@@ -4,12 +4,14 @@
 
 ## Overview
 
-The library includes four main hooks:
+The library includes six hooks:
 
 1. **`useLocationPermissions`** - Manage location permissions
 2. **`useBackgroundLocation`** - Full tracking management with manual refresh
 3. **`useLocationTracking`** - Lightweight status monitoring
 4. **`useLocationUpdates`** - Real-time location watching
+5. **`useGeofencing`** - Geofence CRUD management (add, remove, query)
+6. **`useGeofenceEvents`** - Real-time geofence transition listener
 
 ## useLocationPermissions
 
@@ -825,6 +827,308 @@ function ThrottledSync() {
 
 For more details, see the [Real-Time Updates Guide](REAL_TIME_UPDATES.md).
 
+## useGeofencing
+
+Complete CRUD hook for managing geofence regions. Handles state management, loading indicators, error tracking, and automatic refresh after every mutation.
+
+> **Note:** `useGeofencing` uses the same location permissions as the tracking hooks. Use `useLocationPermissions` (or the aliased `useGeofencePermissions`) to request permissions before registering geofences.
+
+### Basic Usage
+
+```typescript
+import { useGeofencing } from '@gabriel-sisjr/react-native-background-location';
+
+function GeofenceScreen() {
+  const {
+    geofences,
+    isLoading,
+    error,
+    addGeofence,
+    removeGeofence,
+    maxGeofences,
+  } = useGeofencing();
+
+  const handleAdd = async () => {
+    await addGeofence({
+      identifier: 'office',
+      latitude: -23.5505,
+      longitude: -46.6333,
+      radius: 200,
+    });
+  };
+
+  return (
+    <View>
+      <Text>Active: {geofences.length} / {maxGeofences}</Text>
+      <Button title="Add Geofence" onPress={handleAdd} disabled={isLoading} />
+      {error && <Text>Error: {error.message}</Text>}
+    </View>
+  );
+}
+```
+
+### Options
+
+```typescript
+interface UseGeofencingOptions {
+  /** Whether to automatically load geofences on mount (default: true) */
+  autoLoad?: boolean;
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `autoLoad` | `boolean` | `true` | Automatically fetch active geofences and platform limit on mount |
+
+### Return Values
+
+```typescript
+interface UseGeofencingReturn {
+  geofences: GeofenceRegion[];
+  isLoading: boolean;
+  error: Error | null;
+  addGeofence: (region: GeofenceRegion) => Promise<void>;
+  addGeofences: (regions: GeofenceRegion[]) => Promise<void>;
+  removeGeofence: (identifier: string) => Promise<void>;
+  removeGeofences: (identifiers: string[]) => Promise<void>;
+  removeAllGeofences: () => Promise<void>;
+  maxGeofences: number | null;
+  refresh: () => Promise<void>;
+  clearError: () => void;
+}
+```
+
+| Value | Type | Description |
+|-------|------|-------------|
+| `geofences` | `GeofenceRegion[]` | Currently active geofence regions |
+| `isLoading` | `boolean` | Whether an async operation is in progress |
+| `error` | `Error \| null` | Last error that occurred, or `null` |
+| `addGeofence` | `(region) => Promise<void>` | Register a single geofence. Auto-refreshes on success. |
+| `addGeofences` | `(regions) => Promise<void>` | Register multiple geofences atomically. Auto-refreshes on success. |
+| `removeGeofence` | `(id) => Promise<void>` | Remove a geofence by identifier. Auto-refreshes on success. |
+| `removeGeofences` | `(ids) => Promise<void>` | Remove multiple geofences. Auto-refreshes on success. |
+| `removeAllGeofences` | `() => Promise<void>` | Remove all geofences. Auto-refreshes on success. |
+| `maxGeofences` | `number \| null` | Platform geofence limit (Android: 100, iOS: 20), or `null` if not yet loaded |
+| `refresh` | `() => Promise<void>` | Manually reload active geofences and platform limit |
+| `clearError` | `() => void` | Clear the current error state |
+
+### Example: Batch Registration
+
+```typescript
+import {
+  useGeofencing,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function DeliveryZones() {
+  const { geofences, addGeofences, removeAllGeofences } = useGeofencing();
+
+  const registerDeliveryZones = async () => {
+    await addGeofences([
+      {
+        identifier: 'warehouse',
+        latitude: -23.5505,
+        longitude: -46.6333,
+        radius: 300,
+        transitionTypes: [GeofenceTransitionType.ENTER, GeofenceTransitionType.DWELL],
+        loiteringDelay: 60000,
+      },
+      {
+        identifier: 'customer-a',
+        latitude: -23.5612,
+        longitude: -46.6558,
+        radius: 150,
+      },
+    ]);
+  };
+
+  return (
+    <View>
+      <Text>Zones: {geofences.length}</Text>
+      <Button title="Register Zones" onPress={registerDeliveryZones} />
+      <Button title="Clear All" onPress={removeAllGeofences} />
+    </View>
+  );
+}
+```
+
+### Example: Error Handling
+
+```typescript
+import {
+  useGeofencing,
+  GeofenceError,
+  GeofenceErrorCode,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function SafeGeofenceAdd() {
+  const { addGeofence, error, clearError } = useGeofencing();
+
+  const handleAdd = async () => {
+    try {
+      await addGeofence({
+        identifier: 'office',
+        latitude: -23.5505,
+        longitude: -46.6333,
+        radius: 200,
+      });
+    } catch (err) {
+      if (err instanceof GeofenceError) {
+        if (err.code === GeofenceErrorCode.DUPLICATE_IDENTIFIER) {
+          console.warn('Geofence already exists');
+        } else if (err.code === GeofenceErrorCode.LIMIT_EXCEEDED) {
+          Alert.alert('Limit reached', 'Remove some geofences first');
+        }
+      }
+    }
+  };
+
+  return (
+    <View>
+      <Button title="Add Office" onPress={handleAdd} />
+      {error && (
+        <View>
+          <Text>Error: {error.message}</Text>
+          <Button title="Dismiss" onPress={clearError} />
+        </View>
+      )}
+    </View>
+  );
+}
+```
+
+## useGeofenceEvents
+
+Hook for listening to geofence transition events in real-time. Subscribes to native events via `NativeEventEmitter` and applies optional filters before invoking the callback.
+
+This is a side-effect-only hook that returns `void`. Use it alongside `useGeofencing` for a complete geofencing solution.
+
+### Basic Usage
+
+```typescript
+import {
+  useGeofenceEvents,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function TransitionLogger() {
+  useGeofenceEvents({
+    onTransition: (event) => {
+      console.log(`${event.transitionType} at ${event.geofenceId}`);
+    },
+  });
+
+  return <Text>Listening for geofence transitions...</Text>;
+}
+```
+
+### Options
+
+```typescript
+interface UseGeofenceEventsOptions {
+  /** Callback invoked on each matching transition event */
+  onTransition?: (event: GeofenceTransitionEvent) => void;
+  /** Only emit events matching these transition types */
+  filter?: GeofenceTransitionType[];
+  /** Only emit events for this specific geofence identifier */
+  geofenceId?: string;
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `onTransition` | `(event) => void` | `undefined` | Callback invoked on each matching transition |
+| `filter` | `GeofenceTransitionType[]` | `undefined` | If set, only transitions of these types are emitted |
+| `geofenceId` | `string` | `undefined` | If set, only transitions for this geofence are emitted |
+
+### Return Value
+
+`useGeofenceEvents` returns `void`. It is a pure listener hook with no state.
+
+### Example: Filter by Transition Type
+
+```typescript
+import {
+  useGeofenceEvents,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+// Only listen for ENTER events
+useGeofenceEvents({
+  onTransition: (event) => {
+    showNotification(`Entered ${event.geofenceId}`);
+  },
+  filter: [GeofenceTransitionType.ENTER],
+});
+```
+
+### Example: Filter by Geofence ID
+
+```typescript
+import { useGeofenceEvents } from '@gabriel-sisjr/react-native-background-location';
+
+// Only listen to a specific geofence
+useGeofenceEvents({
+  onTransition: (event) => {
+    markAttendance(event.timestamp);
+  },
+  geofenceId: 'office-hq',
+});
+```
+
+### Example: Combined with useGeofencing
+
+```typescript
+import React, { useState } from 'react';
+import { View, Text, FlatList, Button } from 'react-native';
+import {
+  useGeofencing,
+  useGeofenceEvents,
+  GeofenceTransitionType,
+  type GeofenceTransitionEvent,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function GeofenceMonitor() {
+  const [events, setEvents] = useState<GeofenceTransitionEvent[]>([]);
+  const { geofences, addGeofence, removeAllGeofences, maxGeofences } = useGeofencing();
+
+  useGeofenceEvents({
+    onTransition: (event) => {
+      setEvents((prev) => [event, ...prev].slice(0, 50));
+    },
+  });
+
+  return (
+    <View>
+      <Text>Geofences: {geofences.length} / {maxGeofences}</Text>
+      <Text>Events: {events.length}</Text>
+      <FlatList
+        data={events}
+        keyExtractor={(_, i) => i.toString()}
+        renderItem={({ item }) => (
+          <Text>
+            {item.transitionType} {item.geofenceId} at {item.timestamp}
+          </Text>
+        )}
+      />
+    </View>
+  );
+}
+```
+
+### useGeofencing vs useGeofenceEvents
+
+| Feature | useGeofencing | useGeofenceEvents |
+|---------|---------------|-------------------|
+| Purpose | Geofence CRUD operations | Real-time transition listening |
+| State management | Yes (geofences, loading, error) | No (void return) |
+| Add/remove geofences | Yes | No |
+| Receive transition events | No | Yes |
+| Auto-refresh | Yes (after mutations) | N/A |
+| Platform limit query | Yes (`maxGeofences`) | No |
+| Use case | Managing geofence lifecycle | Reacting to enter/exit/dwell events |
+| Combine with | `useGeofenceEvents` for full solution | `useGeofencing` for full solution |
+
 ## Complete Example
 
 Here's a complete example using all hooks together:
@@ -1195,6 +1499,9 @@ import type {
   UseLocationTrackingResult,
   UseLocationUpdatesOptions,
   UseLocationUpdatesResult,
+  UseGeofencingOptions,
+  UseGeofencingReturn,
+  UseGeofenceEventsOptions,
 
   // Data types
   PermissionState,
@@ -1205,6 +1512,10 @@ import type {
   LocationWarningType,
   NotificationAction,
   NotificationActionEvent,
+
+  // Geofencing data types
+  GeofenceRegion,
+  GeofenceTransitionEvent,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import {
@@ -1212,12 +1523,17 @@ import {
   LocationPermissionStatus,
   LocationAccuracy,
   NotificationPriority,
+
+  // Geofencing enums
+  GeofenceTransitionType,
+  GeofenceErrorCode,
 } from '@gabriel-sisjr/react-native-background-location';
 ```
 
 ## See Also
 
 - [Quick Start Guide](QUICKSTART.md)
+- [Geofencing Guide](geofencing.md)
 - [Real-Time Updates Guide](REAL_TIME_UPDATES.md)
 - [Integration Guide](INTEGRATION_GUIDE.md)
 - [API Reference](../../README.md#api-reference)
