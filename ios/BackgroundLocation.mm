@@ -37,6 +37,9 @@
   if (isActive) {
     [self registerLifecycleObservers];
   }
+
+  // Restore geofences after crash/restart
+  [[GeofenceManager shared] restoreGeofences];
 }
 
 - (void)dealloc
@@ -223,6 +226,10 @@
   [LocationManagerWrapper shared].onLocationWarning = ^(NSDictionary *eventData) {
     [weakSelf emitEventWithName:@"onLocationWarning" body:eventData];
   };
+
+  [GeofenceEventBroadcaster shared].onGeofenceTransition = ^(NSDictionary *eventData) {
+    [weakSelf emitEventWithName:@"onGeofenceTransition" body:eventData];
+  };
 }
 
 - (void)startTracking:(NSString *)tripId
@@ -364,6 +371,83 @@
   } @catch (NSException *exception) {
     reject(@"REQUEST_PERMISSION_ERROR", [NSString stringWithFormat:@"Failed to request permission: %@", exception.reason], nil);
   }
+}
+
+// MARK: - Geofencing Methods
+
+- (void)addGeofence:(NSString *)regionJson
+            resolve:(RCTPromiseResolveBlock)resolve
+             reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] addGeofenceWithRegionJson:regionJson
+                                              resolve:^(id result) { resolve(result); }
+                                               reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)addGeofences:(NSString *)regionsJson
+             resolve:(RCTPromiseResolveBlock)resolve
+              reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] addGeofencesWithRegionsJson:regionsJson
+                                                resolve:^(id result) { resolve(result); }
+                                                 reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)removeGeofence:(NSString *)identifier
+               resolve:(RCTPromiseResolveBlock)resolve
+                reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] removeGeofenceWithIdentifier:identifier
+                                                 resolve:^(id result) { resolve(result); }
+                                                  reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)removeGeofences:(NSString *)identifiersJson
+                resolve:(RCTPromiseResolveBlock)resolve
+                 reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] removeGeofencesWithIdentifiersJson:identifiersJson
+                                                       resolve:^(id result) { resolve(result); }
+                                                        reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)removeAllGeofences:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] removeAllGeofencesWithResolve:^(id result) { resolve(result); }
+                                                   reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)getActiveGeofences:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] getActiveGeofencesWithResolve:^(id result) { resolve(result); }
+                                                   reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)getMaxGeofences:(RCTPromiseResolveBlock)resolve
+                 reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] getMaxGeofencesWithResolve:^(id result) { resolve(result); }
+                                                reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)getGeofenceTransitions:(NSString *)identifier
+                       resolve:(RCTPromiseResolveBlock)resolve
+                        reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] getGeofenceTransitionsWithIdentifier:identifier
+                                                         resolve:^(id result) { resolve(result); }
+                                                          reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)clearGeofenceTransitions:(NSString *)identifier
+                         resolve:(RCTPromiseResolveBlock)resolve
+                          reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] clearGeofenceTransitionsWithIdentifier:identifier
+                                                           resolve:^(id result) { resolve(result); }
+                                                            reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:

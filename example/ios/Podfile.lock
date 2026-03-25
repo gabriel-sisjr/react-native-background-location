@@ -1,5 +1,5 @@
 PODS:
-  - BackgroundLocation (0.9.0):
+  - BackgroundLocation (0.10.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2522,7 +2522,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  BackgroundLocation: f45f6c157e188bb6318749e3bd3466c29f786575
+  BackgroundLocation: b9670d81780879a37f2e34124da61e4bec9ce090
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
