@@ -24,24 +24,31 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   NativeBackgroundLocationSpec(reactContext), LifecycleEventListener {
 
   private val storage: LocationStorage = LocationStorage(reactContext)
+  private val geofenceManager: GeofenceManager = GeofenceManager(reactContext)
   private var broadcastReceiver: BroadcastReceiver? = null
+  private var geofenceBroadcastReceiver: BroadcastReceiver? = null
 
   // Coroutine scope for async operations
   private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
   init {
     reactContext.addLifecycleEventListener(this)
+    // Register the GeofenceManager in the holder for access from BroadcastReceivers
+    GeofenceManagerHolder.setInstance(geofenceManager)
   }
 
   override fun initialize() {
     super.initialize()
     registerBroadcastReceiver()
+    registerGeofenceBroadcastReceiver()
   }
 
   override fun invalidate() {
     super.invalidate()
     unregisterBroadcastReceiver()
+    unregisterGeofenceBroadcastReceiver()
     storage.cleanup()
+    geofenceManager.cleanup()
     moduleScope.cancel()
     reactApplicationContext.removeLifecycleEventListener(this)
   }
@@ -49,6 +56,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   // LifecycleEventListener implementation
   override fun onHostResume() {
     registerBroadcastReceiver()
+    registerGeofenceBroadcastReceiver()
 
     // Only schedule recovery if tracking is actually active
     // This prevents RecoveryWorker from starting SystemForegroundService when no tracking is active
@@ -92,6 +100,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   override fun onHostDestroy() {
     unregisterBroadcastReceiver()
+    unregisterGeofenceBroadcastReceiver()
   }
 
   private fun registerBroadcastReceiver() {
@@ -126,6 +135,42 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     broadcastReceiver?.let {
       LocalBroadcastManager.getInstance(reactApplicationContext).unregisterReceiver(it)
       broadcastReceiver = null
+    }
+  }
+
+  private fun registerGeofenceBroadcastReceiver() {
+    if (geofenceBroadcastReceiver != null) return
+
+    geofenceBroadcastReceiver = object : BroadcastReceiver() {
+      override fun onReceive(context: Context?, intent: Intent?) {
+        intent ?: return
+        if (intent.action == GeofenceEventBroadcaster.ACTION_GEOFENCE_TRANSITION) {
+          handleGeofenceTransition(intent)
+        }
+      }
+    }
+
+    LocalBroadcastManager.getInstance(reactApplicationContext)
+      .registerReceiver(geofenceBroadcastReceiver!!, GeofenceEventBroadcaster.createIntentFilter())
+  }
+
+  private fun unregisterGeofenceBroadcastReceiver() {
+    geofenceBroadcastReceiver?.let {
+      LocalBroadcastManager.getInstance(reactApplicationContext).unregisterReceiver(it)
+      geofenceBroadcastReceiver = null
+    }
+  }
+
+  private fun handleGeofenceTransition(intent: Intent) {
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val eventData = GeofenceEventBroadcaster.intentToWritableMap(intent)
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onGeofenceTransition", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit geofence transition", e)
     }
   }
 
@@ -581,6 +626,104 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       ) == PackageManager.PERMISSION_GRANTED
     } else {
       true // Not required before Android 13
+    }
+  }
+
+  // --- Geofencing Methods ---
+
+  override fun addGeofence(regionJson: String, promise: Promise) {
+    moduleScope.launch {
+      try {
+        geofenceManager.addGeofence(regionJson)
+        promise.resolve(null)
+      } catch (e: GeofenceManager.GeofenceException) {
+        promise.reject(e.code, e.message, e)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to add geofence: ${e.message}", e)
+      }
+    }
+  }
+
+  override fun addGeofences(regionsJson: String, promise: Promise) {
+    moduleScope.launch {
+      try {
+        geofenceManager.addGeofences(regionsJson)
+        promise.resolve(null)
+      } catch (e: GeofenceManager.GeofenceException) {
+        promise.reject(e.code, e.message, e)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to add geofences: ${e.message}", e)
+      }
+    }
+  }
+
+  override fun removeGeofence(identifier: String, promise: Promise) {
+    moduleScope.launch {
+      try {
+        geofenceManager.removeGeofence(identifier)
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to remove geofence: ${e.message}", e)
+      }
+    }
+  }
+
+  override fun removeGeofences(identifiersJson: String, promise: Promise) {
+    moduleScope.launch {
+      try {
+        geofenceManager.removeGeofences(identifiersJson)
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to remove geofences: ${e.message}", e)
+      }
+    }
+  }
+
+  override fun removeAllGeofences(promise: Promise) {
+    moduleScope.launch {
+      try {
+        geofenceManager.removeAllGeofences()
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to remove all geofences: ${e.message}", e)
+      }
+    }
+  }
+
+  override fun getActiveGeofences(promise: Promise) {
+    moduleScope.launch {
+      try {
+        val result = geofenceManager.getActiveGeofences()
+        promise.resolve(result)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to get active geofences: ${e.message}", e)
+      }
+    }
+  }
+
+  override fun getMaxGeofences(promise: Promise) {
+    promise.resolve(geofenceManager.getMaxGeofences().toDouble())
+  }
+
+  override fun getGeofenceTransitions(identifier: String?, promise: Promise) {
+    moduleScope.launch {
+      try {
+        val result = geofenceManager.getGeofenceTransitions(identifier)
+        promise.resolve(result)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to get geofence transitions: ${e.message}", e)
+      }
+    }
+  }
+
+  override fun clearGeofenceTransitions(identifier: String?, promise: Promise) {
+    moduleScope.launch {
+      try {
+        geofenceManager.clearGeofenceTransitions(identifier)
+        promise.resolve(null)
+      } catch (e: Exception) {
+        promise.reject("MONITORING_FAILED", "Failed to clear geofence transitions: ${e.message}", e)
+      }
     }
   }
 
