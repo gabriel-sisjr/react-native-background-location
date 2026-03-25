@@ -34,3 +34,8 @@ export type {
   UseLocationUpdatesOptions,
   UseLocationUpdatesResult,
 } from './hooks';
+
+// Geofencing types
+export { GeofenceTransitionType, GeofenceErrorCode } from './geofencing';
+
+export type { GeofenceRegion, GeofenceTransitionEvent } from './geofencing';
