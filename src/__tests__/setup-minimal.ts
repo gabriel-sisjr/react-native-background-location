@@ -79,6 +79,13 @@ jest.mock('react-native', () => ({
   }
 };
 
+(global as any).simulateGeofenceTransitionEvent = (data: any) => {
+  const callback = mockEventCallbacks.onGeofenceTransition;
+  if (callback) {
+    callback(data);
+  }
+};
+
 // Store module availability state globally
 (global as any).__mockIsModuleAvailable = true;
 
@@ -119,6 +126,15 @@ jest.mock('../NativeBackgroundLocation', () => {
     requestLocationPermission: jest.fn(() => {
       return Promise.resolve({ status: 'granted', canRequestAgain: false });
     }),
+    addGeofence: jest.fn().mockResolvedValue(undefined),
+    addGeofences: jest.fn().mockResolvedValue(undefined),
+    removeGeofence: jest.fn().mockResolvedValue(undefined),
+    removeGeofences: jest.fn().mockResolvedValue(undefined),
+    removeAllGeofences: jest.fn().mockResolvedValue(undefined),
+    getActiveGeofences: jest.fn().mockResolvedValue(JSON.stringify([])),
+    getMaxGeofences: jest.fn().mockResolvedValue(100),
+    getGeofenceTransitions: jest.fn().mockResolvedValue(JSON.stringify([])),
+    clearGeofenceTransitions: jest.fn().mockResolvedValue(undefined),
   };
 
   return {
