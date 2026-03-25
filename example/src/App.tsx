@@ -24,6 +24,7 @@ import BackgroundLocation, {
 
 import styles from './styles';
 import { RouteMap } from './components';
+import { GeofencingScreen } from './screens/GeofencingScreen';
 import type { Coords } from '@gabriel-sisjr/react-native-background-location';
 
 /**
@@ -75,6 +76,9 @@ function formatLocationProperties(location: Coords) {
 }
 
 export default function App() {
+  const [currentScreen, setCurrentScreen] = React.useState<
+    'tracking' | 'geofencing'
+  >('tracking');
   const [useAutoUpdates, setUseAutoUpdates] = React.useState(true);
   const [showConfig, setShowConfig] = React.useState(false);
   const [showMap, setShowMap] = React.useState(false);
@@ -241,7 +245,7 @@ export default function App() {
   // Handle permission-blocked state
   if (permissionStatus.status === LocationPermissionStatus.BLOCKED) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.centeredContainer}>
         <View style={styles.content}>
           <Text style={styles.title}>Permissions Blocked</Text>
           <Text style={styles.description}>
@@ -261,7 +265,7 @@ export default function App() {
   // Handle permission request
   if (!permissionStatus.hasPermission) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.centeredContainer}>
         <View style={styles.content}>
           <Text style={styles.title}>Location Permissions Required</Text>
           <Text style={styles.description}>
@@ -304,9 +308,52 @@ export default function App() {
     );
   };
 
+  // Tab buttons (shared across screens)
+  const tabBar = (
+    <View style={styles.tabContainer}>
+      <TouchableOpacity
+        style={[styles.tab, currentScreen === 'tracking' && styles.activeTab]}
+        onPress={() => setCurrentScreen('tracking')}
+      >
+        <Text
+          style={[
+            styles.tabText,
+            currentScreen === 'tracking' && styles.activeTabText,
+          ]}
+        >
+          Location Tracking
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.tab, currentScreen === 'geofencing' && styles.activeTab]}
+        onPress={() => setCurrentScreen('geofencing')}
+      >
+        <Text
+          style={[
+            styles.tabText,
+            currentScreen === 'geofencing' && styles.activeTabText,
+          ]}
+        >
+          Geofencing
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Geofencing screen
+  if (currentScreen === 'geofencing') {
+    return (
+      <View style={styles.container}>
+        {tabBar}
+        <GeofencingScreen />
+      </View>
+    );
+  }
+
   // Main tracking UI
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      {tabBar}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -674,6 +721,6 @@ export default function App() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
