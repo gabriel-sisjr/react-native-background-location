@@ -309,6 +309,49 @@ await clearGeofenceTransitions('office');
 await clearGeofenceTransitions();
 ```
 
+### `configureGeofenceNotifications(options)`
+
+Configures global notification options for geofence transition notifications on both platforms. Configuration persists across app restarts (SharedPreferences on Android, UserDefaults on iOS). Applies to all future transitions; already-fired transitions are unaffected.
+
+In `__DEV__` mode, validates template variables in `title` and `text` fields and warns on unknown variables with "did you mean?" suggestions.
+
+**Parameters:**
+
+| Name      | Type                  | Description                                    |
+| --------- | --------------------- | ---------------------------------------------- |
+| `options` | `NotificationOptions` | Notification configuration. All fields optional. |
+
+**Returns:** `Promise<void>`
+
+```typescript
+import {
+  configureGeofenceNotifications,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await configureGeofenceNotifications({
+  enabled: true,
+  title: '{{transitionType}} -- {{identifier}}',
+  text: 'Geofence transition at {{latitude}}, {{longitude}}',
+  channelName: 'Geofence Alerts',
+});
+```
+
+### `getGeofenceNotificationConfig()`
+
+Retrieves the current geofence notification configuration from the native layer. Returns an empty object if no configuration has been set.
+
+**Returns:** `Promise<NotificationOptions>`
+
+```typescript
+import {
+  getGeofenceNotificationConfig,
+} from '@gabriel-sisjr/react-native-background-location';
+
+const config = await getGeofenceNotificationConfig();
+console.log('Current config:', config);
+// {} if not configured
+```
+
 ## Hooks
 
 ### useGeofencing
@@ -321,12 +364,25 @@ A complete CRUD hook for managing geofence regions. Handles state management, lo
 interface UseGeofencingOptions {
   /** Whether to automatically load geofences on mount (default: true) */
   autoLoad?: boolean;
+  /**
+   * Global notification configuration for geofence transitions.
+   * When provided, calls configureGeofenceNotifications() on mount.
+   * Changes to this object trigger reconfiguration.
+   *
+   * @since 0.11.0
+   */
+  notificationOptions?: NotificationOptions;
 }
 ```
 
-| Option     | Type      | Default | Description                                                      |
-| ---------- | --------- | ------- | ---------------------------------------------------------------- |
-| `autoLoad` | `boolean` | `true`  | Automatically fetch active geofences and platform limit on mount |
+| Option                | Type                  | Default     | Description                                                      |
+| --------------------- | --------------------- | ----------- | ---------------------------------------------------------------- |
+| `autoLoad`            | `boolean`             | `true`      | Automatically fetch active geofences and platform limit on mount |
+| `notificationOptions` | `NotificationOptions` | `undefined` | Global notification config for geofence transitions. Applied on mount; reconfigured when content changes. |
+
+> **Deep comparison:** The hook serializes `notificationOptions` to JSON for dependency tracking. If you pass a new object reference with the same content, no native reconfiguration occurs. Only actual content changes trigger a call to `configureGeofenceNotifications()`.
+
+> **Overrides imperative config:** When `notificationOptions` is provided to the hook, it calls `configureGeofenceNotifications()` on mount and on every content change. This overrides any previous imperative call you may have made. Use either the hook option or the imperative API, not both simultaneously.
 
 #### Return Values
 
@@ -546,6 +602,329 @@ useGeofenceEvents({
 });
 ```
 
+## Notification Customization
+
+By default, geofence transitions produce notifications on both platforms with sensible defaults. You can customize the notification content, appearance, and behavior using `configureGeofenceNotifications()` or the `notificationOptions` hook option.
+
+### Quick Start
+
+```typescript
+import {
+  configureGeofenceNotifications,
+} from '@gabriel-sisjr/react-native-background-location';
+
+// Configure notifications globally (call once, e.g., at app startup)
+await configureGeofenceNotifications({
+  title: '{{transitionType}} -- {{identifier}}',
+  text: 'Geofence transition at {{latitude}}, {{longitude}}',
+  channelName: 'Geofence Alerts',
+});
+```
+
+Configuration persists across app restarts (SharedPreferences on Android, UserDefaults on iOS). You only need to call this once unless you want to change the configuration later.
+
+### Template Variables
+
+The `title` and `text` fields support template variables that are resolved at notification time on the native side. Wrap variable names in double curly braces.
+
+| Variable             | Example Output          | Description                                                        |
+| -------------------- | ----------------------- | ------------------------------------------------------------------ |
+| `{{identifier}}`     | `warehouse-north`       | The geofence identifier provided during registration               |
+| `{{transitionType}}` | `ENTER`                 | Transition type: `ENTER`, `EXIT`, or `DWELL`                       |
+| `{{latitude}}`       | `-23.5505`              | Device latitude at the moment of transition                        |
+| `{{longitude}}`      | `-46.6333`              | Device longitude at the moment of transition                       |
+| `{{radius}}`         | `200`                   | Radius of the geofence in meters                                   |
+| `{{timestamp}}`      | `2026-03-25T14:30:00Z`  | ISO 8601 timestamp of the transition                               |
+| `{{metadata.KEY}}`   | *(value of KEY)*        | Access a specific key from the geofence's `metadata` object        |
+
+**Metadata variables:** Use `{{metadata.KEY}}` to access values from the geofence's `metadata` object. For example, if a geofence was registered with `metadata: { zone: 'loading-dock' }`, then `{{metadata.zone}}` resolves to `loading-dock`. If the key does not exist, the placeholder is replaced with an empty string.
+
+**Dev-mode validation:** In `__DEV__` mode, the library warns on unknown template variables with "did you mean?" suggestions. For example, using `{{indentifier}}` (typo) produces a console warning suggesting `{{identifier}}`.
+
+**Autocomplete helper:** Use the `GEOFENCE_TEMPLATE_VARS` constant for IDE autocomplete support:
+
+```typescript
+import { GEOFENCE_TEMPLATE_VARS } from '@gabriel-sisjr/react-native-background-location';
+
+console.log(GEOFENCE_TEMPLATE_VARS.IDENTIFIER);       // '{{identifier}}'
+console.log(GEOFENCE_TEMPLATE_VARS.TRANSITION_TYPE);   // '{{transitionType}}'
+```
+
+### Disabling Notifications
+
+To suppress geofence transition notifications entirely, set `enabled: false`:
+
+```typescript
+import {
+  configureGeofenceNotifications,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await configureGeofenceNotifications({
+  enabled: false,
+});
+```
+
+### Hook Integration
+
+You can configure notifications declaratively through the `useGeofencing` hook instead of calling the imperative API:
+
+```typescript
+import React from 'react';
+import { View, Text, Button } from 'react-native';
+import { useGeofencing } from '@gabriel-sisjr/react-native-background-location';
+
+function GeofenceScreen() {
+  const { geofences, addGeofence, maxGeofences } = useGeofencing({
+    notificationOptions: {
+      title: '{{transitionType}} -- {{identifier}}',
+      text: 'Transition detected at {{latitude}}, {{longitude}}',
+    },
+  });
+
+  const handleAdd = async () => {
+    await addGeofence({
+      identifier: 'office',
+      latitude: -23.5505,
+      longitude: -46.6333,
+      radius: 200,
+    });
+  };
+
+  return (
+    <View>
+      <Text>Active: {geofences.length} / {maxGeofences}</Text>
+      <Button title="Add Office Geofence" onPress={handleAdd} />
+    </View>
+  );
+}
+```
+
+The hook calls `configureGeofenceNotifications()` on mount and reconfigures whenever the content of `notificationOptions` changes. See the [useGeofencing Options](#options) section for details on deep comparison and override behavior.
+
+### Retrieving Current Configuration
+
+To check the current notification configuration at runtime:
+
+```typescript
+import {
+  getGeofenceNotificationConfig,
+} from '@gabriel-sisjr/react-native-background-location';
+
+const config = await getGeofenceNotificationConfig();
+console.log('Current config:', config);
+// Returns {} if no configuration has been set
+```
+
+### Platform Notes
+
+#### iOS: Notification Permissions
+
+iOS requires explicit notification permission before displaying alerts. The library uses `UNUserNotificationCenter` for geofence transition notifications, but it does **not** request notification permissions automatically.
+
+Your app must call `UNUserNotificationCenter.requestAuthorization` (typically via a library like `react-native-permissions` or your own native module) before geofence notifications will appear on iOS. Without this authorization, transition events are still detected and delivered to your JS callbacks, but no visual notification is shown.
+
+```typescript
+// Example using react-native-permissions
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+
+const result = await request(PERMISSIONS.IOS.NOTIFICATIONS);
+if (result === RESULTS.GRANTED) {
+  console.log('Notifications authorized');
+}
+```
+
+#### iOS: Foreground Display
+
+By default, iOS does not display notification banners when the app is in the foreground. If you need geofence notifications to appear while the app is open, your `AppDelegate` must conform to `UNUserNotificationCenterDelegate` and implement `userNotificationCenter:willPresent:withCompletionHandler:` to allow foreground presentation.
+
+#### Android: Notification Channel Immutability
+
+On Android 8.0 (API 26) and above, notification channels are immutable after creation. If you change the `channelId` or `channelName` after the channel has already been created on a device, the changes will not take effect for the existing channel. To apply channel changes, either use a new `channelId` or instruct users to clear the app's notification settings.
+
+### Migration Note
+
+**Before v0.11.0 (Android only):** Geofence notifications used hardcoded English text (e.g., "Entered geofence" / "Geofence: {id}"). iOS did not show geofence transition notifications at all.
+
+**From v0.11.0:** Both platforms use template-based defaults. The default notification title is `{{transitionType}} zone: {{identifier}}` and the default text is `Transition detected`. If your app relied on the previous hardcoded text, call `configureGeofenceNotifications()` with your preferred strings at app startup.
+
+### Per-Geofence Notification Overrides
+
+> **Since 0.12.0**
+
+Individual geofences can override the global notification configuration by providing a `notificationOptions` field on the `GeofenceRegion` object. This allows different geofences to produce different notification content, or to suppress notifications entirely for specific geofences.
+
+#### Custom Notification for a Specific Geofence
+
+Pass a `NotificationOptions` object to override the global configuration for that geofence. Any fields you omit fall through to the global configuration.
+
+```typescript
+import { addGeofence } from '@gabriel-sisjr/react-native-background-location';
+
+await addGeofence({
+  identifier: 'headquarters',
+  latitude: 40.7128,
+  longitude: -74.006,
+  radius: 500,
+  notificationOptions: {
+    title: 'Welcome to HQ!',
+    text: 'You arrived at {{identifier}}',
+  },
+});
+```
+
+In the example above, `title` and `text` are overridden for this geofence, while all other notification fields (channel, priority, icons, etc.) inherit from the global configuration.
+
+#### Suppressing Notifications for a Specific Geofence
+
+Set `notificationOptions` to `false` as shorthand for `{ enabled: false }`. The geofence still fires transition events to your JS callbacks, but no visual notification is shown.
+
+```typescript
+import { addGeofence } from '@gabriel-sisjr/react-native-background-location';
+
+// Silent geofence -- no notification, but transition events still fire
+await addGeofence({
+  identifier: 'silent-tracking-zone',
+  latitude: -23.5505,
+  longitude: -46.6333,
+  radius: 300,
+  notificationOptions: false,
+});
+```
+
+#### Per-Transition-Type Overrides
+
+Use the `transitionOverrides` field within `notificationOptions` to customize notification content for specific transition types (ENTER, EXIT, DWELL). Fields specified in a transition override take precedence over the parent `notificationOptions` for that transition type only. Unspecified fields fall through to the parent.
+
+```typescript
+import {
+  addGeofence,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await addGeofence({
+  identifier: 'warehouse-main',
+  latitude: -23.5612,
+  longitude: -46.6558,
+  radius: 250,
+  transitionTypes: [
+    GeofenceTransitionType.ENTER,
+    GeofenceTransitionType.EXIT,
+    GeofenceTransitionType.DWELL,
+  ],
+  loiteringDelay: 120000,
+  notificationOptions: {
+    title: 'Warehouse Zone',
+    text: 'Transition at {{identifier}}',
+    transitionOverrides: {
+      ENTER: {
+        title: 'Arrived at Warehouse',
+        text: 'Driver entered {{identifier}} at {{timestamp}}',
+      },
+      EXIT: {
+        title: 'Left Warehouse',
+        text: 'Driver exited {{identifier}}',
+      },
+      DWELL: {
+        title: 'Dwelling at Warehouse',
+        text: 'Driver has been at {{identifier}} for the configured duration',
+      },
+    },
+  },
+});
+```
+
+`transitionOverrides` can also be used in the global configuration via `configureGeofenceNotifications()`:
+
+```typescript
+import {
+  configureGeofenceNotifications,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await configureGeofenceNotifications({
+  title: 'Geofence Alert',
+  text: 'Transition detected',
+  transitionOverrides: {
+    ENTER: { title: 'Entered Zone', text: 'You entered {{identifier}}' },
+    EXIT: { title: 'Left Zone', text: 'You left {{identifier}}' },
+  },
+});
+```
+
+#### Resolution Chain
+
+When a geofence transition fires, the library resolves notification content using the following precedence order (highest to lowest priority):
+
+1. **Per-geofence `transitionOverrides[transitionType]`** -- The transition-specific override on the geofence's own `notificationOptions`, if defined for the current transition type
+2. **Per-geofence `notificationOptions`** -- The geofence's own notification options (excluding `transitionOverrides`)
+3. **Global `transitionOverrides[transitionType]`** -- The transition-specific override on the global config set via `configureGeofenceNotifications()`
+4. **Global config** -- The base global configuration from `configureGeofenceNotifications()`
+5. **Built-in defaults** -- The library's default title (`{{transitionType}} zone: {{identifier}}`) and text (`Transition detected`)
+
+Each field is resolved independently. For example, a geofence could inherit the global `title` but override only the `text` field.
+
+#### Mixed Batch Example
+
+When registering multiple geofences at once, each geofence can have its own notification configuration. Geofences without `notificationOptions` use the global configuration.
+
+```typescript
+import {
+  addGeofences,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await addGeofences([
+  // Uses global notification config (no override)
+  {
+    identifier: 'zone-a',
+    latitude: -23.5505,
+    longitude: -46.6333,
+    radius: 200,
+  },
+  // Custom notification for this geofence
+  {
+    identifier: 'zone-b',
+    latitude: -23.5612,
+    longitude: -46.6558,
+    radius: 150,
+    notificationOptions: {
+      title: 'Priority Zone',
+      text: 'Activity detected at {{identifier}}',
+    },
+  },
+  // Notifications suppressed for this geofence
+  {
+    identifier: 'zone-c',
+    latitude: -23.5433,
+    longitude: -46.6291,
+    radius: 500,
+    notificationOptions: false,
+  },
+  // Per-transition overrides for this geofence
+  {
+    identifier: 'zone-d',
+    latitude: -23.5701,
+    longitude: -46.6481,
+    radius: 300,
+    transitionTypes: [
+      GeofenceTransitionType.ENTER,
+      GeofenceTransitionType.EXIT,
+    ],
+    notificationOptions: {
+      transitionOverrides: {
+        ENTER: {
+          title: 'Welcome',
+          text: 'Entered {{identifier}}',
+        },
+        EXIT: {
+          title: 'Goodbye',
+          text: 'Left {{identifier}}',
+        },
+      },
+    },
+  },
+]);
+```
+
 ## GeofenceRegion Reference
 
 The `GeofenceRegion` interface defines a circular geofence region.
@@ -560,6 +939,7 @@ The `GeofenceRegion` interface defines a circular geofence region.
 | `loiteringDelay`     | `number`                   | No       | `30000`         | Non-negative (milliseconds)                   | How long the device must remain inside the geofence before a DWELL event fires                                          |
 | `expirationDuration` | `number`                   | No       | Indefinite      | Positive (milliseconds)                       | If set, the geofence automatically expires after this duration. If omitted, it remains active until explicitly removed. |
 | `metadata`           | `Record<string, unknown>`  | No       | `undefined`     | Must be JSON-serializable                     | Arbitrary data attached to the geofence. Returned in transition events.                                                 |
+| `notificationOptions` | `NotificationOptions \| false` | No | `undefined`   | --                                            | Per-geofence notification override. Set to a `NotificationOptions` object to customize, `false` to suppress, or omit to use global config. See [Per-Geofence Notification Overrides](#per-geofence-notification-overrides). |
 
 ## GeofenceTransitionEvent Reference
 

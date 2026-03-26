@@ -873,12 +873,25 @@ function GeofenceScreen() {
 interface UseGeofencingOptions {
   /** Whether to automatically load geofences on mount (default: true) */
   autoLoad?: boolean;
+  /**
+   * Global notification configuration for geofence transitions.
+   * When provided, calls configureGeofenceNotifications() on mount.
+   * Changes to this object trigger reconfiguration.
+   *
+   * @since 0.11.0
+   */
+  notificationOptions?: NotificationOptions;
 }
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `autoLoad` | `boolean` | `true` | Automatically fetch active geofences and platform limit on mount |
+| `notificationOptions` | `NotificationOptions` | `undefined` | Global notification config for geofence transitions. Applied on mount; reconfigured when content changes. |
+
+> **Deep comparison:** The hook serializes `notificationOptions` to JSON for dependency tracking. If you pass a new object reference with the same content, no native reconfiguration occurs. Only actual content changes trigger a call to `configureGeofenceNotifications()`.
+
+> **Overrides imperative config:** When `notificationOptions` is provided to the hook, it calls `configureGeofenceNotifications()` on mount and on every content change. This overrides any previous imperative call you may have made. Use either the hook option or the imperative API, not both simultaneously.
 
 ### Return Values
 
