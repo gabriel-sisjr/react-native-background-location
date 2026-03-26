@@ -1,5 +1,6 @@
 package com.backgroundlocation.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -16,5 +17,6 @@ data class GeofenceEntity(
     val loiteringDelay: Int,        // Milliseconds
     val expirationDuration: Long?,  // Milliseconds, null = indefinite
     val metadata: String?,          // JSON nullable
-    val createdAt: Long             // Timestamp
+    val createdAt: Long,            // Timestamp
+    @ColumnInfo(name = "notificationConfig") val notificationConfig: String? = null
 )

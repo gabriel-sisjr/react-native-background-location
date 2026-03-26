@@ -121,6 +121,7 @@ class GeofenceManager(private val context: Context) {
         val loiteringDelay = if (json.has("loiteringDelay")) json.getInt("loiteringDelay") else 30000
         val expirationDuration = if (json.has("expirationDuration")) json.getLong("expirationDuration") else null
         val metadata = if (json.has("metadata")) json.getJSONObject("metadata").toString() else null
+        val notificationConfig = json.optJSONObject("notificationOptions")?.toString()
 
         return GeofenceRegionData(
             identifier = identifier,
@@ -130,7 +131,8 @@ class GeofenceManager(private val context: Context) {
             transitionTypes = transitionTypes,
             loiteringDelay = loiteringDelay,
             expirationDuration = expirationDuration,
-            metadata = metadata
+            metadata = metadata,
+            notificationConfig = notificationConfig
         )
     }
 
@@ -431,7 +433,13 @@ class GeofenceManager(private val context: Context) {
                 GeofenceNotificationHelper.showTransitionNotification(
                     context = context,
                     geofenceId = geofenceId,
-                    transitionType = transitionString
+                    transitionType = transitionString,
+                    latitude = lat,
+                    longitude = lng,
+                    radius = geofence.radius.toDouble(),
+                    timestamp = isoFormatter.format(java.util.Date(timestamp)),
+                    metadata = geofence.metadata,
+                    perGeofenceConfigJson = geofence.notificationConfig
                 )
 
                 Log.d(TAG, "Transition handled: $transitionString for $geofenceId")
@@ -462,7 +470,8 @@ class GeofenceManager(private val context: Context) {
                     transitionTypes = entity.transitionTypes,
                     loiteringDelay = entity.loiteringDelay,
                     expirationDuration = entity.expirationDuration,
-                    metadata = entity.metadata
+                    metadata = entity.metadata,
+                    notificationConfig = entity.notificationConfig
                 )
             }
 
@@ -579,6 +588,11 @@ class GeofenceManager(private val context: Context) {
                     put("metadata", JSONObject(it))
                 } catch (_: Exception) { }
             }
+            entity.notificationConfig?.let {
+                try {
+                    put("notificationOptions", JSONObject(it))
+                } catch (_: Exception) { }
+            }
         }
     }
 
@@ -613,7 +627,8 @@ class GeofenceManager(private val context: Context) {
         val transitionTypes: Int,
         val loiteringDelay: Int,
         val expirationDuration: Long?,
-        val metadata: String?
+        val metadata: String?,
+        val notificationConfig: String? = null
     ) {
         fun toEntity(): GeofenceEntity {
             return GeofenceEntity(
@@ -625,7 +640,8 @@ class GeofenceManager(private val context: Context) {
                 loiteringDelay = loiteringDelay,
                 expirationDuration = expirationDuration,
                 metadata = metadata,
-                createdAt = System.currentTimeMillis()
+                createdAt = System.currentTimeMillis(),
+                notificationConfig = notificationConfig
             )
         }
     }

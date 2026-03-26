@@ -727,6 +727,27 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  // --- Geofence Notification Configuration ---
+
+  override fun configureGeofenceNotifications(configJson: String, promise: Promise) {
+    try {
+      val config = GeofenceNotificationConfig.fromJsonString(configJson)
+      GeofenceNotificationConfigStore.save(reactApplicationContext, config)
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("CONFIG_ERROR", "Failed to configure geofence notifications: ${e.message}", e)
+    }
+  }
+
+  override fun getGeofenceNotificationConfig(promise: Promise) {
+    try {
+      val config = GeofenceNotificationConfigStore.load(reactApplicationContext)
+      promise.resolve(config.toJsonString())
+    } catch (e: Exception) {
+      promise.reject("CONFIG_ERROR", "Failed to read geofence notification config: ${e.message}", e)
+    }
+  }
+
   companion object {
     const val NAME = "BackgroundLocation"
   }
