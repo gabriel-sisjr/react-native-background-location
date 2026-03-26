@@ -9,9 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 
-- Geofencing support
 - Automatic data retention policies
 - Background sync with remote server
+
+## [0.11.0] - 2026-03-25
+
+### Added
+
+- `configureGeofenceNotifications(options)` -- global notification configuration for geofence transitions
+- `getGeofenceNotificationConfig()` -- retrieve current notification configuration
+- `NotificationOptions` interface -- unified notification configuration type for the library
+- `GEOFENCE_TEMPLATE_VARS` constant -- template variable reference for autocomplete
+- Template variable support in notification title and text: `{{identifier}}`, `{{transitionType}}`, `{{latitude}}`, `{{longitude}}`, `{{radius}}`, `{{timestamp}}`, `{{metadata.KEY}}`
+- iOS geofence transition notifications via `UNUserNotificationCenter` (previously iOS showed no notifications)
+- `notificationOptions` on `UseGeofencingOptions` for hook-based configuration
+- `notificationOptions` field on `GeofenceRegion` for per-geofence notification overrides
+  - Set to a `NotificationOptions` object to customize notification content for a specific geofence
+  - Set to `false` as shorthand for `{ enabled: false }` to suppress notifications for a specific geofence
+  - Omit (or set to `undefined`) to inherit the global configuration
+- `transitionOverrides` field on `NotificationOptions` for per-transition-type notification customization
+  - Supports `ENTER`, `EXIT`, and `DWELL` keys, each accepting a partial `NotificationOptions` object
+  - Works at both the per-geofence level and the global level (`configureGeofenceNotifications()`)
+- Notification resolution chain: per-geofence transition override -> per-geofence config -> global transition override -> global config -> built-in defaults
+- Mixed batch support: `addGeofences()` accepts geofences with different notification configurations in a single call
+
+### Changed
+
+- (Android): Geofence notification text changed from hardcoded English ("Entered geofence" / "Geofence: {id}") to template-based defaults ("{{transitionType}} zone: {{identifier}}" / "Transition detected"). Customize via `configureGeofenceNotifications()`.
+- **Android**: Room Database migration v5 -> v6 -- adds `notificationConfig TEXT` column to the geofence table for persisting per-geofence notification configuration
+- **iOS**: Core Data model version v3 -- adds optional `notificationConfig` attribute for per-geofence notification persistence
 
 ## [0.10.0] - 2026-03-21
 
