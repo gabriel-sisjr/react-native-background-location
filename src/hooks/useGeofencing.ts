@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { GeofenceRegion } from '../types';
+import type { GeofenceRegion, NotificationOptions } from '../types';
 import {
   addGeofence as addGeofenceApi,
   addGeofences as addGeofencesApi,
@@ -8,6 +8,7 @@ import {
   removeAllGeofences as removeAllGeofencesApi,
   getActiveGeofences,
   getMaxGeofences,
+  configureGeofenceNotifications,
 } from '../index';
 
 /**
@@ -16,6 +17,12 @@ import {
 export interface UseGeofencingOptions {
   /** Whether to automatically load geofences on mount (default: true) */
   autoLoad?: boolean;
+  /**
+   * Global notification configuration for geofence transitions.
+   * When provided, calls configureGeofenceNotifications() on mount.
+   * Changes to this object trigger reconfiguration.
+   */
+  notificationOptions?: NotificationOptions;
 }
 
 /**
@@ -88,12 +95,15 @@ export interface UseGeofencingReturn {
 export function useGeofencing(
   options: UseGeofencingOptions = {}
 ): UseGeofencingReturn {
-  const { autoLoad = true } = options;
+  const { autoLoad = true, notificationOptions } = options;
 
   const [geofences, setGeofences] = useState<GeofenceRegion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [maxGeofences, setMaxGeofences] = useState<number | null>(null);
+
+  // Deep comparison for notification options to prevent unnecessary native calls
+  const notificationOptionsJson = JSON.stringify(notificationOptions);
 
   /**
    * Clear error state
@@ -133,6 +143,22 @@ export function useGeofencing(
       refresh();
     }
   }, [autoLoad, refresh]);
+
+  /**
+   * Configure geofence notifications when options are provided
+   */
+  useEffect(() => {
+    if (notificationOptions) {
+      configureGeofenceNotifications(notificationOptions).catch((err) => {
+        const configError =
+          err instanceof Error
+            ? err
+            : new Error('Failed to configure geofence notifications');
+        setError(configError);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notificationOptionsJson]);
 
   /**
    * Register a single geofence region

@@ -2,6 +2,8 @@
  * Geofencing types for react-native-background-location
  */
 
+import type { NotificationOptions } from './notifications';
+
 /**
  * Type of geofence transition detected
  */
@@ -54,6 +56,49 @@ export interface GeofenceRegion {
   expirationDuration?: number;
   /** Optional metadata (JSON-serializable) */
   metadata?: Record<string, unknown>;
+  /**
+   * Per-geofence notification configuration.
+   *
+   * Resolution chain (highest to lowest priority):
+   * 1. Per-geofence `notificationOptions` (this field)
+   * 2. Global config via `configureGeofenceNotifications()`
+   * 3. Platform defaults
+   *
+   * Set to `false` as shorthand for `{ enabled: false }` to suppress
+   * notifications for this specific geofence while leaving other geofences
+   * unaffected.
+   *
+   * When set to a `NotificationOptions` object, those values override
+   * the global config for this geofence only. Unspecified fields fall
+   * through to the global config.
+   *
+   * When `undefined` (default), the global config applies.
+   *
+   * @example
+   * ```typescript
+   * // Suppress notifications for a silent geofence
+   * const silentRegion: GeofenceRegion = {
+   *   identifier: 'silent-zone',
+   *   latitude: 40.7128,
+   *   longitude: -74.006,
+   *   radius: 200,
+   *   notificationOptions: false,
+   * };
+   *
+   * // Custom notification for a specific geofence
+   * const alertRegion: GeofenceRegion = {
+   *   identifier: 'headquarters',
+   *   latitude: 40.7128,
+   *   longitude: -74.006,
+   *   radius: 500,
+   *   notificationOptions: {
+   *     title: 'Welcome to HQ',
+   *     text: 'You arrived at {{identifier}}',
+   *   },
+   * };
+   * ```
+   */
+  notificationOptions?: NotificationOptions | false;
 }
 
 /**

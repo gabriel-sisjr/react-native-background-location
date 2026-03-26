@@ -167,6 +167,18 @@ export interface Spec extends TurboModule {
    * @param identifier Optional geofence identifier to clear. If omitted, clears all transitions.
    */
   clearGeofenceTransitions(identifier?: string): Promise<void>;
+
+  /**
+   * Configures global notification options for geofence transitions
+   * @param configJson JSON-serialized NotificationOptions object
+   */
+  configureGeofenceNotifications(configJson: string): Promise<void>;
+
+  /**
+   * Retrieves the current geofence notification configuration
+   * @returns JSON-serialized NotificationOptions object, or '{}' if not configured
+   */
+  getGeofenceNotificationConfig(): Promise<string>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('BackgroundLocation');

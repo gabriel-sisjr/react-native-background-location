@@ -12,6 +12,7 @@ import type {
   GeofenceRegion,
   GeofenceTransitionEvent,
 } from './types/geofencing';
+import type { NotificationOptions } from './types/notifications';
 
 // Export types
 export type {
@@ -40,6 +41,10 @@ export type { UseGeofenceEventsOptions } from './hooks';
 // Geofencing type exports
 export type { GeofenceRegion, GeofenceTransitionEvent } from './types';
 export { GeofenceTransitionType, GeofenceErrorCode } from './types';
+
+// Notification type exports
+export type { NotificationOptions } from './types';
+export { GEOFENCE_TEMPLATE_VARS } from './types';
 
 // Export enums (as values) - import and re-export as named exports to ensure they're available at runtime
 export const LocationPermissionStatus = LocationPermissionStatusEnum;
@@ -225,6 +230,31 @@ export default {
   },
 };
 
+// --- Geofence Notification Configuration ---
+
+/**
+ * Configures global notification options for geofence transitions.
+ * Configuration persists across app restarts (SharedPreferences/UserDefaults).
+ * Applies to all future transitions. Already-fired transitions are unaffected.
+ */
+export async function configureGeofenceNotifications(
+  options: NotificationOptions
+): Promise<void> {
+  assertNativeModuleAvailable();
+  const json = JSON.stringify(options);
+  return BackgroundLocationModule.configureGeofenceNotifications(json);
+}
+
+/**
+ * Retrieves the current geofence notification configuration.
+ * Returns an empty object if no configuration has been set.
+ */
+export async function getGeofenceNotificationConfig(): Promise<NotificationOptions> {
+  assertNativeModuleAvailable();
+  const json = await BackgroundLocationModule.getGeofenceNotificationConfig();
+  return JSON.parse(json) as NotificationOptions;
+}
+
 // --- Geofencing ---
 
 /**
@@ -278,7 +308,15 @@ function validateGeofenceRegion(region: GeofenceRegion): void {
 function prepareGeofenceRegion(
   region: GeofenceRegion
 ): Record<string, unknown> {
-  return {
+  // Resolve notificationOptions: false → { enabled: false }, undefined → omit
+  let notificationOptions: NotificationOptions | undefined;
+  if (region.notificationOptions === false) {
+    notificationOptions = { enabled: false };
+  } else if (region.notificationOptions != null) {
+    notificationOptions = region.notificationOptions;
+  }
+
+  const prepared: Record<string, unknown> = {
     ...region,
     transitionTypes: (
       region.transitionTypes ?? [
@@ -290,6 +328,14 @@ function prepareGeofenceRegion(
     expirationDuration: region.expirationDuration ?? undefined,
     metadata: region.metadata ? JSON.stringify(region.metadata) : undefined,
   };
+
+  if (notificationOptions !== undefined) {
+    prepared.notificationOptions = notificationOptions;
+  } else {
+    delete prepared.notificationOptions;
+  }
+
+  return prepared;
 }
 
 /**
