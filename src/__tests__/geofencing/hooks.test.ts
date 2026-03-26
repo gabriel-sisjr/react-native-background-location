@@ -17,6 +17,8 @@ jest.mock('../../NativeBackgroundLocation', () => ({
     getMaxGeofences: jest.fn(),
     getGeofenceTransitions: jest.fn(),
     clearGeofenceTransitions: jest.fn(),
+    configureGeofenceNotifications: jest.fn().mockResolvedValue(undefined),
+    getGeofenceNotificationConfig: jest.fn().mockResolvedValue('{}'),
     isTracking: jest.fn().mockResolvedValue({ active: false }),
   },
 }));
@@ -182,6 +184,80 @@ describe('useGeofencing', () => {
         result.current.clearError();
       });
       expect(result.current.error).toBeNull();
+    });
+  });
+
+  describe('notification options', () => {
+    it('should call configureGeofenceNotifications on mount when options provided', async () => {
+      const notificationOptions = {
+        enabled: true,
+        title: '{{transitionType}}: {{identifier}}',
+      };
+      renderHook(() => useGeofencing({ autoLoad: false, notificationOptions }));
+      await waitFor(() => {
+        expect(
+          BackgroundLocationModule.configureGeofenceNotifications
+        ).toHaveBeenCalledWith(JSON.stringify(notificationOptions));
+      });
+    });
+
+    it('should NOT call configureGeofenceNotifications when options undefined', () => {
+      renderHook(() => useGeofencing({ autoLoad: false }));
+      expect(
+        BackgroundLocationModule.configureGeofenceNotifications
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should reconfigure when notificationOptions content changes', async () => {
+      const { rerender } = renderHook(
+        (props: { notificationOptions?: any }) =>
+          useGeofencing({
+            autoLoad: false,
+            notificationOptions: props.notificationOptions,
+          }),
+        { initialProps: { notificationOptions: { title: 'A' } } }
+      );
+
+      await waitFor(() => {
+        expect(
+          BackgroundLocationModule.configureGeofenceNotifications
+        ).toHaveBeenCalledTimes(1);
+      });
+
+      rerender({ notificationOptions: { title: 'B' } });
+
+      await waitFor(() => {
+        expect(
+          BackgroundLocationModule.configureGeofenceNotifications
+        ).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    it('should NOT reconfigure when object reference changes but content is same', async () => {
+      const { rerender } = renderHook(
+        (props: { notificationOptions?: any }) =>
+          useGeofencing({
+            autoLoad: false,
+            notificationOptions: props.notificationOptions,
+          }),
+        { initialProps: { notificationOptions: { title: 'Same' } } }
+      );
+
+      await waitFor(() => {
+        expect(
+          BackgroundLocationModule.configureGeofenceNotifications
+        ).toHaveBeenCalledTimes(1);
+      });
+
+      // New object reference, same content
+      rerender({ notificationOptions: { title: 'Same' } });
+
+      // Should still be 1 (not 2) due to JSON.stringify deep comparison
+      await waitFor(() => {
+        expect(
+          BackgroundLocationModule.configureGeofenceNotifications
+        ).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });

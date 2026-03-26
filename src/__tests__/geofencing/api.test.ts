@@ -8,12 +8,15 @@ import {
   getMaxGeofences,
   getGeofenceTransitions,
   clearGeofenceTransitions,
+  configureGeofenceNotifications,
+  getGeofenceNotificationConfig,
   GeofenceError,
   GeofenceErrorCode,
   GeofenceTransitionType,
 } from '../../index';
 import BackgroundLocationModule from '../../NativeBackgroundLocation';
 import type { GeofenceRegion } from '../../types/geofencing';
+import type { NotificationOptions } from '../../types/notifications';
 
 describe('Geofencing API', () => {
   const validRegion: GeofenceRegion = {
@@ -312,6 +315,230 @@ describe('Geofencing API', () => {
       expect(
         BackgroundLocationModule.clearGeofenceTransitions
       ).toHaveBeenCalledWith(undefined);
+    });
+  });
+
+  describe('configureGeofenceNotifications', () => {
+    beforeEach(() => {
+      (
+        BackgroundLocationModule.configureGeofenceNotifications as jest.Mock
+      ).mockResolvedValue(undefined);
+    });
+
+    it('should serialize NotificationOptions to JSON and call native', async () => {
+      const options: NotificationOptions = {
+        enabled: true,
+        title: 'Zone: {{identifier}}',
+        text: '{{transitionType}} detected',
+      };
+      await configureGeofenceNotifications(options);
+      expect(
+        BackgroundLocationModule.configureGeofenceNotifications
+      ).toHaveBeenCalledWith(JSON.stringify(options));
+    });
+
+    it('should pass enabled:false correctly', async () => {
+      const options: NotificationOptions = { enabled: false };
+      await configureGeofenceNotifications(options);
+      expect(
+        BackgroundLocationModule.configureGeofenceNotifications
+      ).toHaveBeenCalledWith(JSON.stringify({ enabled: false }));
+    });
+
+    it('should handle empty options object', async () => {
+      await configureGeofenceNotifications({});
+      expect(
+        BackgroundLocationModule.configureGeofenceNotifications
+      ).toHaveBeenCalledWith('{}');
+    });
+  });
+
+  describe('getGeofenceNotificationConfig', () => {
+    it('should parse JSON response into NotificationOptions', async () => {
+      const config: NotificationOptions = {
+        enabled: true,
+        title: 'Test',
+        text: 'Body',
+      };
+      (
+        BackgroundLocationModule.getGeofenceNotificationConfig as jest.Mock
+      ).mockResolvedValue(JSON.stringify(config));
+      const result = await getGeofenceNotificationConfig();
+      expect(result).toEqual(config);
+    });
+
+    it('should return empty object when no config set', async () => {
+      (
+        BackgroundLocationModule.getGeofenceNotificationConfig as jest.Mock
+      ).mockResolvedValue('{}');
+      const result = await getGeofenceNotificationConfig();
+      expect(result).toEqual({});
+    });
+  });
+
+  describe('addGeofence with notificationOptions', () => {
+    it('should serialize notificationOptions object in the payload', async () => {
+      const region: GeofenceRegion = {
+        ...validRegion,
+        notificationOptions: {
+          title: 'Entered {{identifier}}',
+          text: '{{transitionType}} at {{latitude}}, {{longitude}}',
+        },
+      };
+      await addGeofence(region);
+      const jsonArg = (BackgroundLocationModule.addGeofence as jest.Mock).mock
+        .calls[0][0];
+      const parsed = JSON.parse(jsonArg);
+      expect(parsed.notificationOptions).toEqual({
+        title: 'Entered {{identifier}}',
+        text: '{{transitionType}} at {{latitude}}, {{longitude}}',
+      });
+    });
+
+    it('should convert false shorthand to { enabled: false }', async () => {
+      const region: GeofenceRegion = {
+        ...validRegion,
+        notificationOptions: false,
+      };
+      await addGeofence(region);
+      const jsonArg = (BackgroundLocationModule.addGeofence as jest.Mock).mock
+        .calls[0][0];
+      const parsed = JSON.parse(jsonArg);
+      expect(parsed.notificationOptions).toEqual({ enabled: false });
+    });
+
+    it('should omit notificationOptions when undefined', async () => {
+      await addGeofence(validRegion);
+      const jsonArg = (BackgroundLocationModule.addGeofence as jest.Mock).mock
+        .calls[0][0];
+      const parsed = JSON.parse(jsonArg);
+      expect(parsed).not.toHaveProperty('notificationOptions');
+    });
+
+    it('should serialize transitionOverrides inside notificationOptions', async () => {
+      const region: GeofenceRegion = {
+        ...validRegion,
+        notificationOptions: {
+          title: 'Default title',
+          transitionOverrides: {
+            ENTER: {
+              title: 'Welcome to {{identifier}}',
+              text: 'Entered zone',
+            },
+            EXIT: {
+              title: 'Goodbye from {{identifier}}',
+            },
+          },
+        },
+      };
+      await addGeofence(region);
+      const jsonArg = (BackgroundLocationModule.addGeofence as jest.Mock).mock
+        .calls[0][0];
+      const parsed = JSON.parse(jsonArg);
+      expect(parsed.notificationOptions.transitionOverrides).toEqual({
+        ENTER: {
+          title: 'Welcome to {{identifier}}',
+          text: 'Entered zone',
+        },
+        EXIT: {
+          title: 'Goodbye from {{identifier}}',
+        },
+      });
+    });
+
+    it('should serialize full notificationOptions with all fields', async () => {
+      const region: GeofenceRegion = {
+        ...validRegion,
+        notificationOptions: {
+          enabled: true,
+          title: 'Zone: {{identifier}}',
+          text: '{{transitionType}} detected',
+          channelName: 'Per-Geofence',
+          channelId: 'per_geofence',
+          smallIcon: 'ic_geo',
+          color: '#FF0000',
+        },
+      };
+      await addGeofence(region);
+      const jsonArg = (BackgroundLocationModule.addGeofence as jest.Mock).mock
+        .calls[0][0];
+      const parsed = JSON.parse(jsonArg);
+      expect(parsed.notificationOptions.enabled).toBe(true);
+      expect(parsed.notificationOptions.title).toBe('Zone: {{identifier}}');
+      expect(parsed.notificationOptions.channelName).toBe('Per-Geofence');
+      expect(parsed.notificationOptions.channelId).toBe('per_geofence');
+      expect(parsed.notificationOptions.smallIcon).toBe('ic_geo');
+      expect(parsed.notificationOptions.color).toBe('#FF0000');
+    });
+  });
+
+  describe('addGeofences with notificationOptions', () => {
+    it('should handle mixed batch with different notificationOptions', async () => {
+      const regions: GeofenceRegion[] = [
+        {
+          ...validRegion,
+          identifier: 'silent',
+          notificationOptions: false,
+        },
+        {
+          ...validRegion,
+          identifier: 'custom',
+          notificationOptions: {
+            title: 'Custom: {{identifier}}',
+            text: '{{transitionType}}',
+          },
+        },
+        {
+          ...validRegion,
+          identifier: 'default',
+          // notificationOptions is undefined
+        },
+      ];
+      await addGeofences(regions);
+      const jsonArg = (BackgroundLocationModule.addGeofences as jest.Mock).mock
+        .calls[0][0];
+      const parsed = JSON.parse(jsonArg);
+
+      // silent: false → { enabled: false }
+      expect(parsed[0].identifier).toBe('silent');
+      expect(parsed[0].notificationOptions).toEqual({ enabled: false });
+
+      // custom: object as-is
+      expect(parsed[1].identifier).toBe('custom');
+      expect(parsed[1].notificationOptions).toEqual({
+        title: 'Custom: {{identifier}}',
+        text: '{{transitionType}}',
+      });
+
+      // default: omitted
+      expect(parsed[2].identifier).toBe('default');
+      expect(parsed[2]).not.toHaveProperty('notificationOptions');
+    });
+
+    it('should serialize transitionOverrides in batch', async () => {
+      const regions: GeofenceRegion[] = [
+        {
+          ...validRegion,
+          identifier: 'with-overrides',
+          notificationOptions: {
+            title: 'Base',
+            transitionOverrides: {
+              DWELL: {
+                title: 'Dwelling at {{identifier}}',
+                text: 'Still here for a while',
+              },
+            },
+          },
+        },
+      ];
+      await addGeofences(regions);
+      const jsonArg = (BackgroundLocationModule.addGeofences as jest.Mock).mock
+        .calls[0][0];
+      const parsed = JSON.parse(jsonArg);
+      expect(parsed[0].notificationOptions.transitionOverrides.DWELL).toEqual({
+        title: 'Dwelling at {{identifier}}',
+        text: 'Still here for a while',
+      });
     });
   });
 });

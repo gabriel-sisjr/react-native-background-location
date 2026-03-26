@@ -135,6 +135,8 @@ jest.mock('../NativeBackgroundLocation', () => {
     getMaxGeofences: jest.fn().mockResolvedValue(100),
     getGeofenceTransitions: jest.fn().mockResolvedValue(JSON.stringify([])),
     clearGeofenceTransitions: jest.fn().mockResolvedValue(undefined),
+    configureGeofenceNotifications: jest.fn().mockResolvedValue(undefined),
+    getGeofenceNotificationConfig: jest.fn().mockResolvedValue('{}'),
   };
 
   return {
