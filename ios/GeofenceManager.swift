@@ -486,9 +486,11 @@ import CoreLocation
                 transitionType: "ENTER",
                 latitude: lat,
                 longitude: lng,
+                radius: region.radius,
                 timestamp: timestamp,
                 distanceFromCenter: distanceFromCenter,
-                metadata: geofenceData.metadata
+                metadata: geofenceData.metadata,
+                notificationConfig: geofenceData.notificationConfig
             )
         }
 
@@ -515,9 +517,11 @@ import CoreLocation
                         transitionType: "DWELL",
                         latitude: dwellLat,
                         longitude: dwellLng,
+                        radius: region.radius,
                         timestamp: dwellTimestamp,
                         distanceFromCenter: dwellDistance,
-                        metadata: geofenceData.metadata
+                        metadata: geofenceData.metadata,
+                        notificationConfig: geofenceData.notificationConfig
                     )
                 }
             }
@@ -557,9 +561,11 @@ import CoreLocation
             transitionType: "EXIT",
             latitude: lat,
             longitude: lng,
+            radius: region.radius,
             timestamp: timestamp,
             distanceFromCenter: distanceFromCenter,
-            metadata: geofenceData.metadata
+            metadata: geofenceData.metadata,
+            notificationConfig: geofenceData.notificationConfig
         )
     }
 
@@ -568,9 +574,11 @@ import CoreLocation
         transitionType: String,
         latitude: Double,
         longitude: Double,
+        radius: Double,
         timestamp: Date,
         distanceFromCenter: Double,
-        metadata: String?
+        metadata: String?,
+        notificationConfig: String? = nil
     ) {
         // Persist transition
         storage.saveTransition(
@@ -593,6 +601,26 @@ import CoreLocation
             distanceFromCenter: distanceFromCenter,
             metadata: metadata
         )
+
+        // Resolve notification config through the full resolution chain
+        let resolvedConfig = GeofenceNotificationConfig.resolve(
+            perGeofenceConfigJson: notificationConfig,
+            transitionType: transitionType
+        )
+
+        // Show notification if enabled
+        if resolvedConfig.enabled?.boolValue != false {
+            GeofenceNotificationHelper.shared.showTransitionNotification(
+                geofenceId: geofenceId,
+                transitionType: transitionType,
+                latitude: latitude,
+                longitude: longitude,
+                radius: radius,
+                timestamp: ISO8601DateFormatter().string(from: timestamp),
+                metadata: metadata,
+                config: resolvedConfig
+            )
+        }
 
         NSLog("[BackgroundLocation] Transition: \(transitionType) for '\(geofenceId)' (distance: \(String(format: "%.1f", distanceFromCenter))m)")
     }

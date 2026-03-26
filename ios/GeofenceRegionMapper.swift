@@ -20,6 +20,8 @@ import CoreLocation
         @objc public let expirationDuration: NSNumber? // milliseconds, nil = indefinite
         @objc public let metadata: String?
         @objc public let createdAt: Date?
+        /// Per-geofence notification config JSON string (nil = use global config)
+        @objc public let notificationConfig: String?
 
         init(
             identifier: String,
@@ -30,7 +32,8 @@ import CoreLocation
             loiteringDelay: Int32,
             expirationDuration: NSNumber?,
             metadata: String?,
-            createdAt: Date? = nil
+            createdAt: Date? = nil,
+            notificationConfig: String? = nil
         ) {
             self.identifier = identifier
             self.latitude = latitude
@@ -41,6 +44,7 @@ import CoreLocation
             self.expirationDuration = expirationDuration
             self.metadata = metadata
             self.createdAt = createdAt
+            self.notificationConfig = notificationConfig
             super.init()
         }
 
@@ -145,6 +149,30 @@ import CoreLocation
             metadata = metaString
         }
 
+        // Parse per-geofence notificationOptions
+        var notificationConfig: String? = nil
+        if let notifValue = dict["notificationOptions"] {
+            if let notifBool = notifValue as? Bool, notifBool == false {
+                // notificationOptions: false => disable notifications for this geofence
+                if let jsonData = try? JSONSerialization.data(withJSONObject: ["enabled": false]),
+                   let jsonStr = String(data: jsonData, encoding: .utf8) {
+                    notificationConfig = jsonStr
+                }
+            } else if let notifNumber = notifValue as? NSNumber, notifNumber.boolValue == false {
+                // Handle NSNumber(false) from JS bridge
+                if let jsonData = try? JSONSerialization.data(withJSONObject: ["enabled": false]),
+                   let jsonStr = String(data: jsonData, encoding: .utf8) {
+                    notificationConfig = jsonStr
+                }
+            } else if let notifDict = notifValue as? [String: Any] {
+                // notificationOptions: { ... } => serialize to JSON string
+                if let jsonData = try? JSONSerialization.data(withJSONObject: notifDict),
+                   let jsonStr = String(data: jsonData, encoding: .utf8) {
+                    notificationConfig = jsonStr
+                }
+            }
+        }
+
         return GeofenceRegionData(
             identifier: identifier,
             latitude: latitude,
@@ -153,7 +181,8 @@ import CoreLocation
             transitionTypes: transitionBitmask,
             loiteringDelay: loiteringDelay,
             expirationDuration: expirationDuration,
-            metadata: metadata
+            metadata: metadata,
+            notificationConfig: notificationConfig
         )
     }
 
@@ -202,7 +231,8 @@ import CoreLocation
         transitionTypes: Int32,
         loiteringDelay: Int32,
         expirationDuration: NSNumber?,
-        metadata: String?
+        metadata: String?,
+        notificationConfig: String? = nil
     ) -> [String: Any] {
         var dict: [String: Any] = [
             "identifier": identifier,
@@ -227,6 +257,13 @@ import CoreLocation
            let metaData = meta.data(using: .utf8),
            let metaObj = try? JSONSerialization.jsonObject(with: metaData) {
             dict["metadata"] = metaObj
+        }
+
+        // Include per-geofence notification options if present
+        if let notifConfig = notificationConfig,
+           let notifData = notifConfig.data(using: .utf8),
+           let notifObj = try? JSONSerialization.jsonObject(with: notifData) {
+            dict["notificationOptions"] = notifObj
         }
 
         return dict

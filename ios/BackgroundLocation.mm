@@ -450,6 +450,26 @@
                                                             reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
 }
 
+- (void)configureGeofenceNotifications:(NSString *)configJson
+                               resolve:(RCTPromiseResolveBlock)resolve
+                                reject:(RCTPromiseRejectBlock)reject
+{
+  GeofenceNotificationConfig *config = [GeofenceNotificationConfig fromJsonString:configJson];
+  if (config) {
+    [[GeofenceNotificationConfigStore shared] save:config];
+    resolve(nil);
+  } else {
+    reject(@"CONFIG_ERROR", @"Failed to parse notification config", nil);
+  }
+}
+
+- (void)getGeofenceNotificationConfig:(RCTPromiseResolveBlock)resolve
+                               reject:(RCTPromiseRejectBlock)reject
+{
+  GeofenceNotificationConfig *config = [[GeofenceNotificationConfigStore shared] load];
+  resolve([config toJsonString]);
+}
+
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
     (const facebook::react::ObjCTurboModule::InitParams &)params
 {

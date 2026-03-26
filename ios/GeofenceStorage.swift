@@ -315,6 +315,7 @@ import CoreLocation
             obj.setValue(exp, forKey: "expirationDuration")
         }
         obj.setValue(region.metadata, forKey: "metadata")
+        obj.setValue(region.notificationConfig, forKey: "notificationConfig")
         obj.setValue(Date(), forKey: "createdAt")
     }
 
@@ -328,6 +329,7 @@ import CoreLocation
         let loiteringDelay = entity.value(forKey: "loiteringDelay") as? Int32 ?? 30000
         let expirationDuration = entity.value(forKey: "expirationDuration") as? NSNumber
         let metadata = entity.value(forKey: "metadata") as? String
+        let notificationConfig = entity.value(forKey: "notificationConfig") as? String
 
         return GeofenceRegionMapper.entityToDict(
             identifier: identifier,
@@ -337,7 +339,8 @@ import CoreLocation
             transitionTypes: transitionTypes,
             loiteringDelay: loiteringDelay,
             expirationDuration: expirationDuration,
-            metadata: metadata
+            metadata: metadata,
+            notificationConfig: notificationConfig
         )
     }
 
@@ -353,7 +356,8 @@ import CoreLocation
             loiteringDelay: entity.value(forKey: "loiteringDelay") as? Int32 ?? 30000,
             expirationDuration: entity.value(forKey: "expirationDuration") as? NSNumber,
             metadata: entity.value(forKey: "metadata") as? String,
-            createdAt: entity.value(forKey: "createdAt") as? Date
+            createdAt: entity.value(forKey: "createdAt") as? Date,
+            notificationConfig: entity.value(forKey: "notificationConfig") as? String
         )
     }
 
