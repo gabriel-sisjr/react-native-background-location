@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import {
   MapView,
@@ -21,8 +22,10 @@ import {
 import {
   useGeofencing,
   useGeofenceEvents,
+  useLocationPermissions,
   GeofenceTransitionType,
   NotificationPriority,
+  LocationPermissionStatus,
 } from '@gabriel-sisjr/react-native-background-location';
 import type {
   GeofenceTransitionEvent,
@@ -190,6 +193,42 @@ const GLOBAL_NOTIFICATION_OPTIONS: NotificationOptions = {
   showTimestamp: true,
 };
 
+/**
+ * Returns a human-readable label for the current permission status.
+ */
+function permissionLabel(status: string): string {
+  switch (status) {
+    case LocationPermissionStatus.GRANTED:
+      return 'Always';
+    case LocationPermissionStatus.WHEN_IN_USE:
+      return 'When In Use';
+    case LocationPermissionStatus.DENIED:
+      return 'Denied';
+    case LocationPermissionStatus.BLOCKED:
+      return 'Blocked (Restricted)';
+    default:
+      return 'Not Determined';
+  }
+}
+
+/**
+ * Returns a color for the permission status badge.
+ */
+function permissionColor(status: string): string {
+  switch (status) {
+    case LocationPermissionStatus.GRANTED:
+      return '#4CAF50';
+    case LocationPermissionStatus.WHEN_IN_USE:
+      return '#FF9800';
+    case LocationPermissionStatus.DENIED:
+      return '#f44336';
+    case LocationPermissionStatus.BLOCKED:
+      return '#9E9E9E';
+    default:
+      return '#2196F3';
+  }
+}
+
 export function GeofencingScreen() {
   const {
     geofences,
@@ -203,6 +242,39 @@ export function GeofencingScreen() {
   } = useGeofencing({
     notificationOptions: GLOBAL_NOTIFICATION_OPTIONS,
   });
+
+  // Permission state
+  const {
+    permissionStatus,
+    checkPermissions,
+    requestPermissions,
+    isRequesting,
+  } = useLocationPermissions();
+
+  // Check permissions on mount
+  useEffect(() => {
+    checkPermissions();
+  }, [checkPermissions]);
+
+  const handleRequestPermission = useCallback(async () => {
+    const granted = await requestPermissions();
+    if (!granted) {
+      // Re-check to get current state
+      await checkPermissions();
+      Alert.alert(
+        'Permission Required',
+        'Geofencing requires "Always" location permission. ' +
+          'Please enable it in Settings.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => Linking.openSettings(),
+          },
+        ]
+      );
+    }
+  }, [requestPermissions, checkPermissions]);
 
   // Form state
   const [identifier, setIdentifier] = useState('');
@@ -297,6 +369,58 @@ export function GeofencingScreen() {
         </Text>
       </View>
 
+      {/* Permission Status */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Location Permission</Text>
+        <View style={styles.permissionRow}>
+          <Text style={styles.permissionLabel}>Current Level:</Text>
+          <View
+            style={[
+              styles.permissionBadge,
+              {
+                backgroundColor:
+                  permissionColor(permissionStatus.status) + '20',
+                borderColor: permissionColor(permissionStatus.status),
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.permissionBadgeText,
+                { color: permissionColor(permissionStatus.status) },
+              ]}
+            >
+              {permissionLabel(permissionStatus.status)}
+            </Text>
+          </View>
+        </View>
+        {permissionStatus.status !== LocationPermissionStatus.GRANTED && (
+          <View style={styles.permissionWarning}>
+            <Text style={styles.permissionWarningText}>
+              Geofencing requires "Always" location permission for reliable
+              background monitoring.
+            </Text>
+            <TouchableOpacity
+              style={[styles.button, styles.permissionButton]}
+              onPress={handleRequestPermission}
+              disabled={isRequesting}
+            >
+              <Text style={styles.buttonText}>
+                {isRequesting
+                  ? 'Requesting...'
+                  : permissionStatus.status ===
+                        LocationPermissionStatus.BLOCKED ||
+                      (permissionStatus.status ===
+                        LocationPermissionStatus.DENIED &&
+                        !permissionStatus.canRequestAgain)
+                    ? 'Open Settings'
+                    : 'Request Always Permission'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
       {/* Error */}
       {error && (
         <View style={styles.errorCard}>
@@ -369,14 +493,14 @@ export function GeofencingScreen() {
             placeholder="Latitude"
             value={latitude}
             onChangeText={setLatitude}
-            keyboardType="numeric"
+            keyboardType="numbers-and-punctuation"
           />
           <TextInput
             style={[styles.input, styles.halfInput]}
             placeholder="Longitude"
             value={longitude}
             onChangeText={setLongitude}
-            keyboardType="numeric"
+            keyboardType="numbers-and-punctuation"
           />
         </View>
         <TextInput
@@ -384,7 +508,7 @@ export function GeofencingScreen() {
           placeholder="Radius (meters)"
           value={radius}
           onChangeText={setRadius}
-          keyboardType="numeric"
+          keyboardType="decimal-pad"
         />
 
         {/* Notification Preset Selector */}
@@ -747,5 +871,41 @@ const styles = StyleSheet.create({
     color: '#B0BEC5',
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     lineHeight: 18,
+  },
+  permissionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  permissionLabel: {
+    fontSize: 14,
+    color: '#555',
+    marginRight: 8,
+  },
+  permissionBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  permissionBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  permissionWarning: {
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9800',
+  },
+  permissionWarningText: {
+    fontSize: 13,
+    color: '#E65100',
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  permissionButton: {
+    backgroundColor: '#FF9800',
   },
 });

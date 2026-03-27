@@ -19,6 +19,9 @@ jest.mock('../../NativeBackgroundLocation', () => ({
     clearGeofenceTransitions: jest.fn(),
     configureGeofenceNotifications: jest.fn().mockResolvedValue(undefined),
     getGeofenceNotificationConfig: jest.fn().mockResolvedValue('{}'),
+    checkLocationPermission: jest
+      .fn()
+      .mockResolvedValue({ status: 'granted', canRequestAgain: false }),
     isTracking: jest.fn().mockResolvedValue({ active: false }),
   },
 }));

@@ -55,6 +55,9 @@ jest.mock('react-native', () => ({
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
   },
+  Alert: {
+    alert: jest.fn(),
+  },
 }));
 
 // Helper function for tests to simulate events
@@ -121,7 +124,7 @@ jest.mock('../NativeBackgroundLocation', () => {
       return Promise.resolve();
     }),
     checkLocationPermission: jest.fn(() => {
-      return Promise.resolve({ status: 'undetermined', canRequestAgain: true });
+      return Promise.resolve({ status: 'granted', canRequestAgain: false });
     }),
     requestLocationPermission: jest.fn(() => {
       return Promise.resolve({ status: 'granted', canRequestAgain: false });
