@@ -81,7 +81,7 @@ interface UseLocationPermissionsResult {
 - **`blocked`** - User permanently denied (must open Settings)
 - **`undetermined`** - Permissions not yet requested
 
-> **iOS:** On iOS, `whenInUse` is treated as `hasPermission = true` because tracking can still function. However, for reliable background tracking, encourage the user to grant "Always" permission. The hook will automatically request the upgrade from WhenInUse to Always when `requestPermissions()` is called.
+> **iOS:** On iOS, `whenInUse` is treated as `hasPermission = true` because tracking can still function. However, for reliable background tracking and geofencing, "Always" permission is required. Call `requestPermissions()` to handle the full flow -- it requests WhenInUse first, then automatically escalates to Always.
 
 ### Example: Handling Permission States
 
@@ -113,6 +113,52 @@ function PermissionHandler() {
   return <TrackingScreen />;
 }
 ```
+
+### Example: Ensuring "Always" Permission for Geofencing
+
+```typescript
+import {
+  useLocationPermissions,
+  LocationPermissionStatus,
+} from '@gabriel-sisjr/react-native-background-location';
+import { Alert, Linking } from 'react-native';
+
+function GeofencePermissionGate({ children }: { children: React.ReactNode }) {
+  const { permissionStatus, requestPermissions, isRequesting } =
+    useLocationPermissions();
+
+  const handleRequestPermissions = async () => {
+    const granted = await requestPermissions();
+    if (!granted && permissionStatus.status === LocationPermissionStatus.BLOCKED) {
+      Alert.alert(
+        'Permission Required',
+        'Please enable "Always" location access in Settings for geofencing.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
+    }
+  };
+
+  if (permissionStatus.status !== LocationPermissionStatus.GRANTED) {
+    return (
+      <View>
+        <Text>Geofencing requires "Always" location permission</Text>
+        <Button
+          title="Enable Always Permission"
+          onPress={handleRequestPermissions}
+          disabled={isRequesting}
+        />
+      </View>
+    );
+  }
+
+  return children;
+}
+```
+
+> **Note:** Ensure permissions are granted via `requestPermissions()` before calling `addGeofence()` or `addGeofences()`. The `requestPermissions()` function handles the full iOS permission flow including WhenInUse-to-Always escalation.
 
 ## useBackgroundLocation
 

@@ -362,7 +362,11 @@ useEffect(() => {
 
 ### 3. Request "Always" Permission for Reliable Background Tracking
 
-"When In Use" permission with background location entitlement works while the app is alive, but iOS may suspend the app. For reliable long-duration tracking, "Always" permission is recommended.
+"When In Use" permission with background location entitlement works while the app is alive, but iOS may suspend the app. For reliable long-duration tracking and geofencing, "Always" permission is required.
+
+The hook's `requestPermissions()` (which calls `requestLocationPermission(foregroundOnly: false)`) handles the full WhenInUse-to-Always escalation. Ensure permissions are granted via the hook before registering geofences or starting background tracking.
+
+On iOS, the escalation uses a dedicated `CLLocationManager` instance with a `shouldIgnoreNextAuthCallback` guard to handle the delegate callback that iOS fires immediately upon delegate assignment. This prevents the completion handler from resolving prematurely with the current "When In Use" status before the "Always" permission dialog appears.
 
 ### 4. Test on Physical Devices
 

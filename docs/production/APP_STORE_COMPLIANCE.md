@@ -346,6 +346,8 @@ Data handling:
 - [ ] Permission dialog appears with correct description text
 - [ ] App works correctly with "When In Use" permission only
 - [ ] App correctly handles denied permission (no crash, graceful fallback)
+- [ ] `requestPermissions()` from the hook triggers the system escalation prompt from "When In Use" to "Always"
+- [ ] Geofence registration works correctly after permissions are granted via `requestPermissions()`
 
 ### Background Behavior
 

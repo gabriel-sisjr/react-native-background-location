@@ -21,9 +21,9 @@ Geofencing operates entirely in the background. Once a geofence is registered, t
 
 Before using geofencing, ensure the following requirements are met:
 
-- **Location permissions:** Background location access is recommended for reliable monitoring. Use `useLocationPermissions` (or the aliased `useGeofencePermissions`) to request permissions before registering geofences.
+- **Location permissions:** Background location access is required for reliable geofence monitoring. Use `useLocationPermissions` (or the aliased `useGeofencePermissions`) and call `requestPermissions()` to request permissions before registering geofences. This handles the full permission flow including WhenInUse-to-Always escalation on iOS.
 - **Android:** Google Play Services must be installed and available on the device. The `GeofencingClient` API requires it. Without Play Services, a `GeofenceError` with code `PLAY_SERVICES_UNAVAILABLE` is thrown.
-- **iOS:** "Always" authorization is recommended for `CLLocationManager` region monitoring. "When In Use" authorization may work when the app is in the foreground, but background delivery requires Always authorization.
+- **iOS:** "Always" authorization is **required** for reliable `CLLocationManager` region monitoring in the background. "When In Use" authorization works only when the app is in the foreground. Ensure permissions are granted via `requestPermissions()` from the hook before calling `addGeofence()` or `addGeofences()`.
 - **Minimum platform versions:** iOS 13+, Android SDK 24+ (API level 24).
 - **Library installation:** `@gabriel-sisjr/react-native-background-location` must be installed and linked. See the [Quick Start Guide](QUICKSTART.md) for installation instructions.
 
@@ -80,9 +80,11 @@ Registers a single geofence region for monitoring.
 **Behavior:**
 
 1. Validates all region parameters (coordinates, radius, loitering delay)
-2. Checks for duplicate identifiers against currently active geofences
-3. Serializes the region to JSON with default values applied
-4. Sends to the native module for registration
+4. Checks for duplicate identifiers against currently active geofences
+5. Serializes the region to JSON with default values applied
+6. Sends to the native module for registration
+
+> **Permissions:** On iOS, geofencing requires "Always" authorization. Ensure permissions are granted via `requestPermissions()` from the `useLocationPermissions` hook before calling `addGeofence()`.
 
 **Parameters:**
 
@@ -129,9 +131,9 @@ Registers multiple geofence regions as an atomic batch operation. All regions su
 **Behavior:**
 
 1. Validates all regions in the batch
-2. Checks for duplicate identifiers within the batch itself
-3. Serializes the entire batch to a single JSON array
-4. Sends to the native module for bulk registration
+4. Checks for duplicate identifiers within the batch itself
+5. Serializes the entire batch to a single JSON array
+6. Sends to the native module for bulk registration
 
 **Parameters:**
 
@@ -1230,7 +1232,8 @@ try {
 | Geofence persistence   | Survives app restart; re-registered on boot via `BootCompletedReceiver` with heartbeat restored                          | Managed by `CLLocationManager` (persists across restarts)    |
 | Background delivery    | `BroadcastReceiver` delivers events even when app is killed                                                              | `CLLocationManager` delegate delivers events on app relaunch |
 | GPS pipeline keepalive | Location heartbeat (`PRIORITY_BALANCED_POWER_ACCURACY`, 15-min interval) keeps GPS active for passive geofence detection | Not needed (iOS region monitoring is active, not passive)    |
-| Requirements           | Google Play Services                                                                                                     | "Always" authorization recommended                           |
+| Permission escalation  | `requestPermissions()` requests `ACCESS_BACKGROUND_LOCATION`                                                             | `requestPermissions()` calls `requestAlwaysAuthorization()` with delegate guard      |
+| Requirements           | Google Play Services                                                                                                     | "Always" authorization required (request via `requestPermissions()` before adding geofences) |
 | Expiration support     | Native `setExpirationDuration`                                                                                           | Software-based expiration check                              |
 | Event storage          | Room Database (`GeofenceTransitionEntity`)                                                                               | Core Data                                                    |
 
@@ -1242,7 +1245,7 @@ try {
 
 ### Geofence transitions are not firing
 
-1. **Check permissions.** Background location access is required. On iOS, ensure "Always" authorization is granted. On Android, ensure `ACCESS_BACKGROUND_LOCATION` is granted.
+1. **Check permissions.** Background location access is required. On iOS, ensure "Always" authorization is granted via `requestPermissions()` from the `useLocationPermissions` hook before registering geofences. On Android, ensure `ACCESS_BACKGROUND_LOCATION` is granted. The `requestPermissions()` function handles the full permission flow on both platforms.
 2. **Check Google Play Services (Android).** Verify Play Services is installed and up to date. Call `getMaxGeofences()` -- if it throws `PLAY_SERVICES_UNAVAILABLE`, Play Services is the issue.
 3. **Verify radius.** The minimum radius is 100 meters. Smaller radii are rejected during validation. In practice, radii under 150-200m may produce unreliable transitions on both platforms.
 4. **Test with movement.** Geofence transitions require actual device movement. Simulators and emulators may not trigger transitions reliably. Use mock location tools or test on a physical device.
