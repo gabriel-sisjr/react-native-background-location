@@ -326,7 +326,7 @@ function prepareGeofenceRegion(
     ).map((t) => t.toString()),
     loiteringDelay: region.loiteringDelay ?? 30000,
     expirationDuration: region.expirationDuration ?? undefined,
-    metadata: region.metadata ? JSON.stringify(region.metadata) : undefined,
+    metadata: region.metadata ?? undefined,
   };
 
   if (notificationOptions !== undefined) {

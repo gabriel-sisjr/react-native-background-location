@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { GeofenceRegion, NotificationOptions } from '../types';
 import {
   addGeofence as addGeofenceApi,
@@ -105,6 +105,10 @@ export function useGeofencing(
   // Deep comparison for notification options to prevent unnecessary native calls
   const notificationOptionsJson = JSON.stringify(notificationOptions);
 
+  // Ref to avoid closing over stale notificationOptions in the effect
+  const notificationOptionsRef = useRef(notificationOptions);
+  notificationOptionsRef.current = notificationOptions;
+
   /**
    * Clear error state
    */
@@ -148,14 +152,16 @@ export function useGeofencing(
    * Configure geofence notifications when options are provided
    */
   useEffect(() => {
-    if (notificationOptions) {
-      configureGeofenceNotifications(notificationOptions).catch((err) => {
-        const configError =
-          err instanceof Error
-            ? err
-            : new Error('Failed to configure geofence notifications');
-        setError(configError);
-      });
+    if (notificationOptionsRef.current) {
+      configureGeofenceNotifications(notificationOptionsRef.current).catch(
+        (err) => {
+          const configError =
+            err instanceof Error
+              ? err
+              : new Error('Failed to configure geofence notifications');
+          setError(configError);
+        }
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notificationOptionsJson]);
@@ -259,17 +265,32 @@ export function useGeofencing(
     }
   }, [refresh]);
 
-  return {
-    geofences,
-    isLoading,
-    error,
-    addGeofence,
-    addGeofences,
-    removeGeofence,
-    removeGeofences,
-    removeAllGeofences,
-    maxGeofences,
-    refresh,
-    clearError,
-  };
+  return useMemo(
+    () => ({
+      geofences,
+      isLoading,
+      error,
+      addGeofence,
+      addGeofences,
+      removeGeofence,
+      removeGeofences,
+      removeAllGeofences,
+      maxGeofences,
+      refresh,
+      clearError,
+    }),
+    [
+      geofences,
+      isLoading,
+      error,
+      addGeofence,
+      addGeofences,
+      removeGeofence,
+      removeGeofences,
+      removeAllGeofences,
+      maxGeofences,
+      refresh,
+      clearError,
+    ]
+  );
 }

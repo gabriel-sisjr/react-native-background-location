@@ -18,6 +18,9 @@ Start here if you're new to the library:
 - **[Geofencing Guide](getting-started/geofencing.md)**
   Complete guide to geofencing: API reference, hooks, types, platform differences, and troubleshooting.
 
+- **[Geofencing Advanced Usage](geofencing/ADVANCED_USAGE.md)**
+  Server-driven geofencing, programmatic callbacks, full combined example, and hook stability.
+
 - **[Real-Time Updates Guide](getting-started/REAL_TIME_UPDATES.md)**
   Automatic location watching with `useLocationUpdates` hook.
 
@@ -126,6 +129,7 @@ docs/
 │   ├── TESTING.md                      # Testing guide
 │   └── IMPLEMENTATION_SUMMARY.md       # Technical details
 ├── geofencing/                         # Geofencing planning & analysis
+│   ├── ADVANCED_USAGE.md               # Server-driven geofencing, callbacks, examples
 │   ├── BUSINESS_CASE.md                # Business case & justification
 │   └── TECHNICAL_PLAN.md               # Technical implementation plan
 └── ios/                                # iOS planning & analysis

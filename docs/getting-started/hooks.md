@@ -965,6 +965,129 @@ function DeliveryZones() {
 }
 ```
 
+### Example: Metadata in Notification Templates
+
+Use `metadata` to attach business data to geofences and reference it in notification templates with `{{metadata.fieldName}}`. Nested values are accessed with dot notation (e.g., `{{metadata.site.name}}`). If a referenced field is missing, the placeholder resolves to an empty string on both platforms.
+
+```typescript
+import {
+  useGeofencing,
+  useGeofenceEvents,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function FleetGeofenceScreen() {
+  const { addGeofence, geofences, maxGeofences } = useGeofencing({
+    notificationOptions: {
+      title: '{{transitionType}} -- {{metadata.site.name}}',
+      text: 'Vehicle {{metadata.vehicleId}} at {{metadata.site.address}}.',
+    },
+  });
+
+  useGeofenceEvents({
+    onTransition: (event) => {
+      // event.metadata contains the same object passed during registration
+      const siteName = (event.metadata?.site as { name?: string })?.name;
+      console.log(`${event.transitionType} at ${siteName ?? event.geofenceId}`);
+    },
+  });
+
+  const registerClientSite = async () => {
+    await addGeofence({
+      identifier: 'client-42',
+      latitude: -23.5505,
+      longitude: -46.6333,
+      radius: 200,
+      transitionTypes: [GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT],
+      metadata: {
+        vehicleId: 'VH-018',
+        site: {
+          name: 'Distribution Center',
+          address: 'Rua Augusta, 500 - Sao Paulo',
+        },
+      },
+    });
+  };
+
+  // ENTER notification:
+  //   Title: "ENTER -- Distribution Center"
+  //   Text:  "Vehicle VH-018 at Rua Augusta, 500 - Sao Paulo."
+
+  return (
+    <View>
+      <Text>Active: {geofences.length} / {maxGeofences}</Text>
+      <Button title="Add Client Site" onPress={registerClientSite} />
+    </View>
+  );
+}
+```
+
+> **Tip:** Metadata templates work identically on Android and iOS. For more scenarios and syntax details, see the [Metadata in Notification Templates](geofencing.md#metadata-in-notification-templates) section in the geofencing guide.
+
+### Example: Per-Geofence Notification Presets
+
+Different geofences can use different notification configurations. Pass `notificationOptions` on each `addGeofence()` call to override the global config, or set it to `false` to suppress notifications for that geofence. You can also store the chosen preset name in `metadata` for later display.
+
+```typescript
+import {
+  useGeofencing,
+  NotificationPriority,
+} from '@gabriel-sisjr/react-native-background-location';
+import type { NotificationOptions } from '@gabriel-sisjr/react-native-background-location';
+
+// Define reusable notification presets
+const NOTIFICATION_PRESETS: Record<string, NotificationOptions | false | undefined> = {
+  default: undefined,
+  templates: {
+    title: '{{transitionType}} at {{identifier}}',
+    text: 'Location: {{latitude}}, {{longitude}} (radius: {{radius}}m)',
+  },
+  perTransition: {
+    title: 'Geofence Alert',
+    text: 'Transition at {{identifier}}',
+    transitionOverrides: {
+      ENTER: { title: 'Entered {{identifier}}', text: 'Welcome!', color: '#4CAF50' },
+      EXIT: { title: 'Exited {{identifier}}', text: 'Goodbye!', color: '#f44336' },
+      DWELL: { title: 'Dwelling at {{identifier}}', text: 'Still here.', color: '#FF9800' },
+    },
+  },
+  silent: false,
+  highPriority: {
+    priority: NotificationPriority.HIGH,
+    channelName: 'Geofence Alerts',
+    color: '#FF0000',
+    showTimestamp: true,
+    subtext: 'Geofence Monitoring Active',
+  },
+};
+
+function GeofenceWithPresets() {
+  const { addGeofence, geofences } = useGeofencing({
+    notificationOptions: {
+      title: 'Geofence: {{identifier}}',
+      text: '{{transitionType}} detected at {{latitude}}, {{longitude}}',
+      channelName: 'Geofence Notifications',
+      showTimestamp: true,
+    },
+  });
+
+  const handleAdd = async (presetKey: string) => {
+    await addGeofence({
+      identifier: 'office',
+      latitude: -23.5505,
+      longitude: -46.6333,
+      radius: 200,
+      notificationOptions: NOTIFICATION_PRESETS[presetKey],
+      metadata: { notificationPreset: presetKey },
+    });
+  };
+
+  // ...
+}
+```
+
+> **See it in action:** The example app's `GeofencingScreen` includes an interactive demo with all five notification presets, a live JSON config preview, and badges on active geofences showing which preset was applied. Run `yarn example start` and navigate to the Geofencing screen.
+
 ### Example: Error Handling
 
 ```typescript

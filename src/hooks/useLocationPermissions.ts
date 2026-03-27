@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { LocationPermissionStatus } from '../types';
 import type { UseLocationPermissionsResult, PermissionState } from '../types';
@@ -281,10 +281,13 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
     }
   }, []);
 
-  return {
-    permissionStatus,
-    requestPermissions,
-    checkPermissions,
-    isRequesting,
-  };
+  return useMemo(
+    () => ({
+      permissionStatus,
+      requestPermissions,
+      checkPermissions,
+      isRequesting,
+    }),
+    [permissionStatus, requestPermissions, checkPermissions, isRequesting]
+  );
 }

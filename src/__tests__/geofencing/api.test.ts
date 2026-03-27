@@ -120,7 +120,7 @@ describe('Geofencing API', () => {
       expect(parsed.loiteringDelay).toBe(30000);
     });
 
-    it('should serialize metadata as JSON string', async () => {
+    it('should preserve metadata as a nested object in serialized JSON', async () => {
       const region = {
         ...validRegion,
         metadata: { zone: 'office', floor: 3 },
@@ -129,9 +129,7 @@ describe('Geofencing API', () => {
       const jsonArg = (BackgroundLocationModule.addGeofence as jest.Mock).mock
         .calls[0][0];
       const parsed = JSON.parse(jsonArg);
-      expect(parsed.metadata).toBe(
-        JSON.stringify({ zone: 'office', floor: 3 })
-      );
+      expect(parsed.metadata).toEqual({ zone: 'office', floor: 3 });
     });
 
     it('should throw GeofenceError with DUPLICATE_IDENTIFIER when geofence exists', async () => {

@@ -639,6 +639,10 @@ The `title` and `text` fields support template variables that are resolved at no
 
 **Metadata variables:** Use `{{metadata.KEY}}` to access values from the geofence's `metadata` object. For example, if a geofence was registered with `metadata: { zone: 'loading-dock' }`, then `{{metadata.zone}}` resolves to `loading-dock`. If the key does not exist, the placeholder is replaced with an empty string.
 
+**Nested metadata access:** Use dot notation to reach nested values. If a geofence was registered with `metadata: { site: { name: 'Depot A' } }`, then `{{metadata.site.name}}` resolves to `Depot A`. There is no depth limit; any valid JSON path works as long as every segment is a key on an object.
+
+**Missing metadata fields:** When a metadata key referenced in a template does not exist -- or when `metadata` itself is `undefined` -- the placeholder is replaced with an empty string. No error is thrown. This applies to both top-level and nested paths.
+
 **Dev-mode validation:** In `__DEV__` mode, the library warns on unknown template variables with "did you mean?" suggestions. For example, using `{{indentifier}}` (typo) produces a console warning suggesting `{{identifier}}`.
 
 **Autocomplete helper:** Use the `GEOFENCE_TEMPLATE_VARS` constant for IDE autocomplete support:
@@ -649,6 +653,187 @@ import { GEOFENCE_TEMPLATE_VARS } from '@gabriel-sisjr/react-native-background-l
 console.log(GEOFENCE_TEMPLATE_VARS.IDENTIFIER);       // '{{identifier}}'
 console.log(GEOFENCE_TEMPLATE_VARS.TRANSITION_TYPE);   // '{{transitionType}}'
 ```
+
+### Metadata in Notification Templates
+
+The `metadata` field on `GeofenceRegion` accepts any JSON-serializable object (`Record<string, unknown>`). Values stored in `metadata` are available in notification templates through the `{{metadata.KEY}}` syntax. This enables context-rich notifications that include business data alongside the standard geofence variables.
+
+#### Template Syntax
+
+| Syntax | Description | Example |
+| ------ | ----------- | ------- |
+| `{{metadata.fieldName}}` | Access a top-level metadata field | `{{metadata.customerName}}` |
+| `{{metadata.parent.child}}` | Access a nested field via dot notation | `{{metadata.site.address}}` |
+| `{{metadata.a.b.c}}` | Arbitrary nesting depth | `{{metadata.vehicle.driver.name}}` |
+
+Template resolution happens on the native side (Android: `GeofenceTemplateResolver.kt`, iOS: `GeofenceNotificationConfig.swift`). Both platforms use the same regex and dot-walk algorithm, so metadata templates behave identically on Android and iOS.
+
+> **Missing fields:** If a metadata path does not exist -- or if `metadata` was not provided during registration -- the placeholder resolves to an empty string. No error is thrown at runtime.
+
+#### Example: Logistics / Delivery App
+
+Geofences placed around delivery addresses. The notification shows the customer name and order number when the driver arrives.
+
+```typescript
+import {
+  useGeofencing,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function DeliveryTracker() {
+  const { addGeofence, geofences } = useGeofencing({
+    notificationOptions: {
+      title: 'Delivery Update',
+      text: 'Arriving at {{metadata.customerName}}. Order #{{metadata.orderNumber}}.',
+    },
+  });
+
+  const registerDeliveryStop = async (delivery: {
+    id: string;
+    lat: number;
+    lng: number;
+    customerName: string;
+    orderNumber: string;
+  }) => {
+    await addGeofence({
+      identifier: `delivery-${delivery.id}`,
+      latitude: delivery.lat,
+      longitude: delivery.lng,
+      radius: 150,
+      transitionTypes: [GeofenceTransitionType.ENTER],
+      metadata: {
+        customerName: delivery.customerName,
+        orderNumber: delivery.orderNumber,
+      },
+    });
+  };
+
+  // When the driver enters the geofence, the notification reads:
+  // Title: "Delivery Update"
+  // Text:  "Arriving at Maria Silva. Order #98432."
+}
+```
+
+#### Example: Fleet Management / Driver App
+
+Geofences around client sites with nested metadata. The notification references nested fields to display the site name and address.
+
+```typescript
+import {
+  addGeofence,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await addGeofence({
+  identifier: 'client-site-7',
+  latitude: -23.5612,
+  longitude: -46.6558,
+  radius: 300,
+  transitionTypes: [
+    GeofenceTransitionType.ENTER,
+    GeofenceTransitionType.EXIT,
+  ],
+  metadata: {
+    site: {
+      name: 'Warehouse Central',
+      address: 'Av. Paulista, 1000 - Sao Paulo',
+    },
+    fleet: {
+      vehicleId: 'VH-042',
+    },
+  },
+  notificationOptions: {
+    transitionOverrides: {
+      ENTER: {
+        title: 'Arrived',
+        text: 'Driver arrived at {{metadata.site.name}} -- {{metadata.site.address}}.',
+      },
+      EXIT: {
+        title: 'Departed',
+        text: 'Driver left {{metadata.site.name}}. Vehicle {{metadata.fleet.vehicleId}}.',
+      },
+    },
+  },
+});
+
+// ENTER notification:
+//   Title: "Arrived"
+//   Text:  "Driver arrived at Warehouse Central -- Av. Paulista, 1000 - Sao Paulo."
+//
+// EXIT notification:
+//   Title: "Departed"
+//   Text:  "Driver left Warehouse Central. Vehicle VH-042."
+```
+
+#### Example: Field Service / Maintenance
+
+Geofences around equipment locations. The notification includes the equipment ID, maintenance type, and priority so technicians get immediate context without opening the app.
+
+```typescript
+import {
+  addGeofences,
+  configureGeofenceNotifications,
+  GeofenceTransitionType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+// Configure a global template that references metadata fields
+await configureGeofenceNotifications({
+  title: 'Service Alert',
+  text: 'Technician near equipment {{metadata.equipmentId}}. Task: {{metadata.maintenanceType}} ({{metadata.priority}}).',
+  channelName: 'Field Service',
+});
+
+// Register geofences for each work order
+await addGeofences([
+  {
+    identifier: 'wo-5501',
+    latitude: -22.9068,
+    longitude: -43.1729,
+    radius: 200,
+    transitionTypes: [GeofenceTransitionType.ENTER, GeofenceTransitionType.DWELL],
+    loiteringDelay: 60000,
+    metadata: {
+      equipmentId: 'GEN-3200',
+      maintenanceType: 'Preventive inspection',
+      priority: 'high',
+    },
+  },
+  {
+    identifier: 'wo-5502',
+    latitude: -22.9112,
+    longitude: -43.2054,
+    radius: 250,
+    transitionTypes: [GeofenceTransitionType.ENTER],
+    metadata: {
+      equipmentId: 'PUMP-870',
+      maintenanceType: 'Corrective repair',
+      priority: 'critical',
+    },
+  },
+]);
+
+// When the technician enters the wo-5501 geofence:
+//   Title: "Service Alert"
+//   Text:  "Technician near equipment GEN-3200. Task: Preventive inspection (high)."
+//
+// When the technician enters the wo-5502 geofence:
+//   Title: "Service Alert"
+//   Text:  "Technician near equipment PUMP-870. Task: Corrective repair (critical)."
+```
+
+#### Cross-Platform Behavior
+
+Template resolution is performed entirely on the native side so that notifications render correctly even when the JS runtime is not active (e.g., the app was killed by the OS). Both platforms share the same logic:
+
+| Aspect | Android | iOS |
+| ------ | ------- | --- |
+| Implementation | `GeofenceTemplateResolver.kt` | `GeofenceNotificationConfig.swift` |
+| Regex pattern | `\{\{(\w+(?:\.\w+)*)\}\}` | `\{\{(\w+(?:\.\w+)*)\}\}` |
+| Dot-notation traversal | `JSONObject.opt()` chain | `[String: Any]` dictionary walk |
+| Missing field result | Empty string `""` | Empty string `""` |
+| Null metadata | Empty string `""` | Empty string `""` |
+
+You do not need to write platform-specific code or conditional logic for metadata templates.
 
 ### Disabling Notifications
 
@@ -746,6 +931,29 @@ On Android 8.0 (API 26) and above, notification channels are immutable after cre
 **Before v0.11.0 (Android only):** Geofence notifications used hardcoded English text (e.g., "Entered geofence" / "Geofence: {id}"). iOS did not show geofence transition notifications at all.
 
 **From v0.11.0:** Both platforms use template-based defaults. The default notification title is `{{transitionType}} zone: {{identifier}}` and the default text is `Transition detected`. If your app relied on the previous hardcoded text, call `configureGeofenceNotifications()` with your preferred strings at app startup.
+
+### Example App: Notification Presets Demo
+
+The example app's `GeofencingScreen` includes an interactive notification presets demo that showcases the full range of notification configuration options. When adding a geofence, you can select one of five presets to see how each configuration style works in practice.
+
+| Preset | Config Value | What It Demonstrates |
+|--------|-------------|---------------------|
+| **Default** | `undefined` | Platform defaults -- no notification configuration is passed, so the library uses built-in defaults. |
+| **Custom Templates** | `NotificationOptions` with template variables | Template variable resolution: `{{transitionType}}`, `{{identifier}}`, `{{latitude}}`, `{{longitude}}`, `{{radius}}`. |
+| **Per-Transition** | `NotificationOptions` with `transitionOverrides` | Different notification content for ENTER, EXIT, and DWELL transitions, each with a distinct title, text, and color. |
+| **Silent** | `false` | Notification suppression -- geofence events still fire to JS callbacks, but no visual notification is shown. |
+| **High Priority** | `NotificationOptions` with Android-specific fields | Android-specific styling: `NotificationPriority.HIGH`, custom channel name, color, timestamp, and subtext. |
+
+Each preset is applied per-geofence via the `notificationOptions` field on `addGeofence()`, and stored in the geofence's `metadata` for display. The screen also shows a live JSON preview of the selected preset's configuration and displays a badge on each active geofence indicating which preset was applied.
+
+To try it, run the example app:
+
+```bash
+yarn example start
+yarn example android   # or: yarn example ios
+```
+
+Navigate to the Geofencing screen, select a location preset (Apple Park, Googleplex, or Moscone Center), choose a notification preset, and tap "Add Geofence" to register it with the selected notification configuration.
 
 ### Per-Geofence Notification Overrides
 
@@ -1058,6 +1266,7 @@ try {
 
 ## See Also
 
+- [Advanced Usage Guide](../geofencing/ADVANCED_USAGE.md) -- Server-driven geofencing, programmatic callbacks, full combined example, and hook stability
 - [React Hooks Guide](hooks.md) -- Documentation for all hooks including `useGeofencing` and `useGeofenceEvents`
 - [Quick Start Guide](QUICKSTART.md) -- Library installation and basic setup
 - [Platform Comparison](../production/PLATFORM_COMPARISON.md) -- Android vs iOS behavior differences

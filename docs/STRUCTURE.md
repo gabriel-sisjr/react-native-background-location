@@ -41,6 +41,7 @@ react-native-background-location/
 │   │   └── REALTIME_DEBUG_GUIDE.md     # Real-time debugging
 │   │
 │   ├── geofencing/                     # Geofencing planning & analysis
+│   │   ├── ADVANCED_USAGE.md           # Server-driven geofencing, callbacks, examples
 │   │   ├── BUSINESS_CASE.md            # Geofencing business case & justification
 │   │   └── TECHNICAL_PLAN.md           # Geofencing technical implementation plan
 │   │
@@ -103,6 +104,7 @@ Documentation for **geofencing planning and analysis**:
 
 | File                  | Purpose                              | Audience                              |
 | --------------------- | ------------------------------------ | ------------------------------------- |
+| **ADVANCED_USAGE.md** | Server-driven geofencing, callbacks, full examples | Developers building production apps   |
 | **BUSINESS_CASE.md**  | Business justification for geofencing | Product managers, stakeholders        |
 | **TECHNICAL_PLAN.md** | Technical implementation plan         | Contributors, maintainers             |
 
@@ -252,7 +254,7 @@ When adding new documentation:
 - **Getting Started:** 6 guides (Quick Start, Integration, iOS Setup, Hooks, Geofencing, Real-Time Updates)
 - **Production:** 6 guides (Google Play Compliance, App Store Compliance, Battery Optimization, Crash Recovery, Platform Comparison, Migration)
 - **Development:** 5 guides (CI/CD, Publishing, Testing, Implementation, Real-Time Debug)
-- **Geofencing Planning:** 2 files (Business Case, Technical Plan)
+- **Geofencing:** 3 files (Advanced Usage, Business Case, Technical Plan)
 - **iOS Planning:** 2 files (Business Requirements, Implementation Plan)
 - **Root level:** 5 files (README, CHANGELOG, CONTRIBUTING, etc.)
 - **Workflows:** 3 automated workflows (CI, Publish, Pre-release)

@@ -65,9 +65,17 @@ export interface UseGeofenceEventsOptions {
  * ```
  */
 export function useGeofenceEvents(options?: UseGeofenceEventsOptions): void {
-  // Keep a stable ref for the callback to avoid re-subscribing on every render
+  // Keep stable refs to avoid re-subscribing on every render.
+  // The effect subscribes once on mount; the handler always reads current
+  // values from refs so inline arrays / new callback instances are safe.
   const onTransitionRef = useRef(options?.onTransition);
   onTransitionRef.current = options?.onTransition;
+
+  const filterRef = useRef(options?.filter);
+  filterRef.current = options?.filter;
+
+  const geofenceIdRef = useRef(options?.geofenceId);
+  geofenceIdRef.current = options?.geofenceId;
 
   useEffect(() => {
     if (!isNativeModuleAvailable()) {
@@ -84,19 +92,23 @@ export function useGeofenceEvents(options?: UseGeofenceEventsOptions): void {
       (event: any) => {
         const transitionEvent = event as GeofenceTransitionEvent;
 
+        // Read current values from refs to avoid stale closures
+        const currentFilter = filterRef.current;
+        const currentGeofenceId = geofenceIdRef.current;
+
         // Apply transition type filter
         if (
-          options?.filter &&
-          options.filter.length > 0 &&
-          !options.filter.includes(transitionEvent.transitionType)
+          currentFilter &&
+          currentFilter.length > 0 &&
+          !currentFilter.includes(transitionEvent.transitionType)
         ) {
           return;
         }
 
         // Apply geofence identifier filter
         if (
-          options?.geofenceId &&
-          transitionEvent.geofenceId !== options.geofenceId
+          currentGeofenceId &&
+          transitionEvent.geofenceId !== currentGeofenceId
         ) {
           return;
         }
@@ -109,5 +121,9 @@ export function useGeofenceEvents(options?: UseGeofenceEventsOptions): void {
     return () => {
       subscription.remove();
     };
-  }, [options?.filter, options?.geofenceId]);
+    // Subscribe once on mount. Filter, geofenceId, and onTransition are
+    // accessed via refs so the handler always sees the latest values
+    // without needing to re-subscribe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }

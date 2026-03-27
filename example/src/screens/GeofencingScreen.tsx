@@ -22,8 +22,12 @@ import {
   useGeofencing,
   useGeofenceEvents,
   GeofenceTransitionType,
+  NotificationPriority,
 } from '@gabriel-sisjr/react-native-background-location';
-import type { GeofenceTransitionEvent } from '@gabriel-sisjr/react-native-background-location';
+import type {
+  GeofenceTransitionEvent,
+  NotificationOptions,
+} from '@gabriel-sisjr/react-native-background-location';
 
 /**
  * Generates a GeoJSON polygon that approximates a circle
@@ -103,6 +107,69 @@ const TRANSITION_COLORS: Record<string, string> = {
   DWELL: '#FF9800',
 };
 
+interface NotificationPreset {
+  label: string;
+  description: string;
+  options: NotificationOptions | false | undefined;
+}
+
+const NOTIFICATION_PRESETS: NotificationPreset[] = [
+  {
+    label: 'Default',
+    description: 'Platform defaults (no config)',
+    options: undefined,
+  },
+  {
+    label: 'Custom Templates',
+    description: 'Template variable resolution',
+    options: {
+      title: '{{transitionType}} at {{identifier}}',
+      text: 'Location: {{latitude}}, {{longitude}} (radius: {{radius}}m)',
+    },
+  },
+  {
+    label: 'Per-Transition',
+    description: 'Different config per transition type',
+    options: {
+      title: 'Geofence Alert',
+      text: 'Transition at {{identifier}}',
+      transitionOverrides: {
+        ENTER: {
+          title: 'Entered {{identifier}}',
+          text: 'Welcome! You arrived at {{latitude}}, {{longitude}}',
+          color: '#4CAF50',
+        },
+        EXIT: {
+          title: 'Exited {{identifier}}',
+          text: 'Goodbye! You left the area.',
+          color: '#f44336',
+        },
+        DWELL: {
+          title: 'Dwelling at {{identifier}}',
+          text: 'You have been here for a while.',
+          color: '#FF9800',
+        },
+      },
+    },
+  },
+  {
+    label: 'Silent',
+    description: 'Notification suppression',
+    options: false,
+  },
+  {
+    label: 'High Priority',
+    description: 'Android-specific styling',
+    options: {
+      priority: NotificationPriority.HIGH,
+      channelName: 'Geofence Alerts',
+      color: '#FF0000',
+      showTimestamp: true,
+      subtext: 'Geofence Monitoring Active',
+    },
+  },
+];
+
 type EventWithId = GeofenceTransitionEvent & { id: string };
 
 /**
@@ -116,6 +183,13 @@ type EventWithId = GeofenceTransitionEvent & { id: string };
  * 5. Simulation buttons for testing without real native events
  * 6. Event log showing transition history
  */
+const GLOBAL_NOTIFICATION_OPTIONS: NotificationOptions = {
+  title: 'Geofence: {{identifier}}',
+  text: '{{transitionType}} detected at {{latitude}}, {{longitude}}',
+  channelName: 'Geofence Notifications',
+  showTimestamp: true,
+};
+
 export function GeofencingScreen() {
   const {
     geofences,
@@ -126,27 +200,30 @@ export function GeofencingScreen() {
     removeAllGeofences,
     maxGeofences,
     clearError,
-  } = useGeofencing();
+  } = useGeofencing({
+    notificationOptions: GLOBAL_NOTIFICATION_OPTIONS,
+  });
 
   // Form state
   const [identifier, setIdentifier] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [radius, setRadius] = useState('200');
+  const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 
   // Event log
   const [events, setEvents] = useState<EventWithId[]>([]);
 
   // Listen for real geofence events from native
   useGeofenceEvents({
-    onTransition: useCallback((event: GeofenceTransitionEvent) => {
+    onTransition: (event: GeofenceTransitionEvent) => {
       setEvents((prev) =>
         [{ ...event, id: `${Date.now()}-${Math.random()}` }, ...prev].slice(
           0,
           50
         )
       );
-    }, []),
+    },
   });
 
   const handleAddGeofence = async () => {
@@ -163,12 +240,16 @@ export function GeofencingScreen() {
       return;
     }
 
+    const selectedPreset = NOTIFICATION_PRESETS[selectedPresetIndex]!;
+
     try {
       await addGeofence({
         identifier: identifier.trim(),
         latitude: lat,
         longitude: lng,
         radius: rad,
+        notificationOptions: selectedPreset.options,
+        metadata: { notificationPreset: selectedPreset.label },
       });
       // Clear form on success
       setIdentifier('');
@@ -180,12 +261,12 @@ export function GeofencingScreen() {
     }
   };
 
-  const handlePreset = (preset: (typeof PRESETS)[number]) => {
+  const handlePreset = useCallback((preset: (typeof PRESETS)[number]) => {
     setIdentifier(preset.label.toLowerCase().replace(/\s/g, '-'));
     setLatitude(preset.latitude.toString());
     setLongitude(preset.longitude.toString());
     setRadius(preset.radius.toString());
-  };
+  }, []);
 
   const simulateEvent = (type: GeofenceTransitionType) => {
     const target = geofences[0];
@@ -306,6 +387,49 @@ export function GeofencingScreen() {
           keyboardType="numeric"
         />
 
+        {/* Notification Preset Selector */}
+        <Text style={styles.notificationLabel}>Notification Preset</Text>
+        <View style={styles.notificationPresetsRow}>
+          {NOTIFICATION_PRESETS.map((preset, index) => (
+            <TouchableOpacity
+              key={preset.label}
+              style={[
+                styles.notificationPresetChip,
+                selectedPresetIndex === index &&
+                  styles.notificationPresetChipActive,
+              ]}
+              onPress={() => setSelectedPresetIndex(index)}
+            >
+              <Text
+                style={[
+                  styles.notificationPresetChipText,
+                  selectedPresetIndex === index &&
+                    styles.notificationPresetChipTextActive,
+                ]}
+              >
+                {preset.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.notificationPresetDescription}>
+          {NOTIFICATION_PRESETS[selectedPresetIndex]!.description}
+        </Text>
+        <View style={styles.jsonPreviewContainer}>
+          <Text style={styles.jsonPreviewLabel}>Config Preview</Text>
+          <Text style={styles.jsonPreviewText}>
+            {NOTIFICATION_PRESETS[selectedPresetIndex]!.options === undefined
+              ? 'undefined (platform defaults)'
+              : NOTIFICATION_PRESETS[selectedPresetIndex]!.options === false
+                ? 'false (notifications suppressed)'
+                : JSON.stringify(
+                    NOTIFICATION_PRESETS[selectedPresetIndex]!.options,
+                    null,
+                    2
+                  )}
+          </Text>
+        </View>
+
         <TouchableOpacity
           style={[styles.button, styles.primaryButton]}
           onPress={handleAddGeofence}
@@ -323,22 +447,32 @@ export function GeofencingScreen() {
         {geofences.length === 0 && (
           <Text style={styles.emptyText}>No active geofences</Text>
         )}
-        {geofences.map((g) => (
-          <View key={g.identifier} style={styles.geofenceItem}>
-            <View style={styles.geofenceInfo}>
-              <Text style={styles.geofenceId}>{g.identifier}</Text>
-              <Text style={styles.geofenceCoords}>
-                {g.latitude.toFixed(4)}, {g.longitude.toFixed(4)} | {g.radius}m
-              </Text>
+        {geofences.map((g) => {
+          const presetName = (g.metadata as Record<string, unknown> | undefined)
+            ?.notificationPreset as string | undefined;
+          return (
+            <View key={g.identifier} style={styles.geofenceItem}>
+              <View style={styles.geofenceInfo}>
+                <Text style={styles.geofenceId}>{g.identifier}</Text>
+                <Text style={styles.geofenceCoords}>
+                  {g.latitude.toFixed(4)}, {g.longitude.toFixed(4)} | {g.radius}
+                  m
+                </Text>
+                {presetName && (
+                  <View style={styles.presetBadge}>
+                    <Text style={styles.presetBadgeText}>{presetName}</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => removeGeofence(g.identifier)}
+              >
+                <Text style={styles.removeButtonText}>Remove</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.removeButton}
-              onPress={() => removeGeofence(g.identifier)}
-            >
-              <Text style={styles.removeButtonText}>Remove</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+          );
+        })}
         {geofences.length > 0 && (
           <TouchableOpacity
             style={[styles.button, styles.dangerButton]}
@@ -514,6 +648,15 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     marginTop: 2,
   },
+  presetBadge: {
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  presetBadgeText: { color: '#2E7D32', fontSize: 11, fontWeight: '600' },
   removeButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -545,4 +688,64 @@ const styles = StyleSheet.create({
   eventInfo: { flex: 1 },
   eventType: { fontSize: 13, fontWeight: '600', color: '#333' },
   eventTime: { fontSize: 11, color: '#888', marginTop: 2 },
+  notificationLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#555',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  notificationPresetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  notificationPresetChip: {
+    backgroundColor: '#F3E5F5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  notificationPresetChipActive: {
+    borderColor: '#7B1FA2',
+    backgroundColor: '#E1BEE7',
+  },
+  notificationPresetChipText: {
+    color: '#7B1FA2',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  notificationPresetChipTextActive: {
+    color: '#4A148C',
+    fontWeight: 'bold',
+  },
+  notificationPresetDescription: {
+    fontSize: 12,
+    color: '#888',
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  jsonPreviewContainer: {
+    backgroundColor: '#263238',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  jsonPreviewLabel: {
+    fontSize: 11,
+    color: '#78909C',
+    fontWeight: '600',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  jsonPreviewText: {
+    fontSize: 12,
+    color: '#B0BEC5',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    lineHeight: 18,
+  },
 });
