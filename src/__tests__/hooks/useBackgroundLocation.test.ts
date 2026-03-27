@@ -1103,7 +1103,7 @@ describe('useBackgroundLocation', () => {
       await act(async () => {
         try {
           await result.current.stopTracking();
-        } catch (e) {
+        } catch {
           // Expected
         }
       });

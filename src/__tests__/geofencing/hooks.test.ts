@@ -110,6 +110,95 @@ describe('useGeofencing', () => {
       expect(result.current.error).toBeTruthy();
       expect(result.current.error?.message).toBe('fail');
     });
+
+    it('should wrap non-Error rejection in a generic Error when addGeofence fails', async () => {
+      (BackgroundLocationModule.addGeofence as jest.Mock).mockRejectedValue(
+        'string rejection'
+      );
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.addGeofence(mockGeofence);
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('Failed to add geofence');
+    });
+  });
+
+  describe('addGeofences', () => {
+    const mockRegions = [
+      {
+        identifier: 'office',
+        latitude: -23.5505,
+        longitude: -46.6333,
+        radius: 200,
+      },
+      {
+        identifier: 'home',
+        latitude: -23.56,
+        longitude: -46.64,
+        radius: 100,
+      },
+    ];
+
+    beforeEach(() => {
+      (BackgroundLocationModule.addGeofences as jest.Mock).mockResolvedValue(
+        undefined
+      );
+    });
+
+    it('should call API and refresh list on success', async () => {
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        await result.current.addGeofences(mockRegions);
+      });
+
+      expect(BackgroundLocationModule.addGeofences).toHaveBeenCalledTimes(1);
+      expect(BackgroundLocationModule.getActiveGeofences).toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it('should set error and re-throw when API rejects with an Error', async () => {
+      (BackgroundLocationModule.addGeofences as jest.Mock).mockRejectedValue(
+        new Error('batch add failed')
+      );
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.addGeofences(mockRegions);
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('batch add failed');
+    });
+
+    it('should wrap non-Error rejection in a generic Error when addGeofences fails', async () => {
+      (BackgroundLocationModule.addGeofences as jest.Mock).mockRejectedValue(
+        'string rejection'
+      );
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.addGeofences(mockRegions);
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('Failed to add geofences');
+    });
   });
 
   describe('removeGeofence', () => {
@@ -125,6 +214,98 @@ describe('useGeofencing', () => {
       );
       expect(BackgroundLocationModule.getActiveGeofences).toHaveBeenCalled();
     });
+
+    it('should set error and re-throw when removeGeofence rejects with an Error', async () => {
+      (BackgroundLocationModule.removeGeofence as jest.Mock).mockRejectedValue(
+        new Error('remove failed')
+      );
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.removeGeofence('office');
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('remove failed');
+    });
+
+    it('should wrap non-Error rejection in a generic Error when removeGeofence fails', async () => {
+      (BackgroundLocationModule.removeGeofence as jest.Mock).mockRejectedValue(
+        'string rejection'
+      );
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.removeGeofence('office');
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('Failed to remove geofence');
+    });
+  });
+
+  describe('removeGeofences', () => {
+    beforeEach(() => {
+      (BackgroundLocationModule.removeGeofences as jest.Mock).mockResolvedValue(
+        undefined
+      );
+    });
+
+    it('should call API and refresh on success', async () => {
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        await result.current.removeGeofences(['office', 'home']);
+      });
+
+      expect(BackgroundLocationModule.removeGeofences).toHaveBeenCalledTimes(1);
+      expect(BackgroundLocationModule.getActiveGeofences).toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it('should set error and re-throw when removeGeofences rejects with an Error', async () => {
+      (BackgroundLocationModule.removeGeofences as jest.Mock).mockRejectedValue(
+        new Error('batch remove failed')
+      );
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.removeGeofences(['office', 'home']);
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('batch remove failed');
+    });
+
+    it('should wrap non-Error rejection in a generic Error when removeGeofences fails', async () => {
+      (BackgroundLocationModule.removeGeofences as jest.Mock).mockRejectedValue(
+        'string rejection'
+      );
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.removeGeofences(['office', 'home']);
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('Failed to remove geofences');
+    });
   });
 
   describe('removeAllGeofences', () => {
@@ -139,6 +320,44 @@ describe('useGeofencing', () => {
         1
       );
       expect(BackgroundLocationModule.getActiveGeofences).toHaveBeenCalled();
+    });
+
+    it('should set error and re-throw when removeAllGeofences rejects with an Error', async () => {
+      (
+        BackgroundLocationModule.removeAllGeofences as jest.Mock
+      ).mockRejectedValue(new Error('remove all failed'));
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.removeAllGeofences();
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('remove all failed');
+    });
+
+    it('should wrap non-Error rejection in a generic Error when removeAllGeofences fails', async () => {
+      (
+        BackgroundLocationModule.removeAllGeofences as jest.Mock
+      ).mockRejectedValue('string rejection');
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        try {
+          await result.current.removeAllGeofences();
+        } catch {
+          // expected — hook re-throws
+        }
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe(
+        'Failed to remove all geofences'
+      );
     });
   });
 
@@ -161,6 +380,38 @@ describe('useGeofencing', () => {
       expect(result.current.geofences).toHaveLength(1);
       expect(result.current.geofences[0]!.identifier).toBe('office');
       expect(result.current.maxGeofences).toBe(20);
+    });
+
+    it('should set error when getActiveGeofences rejects with an Error instance', async () => {
+      (
+        BackgroundLocationModule.getActiveGeofences as jest.Mock
+      ).mockRejectedValue(new Error('Network failure'));
+
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('Network failure');
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    it('should wrap non-Error rejection in a generic Error when refresh fails', async () => {
+      (
+        BackgroundLocationModule.getActiveGeofences as jest.Mock
+      ).mockRejectedValue('string error');
+
+      const { result } = renderHook(() => useGeofencing({ autoLoad: false }));
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      expect(result.current.error).not.toBeNull();
+      expect(result.current.error?.message).toBe('Failed to load geofences');
+      expect(result.current.isLoading).toBe(false);
     });
   });
 
@@ -257,6 +508,40 @@ describe('useGeofencing', () => {
         expect(
           BackgroundLocationModule.configureGeofenceNotifications
         ).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('should set error when configureGeofenceNotifications rejects with an Error', async () => {
+      (
+        BackgroundLocationModule.configureGeofenceNotifications as jest.Mock
+      ).mockRejectedValue(new Error('config failed'));
+
+      const notificationOptions = { enabled: true, title: 'Test' };
+      const { result } = renderHook(() =>
+        useGeofencing({ autoLoad: false, notificationOptions })
+      );
+
+      await waitFor(() => {
+        expect(result.current.error).not.toBeNull();
+        expect(result.current.error?.message).toBe('config failed');
+      });
+    });
+
+    it('should wrap non-Error rejection in a generic Error when configureGeofenceNotifications fails', async () => {
+      (
+        BackgroundLocationModule.configureGeofenceNotifications as jest.Mock
+      ).mockRejectedValue('string rejection');
+
+      const notificationOptions = { enabled: true, title: 'Test' };
+      const { result } = renderHook(() =>
+        useGeofencing({ autoLoad: false, notificationOptions })
+      );
+
+      await waitFor(() => {
+        expect(result.current.error).not.toBeNull();
+        expect(result.current.error?.message).toBe(
+          'Failed to configure geofence notifications'
+        );
       });
     });
   });
@@ -401,5 +686,76 @@ describe('useGeofenceEvents', () => {
     );
     unmount();
     expect(mockRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('should NOT subscribe to events when native module is unavailable', () => {
+    const originalIsTracking = BackgroundLocationModule.isTracking;
+
+    // Make isTracking not a function so isNativeModuleAvailable() returns false
+    (BackgroundLocationModule as any).isTracking = 'not-a-function';
+
+    renderHook(() =>
+      useGeofenceEvents({
+        onTransition: jest.fn(),
+      })
+    );
+
+    // addListener should NOT have been called since module is unavailable
+    expect(mockAddListener).not.toHaveBeenCalled();
+
+    // Restore original mock
+    (BackgroundLocationModule as any).isTracking = originalIsTracking;
+  });
+
+  it('should NOT subscribe to events when native module isTracking is undefined', () => {
+    const originalIsTracking = BackgroundLocationModule.isTracking;
+
+    // Make isTracking undefined so typeof check returns false
+    (BackgroundLocationModule as any).isTracking = undefined;
+
+    renderHook(() =>
+      useGeofenceEvents({
+        onTransition: jest.fn(),
+      })
+    );
+
+    expect(mockAddListener).not.toHaveBeenCalled();
+
+    // Restore original mock
+    (BackgroundLocationModule as any).isTracking = originalIsTracking;
+  });
+
+  it('should NOT subscribe to events when isTracking property access throws', () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      BackgroundLocationModule,
+      'isTracking'
+    );
+
+    // Define a getter that throws to cover the catch branch (line 20)
+    Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+      get() {
+        throw new Error('module access error');
+      },
+      configurable: true,
+    });
+
+    renderHook(() =>
+      useGeofenceEvents({
+        onTransition: jest.fn(),
+      })
+    );
+
+    expect(mockAddListener).not.toHaveBeenCalled();
+
+    // Restore original property
+    if (originalDescriptor) {
+      Object.defineProperty(
+        BackgroundLocationModule,
+        'isTracking',
+        originalDescriptor
+      );
+    } else {
+      delete (BackgroundLocationModule as any).isTracking;
+    }
   });
 });

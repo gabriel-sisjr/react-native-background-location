@@ -6,13 +6,9 @@ import type { GeofenceTransitionEvent, GeofenceTransitionType } from '../types';
 // Check if native module is available
 const isNativeModuleAvailable = () => {
   try {
-    // Check if methods are available (works with Proxy mocks)
-    // This must be checked first before checking if module exists
+    // Optional chaining handles null/undefined module — if the module is missing
+    // or isTracking is not a function, we know the native layer is unavailable.
     if (typeof BackgroundLocationModule?.isTracking !== 'function') {
-      return false;
-    }
-    // Check if module exists and is not null
-    if (!BackgroundLocationModule || BackgroundLocationModule === null) {
       return false;
     }
     return true;
