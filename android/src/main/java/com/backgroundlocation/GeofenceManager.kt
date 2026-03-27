@@ -13,12 +13,18 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.backgroundlocation.database.GeofenceEntity
 import com.backgroundlocation.database.GeofenceTransitionEntity
+import android.os.Looper
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.GeofencingRequest
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +55,11 @@ class GeofenceManager(private val context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    // Heartbeat: lightweight location requests to keep the GPS pipeline warm for geofence detection
+    private var heartbeatClient: FusedLocationProviderClient? = null
+    private var heartbeatCallback: LocationCallback? = null
+    private var isHeartbeatActive: Boolean = false
+
     private val isoFormatter: SimpleDateFormat
         get() = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
             timeZone = TimeZone.getTimeZone("UTC")
@@ -63,6 +74,10 @@ class GeofenceManager(private val context: Context) {
         const val TRANSITION_ENTER = 1
         const val TRANSITION_EXIT = 2
         const val TRANSITION_DWELL = 4
+
+        // Heartbeat interval constants — keep GPS pipeline warm for passive geofence detection
+        private const val HEARTBEAT_INTERVAL_MS = 15 * 60 * 1000L   // 15 minutes
+        private const val HEARTBEAT_FASTEST_MS = 5 * 60 * 1000L     // 5 minutes
     }
 
     private fun isPlayServicesAvailable(): Boolean {
@@ -222,6 +237,9 @@ class GeofenceManager(private val context: Context) {
         // Persist to Room
         storage.saveGeofence(region.toEntity())
         Log.d(TAG, "Geofence added: ${region.identifier}")
+
+        // Start heartbeat if tracking is not active
+        startHeartbeatIfNeeded()
     }
 
     @SuppressLint("MissingPermission")
@@ -295,6 +313,9 @@ class GeofenceManager(private val context: Context) {
         // Persist all to Room
         storage.saveGeofences(regions.map { it.toEntity() })
         Log.d(TAG, "Batch added ${regions.size} geofences")
+
+        // Start heartbeat if tracking is not active
+        startHeartbeatIfNeeded()
     }
 
     @SuppressLint("MissingPermission")
@@ -308,6 +329,11 @@ class GeofenceManager(private val context: Context) {
         }
         storage.removeGeofence(identifier)
         Log.d(TAG, "Geofence removed: $identifier")
+
+        // Stop heartbeat if no geofences remain
+        if (storage.getGeofenceCount() == 0) {
+            stopHeartbeat()
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -329,6 +355,11 @@ class GeofenceManager(private val context: Context) {
         }
         storage.removeGeofences(identifiers)
         Log.d(TAG, "Removed ${identifiers.size} geofences")
+
+        // Stop heartbeat if no geofences remain
+        if (storage.getGeofenceCount() == 0) {
+            stopHeartbeat()
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -341,6 +372,7 @@ class GeofenceManager(private val context: Context) {
             }
         }
         storage.removeAllGeofences()
+        stopHeartbeat()
         Log.d(TAG, "All geofences removed")
     }
 
@@ -481,6 +513,9 @@ class GeofenceManager(private val context: Context) {
                 registerWithProximityAlerts(regions)
             }
             Log.d(TAG, "Restored ${geofences.size} geofences")
+
+            // Start heartbeat if tracking is not active
+            startHeartbeatIfNeeded()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to restore geofences", e)
         }
@@ -495,6 +530,7 @@ class GeofenceManager(private val context: Context) {
                 .setRequestId(region.identifier)
                 .setCircularRegion(region.latitude, region.longitude, region.radius)
                 .setLoiteringDelay(region.loiteringDelay)
+                .setNotificationResponsiveness(5000)
 
             // Set transition types
             var transitions = 0
@@ -612,7 +648,106 @@ class GeofenceManager(private val context: Context) {
         }
     }
 
+    // --- Heartbeat: Keep GPS Pipeline Warm for Geofence Detection ---
+
+    /**
+     * Starts a low-frequency heartbeat location request to keep the GPS pipeline active.
+     * Required when geofences are registered but LocationService (foreground tracking) is not running.
+     * On devices with few installed apps, the GPS subsystem can go fully dormant, causing
+     * GeofencingClient (which is passive) to miss transitions indefinitely.
+     *
+     * The heartbeat callback is a no-op — it discards received locations. Its sole purpose
+     * is to stimulate the location subsystem so GeofencingClient can detect transitions.
+     */
+    @SuppressLint("MissingPermission")
+    private fun startHeartbeatIfNeeded() {
+        if (isHeartbeatActive) {
+            Log.d(TAG, "Heartbeat already active, skipping start")
+            return
+        }
+
+        if (isTrackingActive()) {
+            Log.d(TAG, "LocationService is running, heartbeat not needed")
+            return
+        }
+
+        if (!isPlayServicesAvailable()) {
+            Log.d(TAG, "Play Services not available, cannot start heartbeat")
+            return
+        }
+
+        val client = heartbeatClient ?: LocationServices.getFusedLocationProviderClient(context).also {
+            heartbeatClient = it
+        }
+
+        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, HEARTBEAT_INTERVAL_MS)
+            .setMinUpdateIntervalMillis(HEARTBEAT_FASTEST_MS)
+            .build()
+
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                // No-op: discard location data. This callback exists solely to keep the
+                // location pipeline warm so GeofencingClient can detect transitions.
+                Log.d(TAG, "Heartbeat location received (discarded): lat=${result.lastLocation?.latitude}, lng=${result.lastLocation?.longitude}")
+            }
+        }
+        heartbeatCallback = callback
+
+        client.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        isHeartbeatActive = true
+        Log.d(TAG, "Heartbeat started (interval=${HEARTBEAT_INTERVAL_MS}ms, fastest=${HEARTBEAT_FASTEST_MS}ms)")
+    }
+
+    /**
+     * Stops the heartbeat location requests.
+     * Called when LocationService starts (tracking provides its own location updates)
+     * or when all geofences are removed.
+     */
+    private fun stopHeartbeat() {
+        if (!isHeartbeatActive || heartbeatCallback == null) return
+
+        heartbeatClient?.removeLocationUpdates(heartbeatCallback!!)
+        heartbeatCallback = null
+        isHeartbeatActive = false
+        Log.d(TAG, "Heartbeat stopped")
+    }
+
+    /**
+     * Checks whether the foreground LocationService is currently running.
+     */
+    private fun isTrackingActive(): Boolean {
+        return LocationService.isRunning
+    }
+
+    /**
+     * Called when LocationService starts tracking.
+     * Stops the heartbeat since tracking already provides continuous location updates,
+     * making the heartbeat redundant.
+     */
+    fun onTrackingStarted() {
+        stopHeartbeat()
+    }
+
+    /**
+     * Called when LocationService stops tracking.
+     * Restarts the heartbeat if geofences are still registered, to keep the GPS pipeline
+     * active for passive geofence detection.
+     */
+    fun onTrackingStopped() {
+        scope.launch {
+            try {
+                val count = storage.getGeofenceCount()
+                if (count > 0) {
+                    startHeartbeatIfNeeded()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to check geofence count for heartbeat restart", e)
+            }
+        }
+    }
+
     fun cleanup() {
+        stopHeartbeat()
         scope.cancel()
         storage.cleanup()
     }

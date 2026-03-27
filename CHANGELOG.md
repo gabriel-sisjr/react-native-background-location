@@ -21,6 +21,13 @@
 - Notification resolution chain: per-geofence transition override -> per-geofence config -> global transition override -> global config -> built-in defaults
 - Mixed batch support: `addGeofences()` accepts geofences with different notification configurations in a single call
 - Example app: notification presets demo in `GeofencingScreen` with 5 selectable presets (Default, Custom Templates, Per-Transition, Silent, High Priority), live JSON config preview, and per-geofence preset badges
+- **Android**: Location heartbeat in `GeofenceManager` -- a lightweight `FusedLocationProviderClient` request (`PRIORITY_BALANCED_POWER_ACCURACY`, 15-min interval, 5-min fastest) that keeps the GPS pipeline active when geofences are registered but `LocationService` is not running. Solves the known Android limitation where `GeofencingClient` is passive and misses transitions on devices with few location-requesting apps. Battery impact: ~2-4%/day. Automatically managed:
+  - Starts when geofences are added and tracking is not active
+  - Stops when `LocationService` starts (redundant with active tracking)
+  - Restarts when `LocationService` stops if geofences remain
+  - Stops when all geofences are removed
+  - Restored after device boot via `BootCompletedReceiver` -> `restoreGeofences`
+- **Android**: `setNotificationResponsiveness(5000)` on `Geofence.Builder` for faster geofence transition notifications (reduced from system default ~5 minutes to 5 seconds)
 
 ### Improved
 

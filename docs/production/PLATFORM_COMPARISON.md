@@ -117,6 +117,20 @@ Step 2: requestAlwaysAuthorization()
 | App killed by user      | Service usually continues                                  | App terminates; no automatic recovery              |
 | App killed by system    | Service continues independently                            | App terminates; significant location can re-launch |
 
+## Geofencing
+
+| Aspect                       | Android                                                                                                           | iOS                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Native API                   | `GeofencingClient` (Google Play Services)                                                                         | `CLLocationManager` region monitoring                |
+| Detection model              | Passive -- piggybacks on other apps' location requests                                                            | Active -- OS monitors regions independently          |
+| GPS keepalive (heartbeat)    | Automatic `FusedLocationProviderClient` heartbeat (15-min, `BALANCED_POWER_ACCURACY`) when tracking is not active | Not needed (region monitoring is active)             |
+| Heartbeat battery impact     | ~2-4%/day                                                                                                         | N/A                                                  |
+| Notification responsiveness  | `setNotificationResponsiveness(5000)` (~5s delivery)                                                              | System-managed                                       |
+| Maximum geofences            | 100                                                                                                               | 20 (shared with iBeacon regions)                     |
+| DWELL detection              | Native (`GeofencingClient` loitering)                                                                             | Software-based timer                                 |
+| Persistence after reboot     | `BootCompletedReceiver` re-registers geofences + restarts heartbeat                                               | `CLLocationManager` persists regions across restarts |
+| Persistence after force-quit | Survives (geofences stored in Room DB)                                                                            | Survives (regions managed by OS)                     |
+
 ## Crash Recovery
 
 | Aspect                | Android                                             | iOS                                               |

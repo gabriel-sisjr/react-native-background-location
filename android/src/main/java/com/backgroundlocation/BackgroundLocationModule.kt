@@ -328,6 +328,10 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     withContext(Dispatchers.Main) {
       val context = reactApplicationContext
       LocationService.startService(context, effectiveTripId, trackingOptions)
+
+      // Notify geofence manager that tracking started — stops heartbeat (redundant with active tracking)
+      geofenceManager.onTrackingStarted()
+
       promise.resolve(effectiveTripId)
     }
   }
@@ -399,6 +403,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
         withContext(Dispatchers.Main) {
           LocationService.stopService(context)
         }
+
+        // Step 6: Notify geofence manager that tracking stopped — restarts heartbeat if geofences exist
+        geofenceManager.onTrackingStopped()
 
         android.util.Log.d("BackgroundLocationModule", "stopTracking: Stop sequence completed successfully")
         promise.resolve(null)

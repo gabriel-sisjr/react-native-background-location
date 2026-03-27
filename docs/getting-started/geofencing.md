@@ -317,16 +317,14 @@ In `__DEV__` mode, validates template variables in `title` and `text` fields and
 
 **Parameters:**
 
-| Name      | Type                  | Description                                    |
-| --------- | --------------------- | ---------------------------------------------- |
+| Name      | Type                  | Description                                      |
+| --------- | --------------------- | ------------------------------------------------ |
 | `options` | `NotificationOptions` | Notification configuration. All fields optional. |
 
 **Returns:** `Promise<void>`
 
 ```typescript
-import {
-  configureGeofenceNotifications,
-} from '@gabriel-sisjr/react-native-background-location';
+import { configureGeofenceNotifications } from '@gabriel-sisjr/react-native-background-location';
 
 await configureGeofenceNotifications({
   enabled: true,
@@ -343,9 +341,7 @@ Retrieves the current geofence notification configuration from the native layer.
 **Returns:** `Promise<NotificationOptions>`
 
 ```typescript
-import {
-  getGeofenceNotificationConfig,
-} from '@gabriel-sisjr/react-native-background-location';
+import { getGeofenceNotificationConfig } from '@gabriel-sisjr/react-native-background-location';
 
 const config = await getGeofenceNotificationConfig();
 console.log('Current config:', config);
@@ -375,9 +371,9 @@ interface UseGeofencingOptions {
 }
 ```
 
-| Option                | Type                  | Default     | Description                                                      |
-| --------------------- | --------------------- | ----------- | ---------------------------------------------------------------- |
-| `autoLoad`            | `boolean`             | `true`      | Automatically fetch active geofences and platform limit on mount |
+| Option                | Type                  | Default     | Description                                                                                               |
+| --------------------- | --------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| `autoLoad`            | `boolean`             | `true`      | Automatically fetch active geofences and platform limit on mount                                          |
 | `notificationOptions` | `NotificationOptions` | `undefined` | Global notification config for geofence transitions. Applied on mount; reconfigured when content changes. |
 
 > **Deep comparison:** The hook serializes `notificationOptions` to JSON for dependency tracking. If you pass a new object reference with the same content, no native reconfiguration occurs. Only actual content changes trigger a call to `configureGeofenceNotifications()`.
@@ -609,9 +605,7 @@ By default, geofence transitions produce notifications on both platforms with se
 ### Quick Start
 
 ```typescript
-import {
-  configureGeofenceNotifications,
-} from '@gabriel-sisjr/react-native-background-location';
+import { configureGeofenceNotifications } from '@gabriel-sisjr/react-native-background-location';
 
 // Configure notifications globally (call once, e.g., at app startup)
 await configureGeofenceNotifications({
@@ -627,15 +621,15 @@ Configuration persists across app restarts (SharedPreferences on Android, UserDe
 
 The `title` and `text` fields support template variables that are resolved at notification time on the native side. Wrap variable names in double curly braces.
 
-| Variable             | Example Output          | Description                                                        |
-| -------------------- | ----------------------- | ------------------------------------------------------------------ |
-| `{{identifier}}`     | `warehouse-north`       | The geofence identifier provided during registration               |
-| `{{transitionType}}` | `ENTER`                 | Transition type: `ENTER`, `EXIT`, or `DWELL`                       |
-| `{{latitude}}`       | `-23.5505`              | Device latitude at the moment of transition                        |
-| `{{longitude}}`      | `-46.6333`              | Device longitude at the moment of transition                       |
-| `{{radius}}`         | `200`                   | Radius of the geofence in meters                                   |
-| `{{timestamp}}`      | `2026-03-25T14:30:00Z`  | ISO 8601 timestamp of the transition                               |
-| `{{metadata.KEY}}`   | *(value of KEY)*        | Access a specific key from the geofence's `metadata` object        |
+| Variable             | Example Output         | Description                                                 |
+| -------------------- | ---------------------- | ----------------------------------------------------------- |
+| `{{identifier}}`     | `warehouse-north`      | The geofence identifier provided during registration        |
+| `{{transitionType}}` | `ENTER`                | Transition type: `ENTER`, `EXIT`, or `DWELL`                |
+| `{{latitude}}`       | `-23.5505`             | Device latitude at the moment of transition                 |
+| `{{longitude}}`      | `-46.6333`             | Device longitude at the moment of transition                |
+| `{{radius}}`         | `200`                  | Radius of the geofence in meters                            |
+| `{{timestamp}}`      | `2026-03-25T14:30:00Z` | ISO 8601 timestamp of the transition                        |
+| `{{metadata.KEY}}`   | _(value of KEY)_       | Access a specific key from the geofence's `metadata` object |
 
 **Metadata variables:** Use `{{metadata.KEY}}` to access values from the geofence's `metadata` object. For example, if a geofence was registered with `metadata: { zone: 'loading-dock' }`, then `{{metadata.zone}}` resolves to `loading-dock`. If the key does not exist, the placeholder is replaced with an empty string.
 
@@ -650,8 +644,8 @@ The `title` and `text` fields support template variables that are resolved at no
 ```typescript
 import { GEOFENCE_TEMPLATE_VARS } from '@gabriel-sisjr/react-native-background-location';
 
-console.log(GEOFENCE_TEMPLATE_VARS.IDENTIFIER);       // '{{identifier}}'
-console.log(GEOFENCE_TEMPLATE_VARS.TRANSITION_TYPE);   // '{{transitionType}}'
+console.log(GEOFENCE_TEMPLATE_VARS.IDENTIFIER); // '{{identifier}}'
+console.log(GEOFENCE_TEMPLATE_VARS.TRANSITION_TYPE); // '{{transitionType}}'
 ```
 
 ### Metadata in Notification Templates
@@ -660,11 +654,11 @@ The `metadata` field on `GeofenceRegion` accepts any JSON-serializable object (`
 
 #### Template Syntax
 
-| Syntax | Description | Example |
-| ------ | ----------- | ------- |
-| `{{metadata.fieldName}}` | Access a top-level metadata field | `{{metadata.customerName}}` |
-| `{{metadata.parent.child}}` | Access a nested field via dot notation | `{{metadata.site.address}}` |
-| `{{metadata.a.b.c}}` | Arbitrary nesting depth | `{{metadata.vehicle.driver.name}}` |
+| Syntax                      | Description                            | Example                            |
+| --------------------------- | -------------------------------------- | ---------------------------------- |
+| `{{metadata.fieldName}}`    | Access a top-level metadata field      | `{{metadata.customerName}}`        |
+| `{{metadata.parent.child}}` | Access a nested field via dot notation | `{{metadata.site.address}}`        |
+| `{{metadata.a.b.c}}`        | Arbitrary nesting depth                | `{{metadata.vehicle.driver.name}}` |
 
 Template resolution happens on the native side (Android: `GeofenceTemplateResolver.kt`, iOS: `GeofenceNotificationConfig.swift`). Both platforms use the same regex and dot-walk algorithm, so metadata templates behave identically on Android and iOS.
 
@@ -729,10 +723,7 @@ await addGeofence({
   latitude: -23.5612,
   longitude: -46.6558,
   radius: 300,
-  transitionTypes: [
-    GeofenceTransitionType.ENTER,
-    GeofenceTransitionType.EXIT,
-  ],
+  transitionTypes: [GeofenceTransitionType.ENTER, GeofenceTransitionType.EXIT],
   metadata: {
     site: {
       name: 'Warehouse Central',
@@ -790,7 +781,10 @@ await addGeofences([
     latitude: -22.9068,
     longitude: -43.1729,
     radius: 200,
-    transitionTypes: [GeofenceTransitionType.ENTER, GeofenceTransitionType.DWELL],
+    transitionTypes: [
+      GeofenceTransitionType.ENTER,
+      GeofenceTransitionType.DWELL,
+    ],
     loiteringDelay: 60000,
     metadata: {
       equipmentId: 'GEN-3200',
@@ -825,13 +819,13 @@ await addGeofences([
 
 Template resolution is performed entirely on the native side so that notifications render correctly even when the JS runtime is not active (e.g., the app was killed by the OS). Both platforms share the same logic:
 
-| Aspect | Android | iOS |
-| ------ | ------- | --- |
-| Implementation | `GeofenceTemplateResolver.kt` | `GeofenceNotificationConfig.swift` |
-| Regex pattern | `\{\{(\w+(?:\.\w+)*)\}\}` | `\{\{(\w+(?:\.\w+)*)\}\}` |
-| Dot-notation traversal | `JSONObject.opt()` chain | `[String: Any]` dictionary walk |
-| Missing field result | Empty string `""` | Empty string `""` |
-| Null metadata | Empty string `""` | Empty string `""` |
+| Aspect                 | Android                       | iOS                                |
+| ---------------------- | ----------------------------- | ---------------------------------- |
+| Implementation         | `GeofenceTemplateResolver.kt` | `GeofenceNotificationConfig.swift` |
+| Regex pattern          | `\{\{(\w+(?:\.\w+)*)\}\}`     | `\{\{(\w+(?:\.\w+)*)\}\}`          |
+| Dot-notation traversal | `JSONObject.opt()` chain      | `[String: Any]` dictionary walk    |
+| Missing field result   | Empty string `""`             | Empty string `""`                  |
+| Null metadata          | Empty string `""`             | Empty string `""`                  |
 
 You do not need to write platform-specific code or conditional logic for metadata templates.
 
@@ -840,9 +834,7 @@ You do not need to write platform-specific code or conditional logic for metadat
 To suppress geofence transition notifications entirely, set `enabled: false`:
 
 ```typescript
-import {
-  configureGeofenceNotifications,
-} from '@gabriel-sisjr/react-native-background-location';
+import { configureGeofenceNotifications } from '@gabriel-sisjr/react-native-background-location';
 
 await configureGeofenceNotifications({
   enabled: false,
@@ -891,9 +883,7 @@ The hook calls `configureGeofenceNotifications()` on mount and reconfigures when
 To check the current notification configuration at runtime:
 
 ```typescript
-import {
-  getGeofenceNotificationConfig,
-} from '@gabriel-sisjr/react-native-background-location';
+import { getGeofenceNotificationConfig } from '@gabriel-sisjr/react-native-background-location';
 
 const config = await getGeofenceNotificationConfig();
 console.log('Current config:', config);
@@ -922,6 +912,26 @@ if (result === RESULTS.GRANTED) {
 
 By default, iOS does not display notification banners when the app is in the foreground. If you need geofence notifications to appear while the app is open, your `AppDelegate` must conform to `UNUserNotificationCenterDelegate` and implement `userNotificationCenter:willPresent:withCompletionHandler:` to allow foreground presentation.
 
+#### Android: Location Heartbeat for Reliable Detection
+
+Android's `GeofencingClient` is a passive API -- it piggybacks on location requests made by other apps rather than actively polling GPS. On devices with few installed apps (or apps that rarely request location), the GPS subsystem can go fully dormant, causing geofence transitions to go undetected indefinitely.
+
+The library solves this with an automatic location heartbeat in `GeofenceManager`. When geofences are registered and `LocationService` (foreground tracking) is not active, the heartbeat issues lightweight `FusedLocationProviderClient` requests at 15-minute intervals (`PRIORITY_BALANCED_POWER_ACCURACY`, fastest interval 5 minutes). The callback discards received locations -- its sole purpose is to keep the GPS pipeline warm so `GeofencingClient` can detect transitions.
+
+The heartbeat is fully automatic and requires no configuration:
+
+| Condition                                                       | Heartbeat behavior                                    |
+| --------------------------------------------------------------- | ----------------------------------------------------- |
+| Geofences added, tracking not active                            | Starts                                                |
+| `startTracking()` called                                        | Stops (tracking provides continuous location updates) |
+| `stopTracking()` called, geofences still registered             | Restarts                                              |
+| All geofences removed                                           | Stops                                                 |
+| Device rebooted, geofences restored via `BootCompletedReceiver` | Starts                                                |
+
+Battery impact is approximately 2-4% per day. The heartbeat uses balanced power accuracy, which works with cell tower and Wi-Fi positioning and does not require direct GPS satellite fixes.
+
+Additionally, all geofences are registered with `setNotificationResponsiveness(5000)`, reducing the delay between a transition occurring and the notification being delivered from the system default (~5 minutes) to approximately 5 seconds.
+
 #### Android: Notification Channel Immutability
 
 On Android 8.0 (API 26) and above, notification channels are immutable after creation. If you change the `channelId` or `channelName` after the channel has already been created on a device, the changes will not take effect for the existing channel. To apply channel changes, either use a new `channelId` or instruct users to clear the app's notification settings.
@@ -936,13 +946,13 @@ On Android 8.0 (API 26) and above, notification channels are immutable after cre
 
 The example app's `GeofencingScreen` includes an interactive notification presets demo that showcases the full range of notification configuration options. When adding a geofence, you can select one of five presets to see how each configuration style works in practice.
 
-| Preset | Config Value | What It Demonstrates |
-|--------|-------------|---------------------|
-| **Default** | `undefined` | Platform defaults -- no notification configuration is passed, so the library uses built-in defaults. |
-| **Custom Templates** | `NotificationOptions` with template variables | Template variable resolution: `{{transitionType}}`, `{{identifier}}`, `{{latitude}}`, `{{longitude}}`, `{{radius}}`. |
-| **Per-Transition** | `NotificationOptions` with `transitionOverrides` | Different notification content for ENTER, EXIT, and DWELL transitions, each with a distinct title, text, and color. |
-| **Silent** | `false` | Notification suppression -- geofence events still fire to JS callbacks, but no visual notification is shown. |
-| **High Priority** | `NotificationOptions` with Android-specific fields | Android-specific styling: `NotificationPriority.HIGH`, custom channel name, color, timestamp, and subtext. |
+| Preset               | Config Value                                       | What It Demonstrates                                                                                                 |
+| -------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Default**          | `undefined`                                        | Platform defaults -- no notification configuration is passed, so the library uses built-in defaults.                 |
+| **Custom Templates** | `NotificationOptions` with template variables      | Template variable resolution: `{{transitionType}}`, `{{identifier}}`, `{{latitude}}`, `{{longitude}}`, `{{radius}}`. |
+| **Per-Transition**   | `NotificationOptions` with `transitionOverrides`   | Different notification content for ENTER, EXIT, and DWELL transitions, each with a distinct title, text, and color.  |
+| **Silent**           | `false`                                            | Notification suppression -- geofence events still fire to JS callbacks, but no visual notification is shown.         |
+| **High Priority**    | `NotificationOptions` with Android-specific fields | Android-specific styling: `NotificationPriority.HIGH`, custom channel name, color, timestamp, and subtext.           |
 
 Each preset is applied per-geofence via the `notificationOptions` field on `addGeofence()`, and stored in the geofence's `metadata` for display. The screen also shows a live JSON preview of the selected preset's configuration and displays a badge on each active geofence indicating which preset was applied.
 
@@ -1044,9 +1054,7 @@ await addGeofence({
 `transitionOverrides` can also be used in the global configuration via `configureGeofenceNotifications()`:
 
 ```typescript
-import {
-  configureGeofenceNotifications,
-} from '@gabriel-sisjr/react-native-background-location';
+import { configureGeofenceNotifications } from '@gabriel-sisjr/react-native-background-location';
 
 await configureGeofenceNotifications({
   title: 'Geofence Alert',
@@ -1137,17 +1145,17 @@ await addGeofences([
 
 The `GeofenceRegion` interface defines a circular geofence region.
 
-| Property             | Type                       | Required | Default         | Constraints                                   | Description                                                                                                             |
-| -------------------- | -------------------------- | -------- | --------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `identifier`         | `string`                   | Yes      | --              | Non-empty, unique across all active geofences | Unique identifier for this geofence. Consumer-provided.                                                                 |
-| `latitude`           | `number`                   | Yes      | --              | -90 to 90                                     | Center latitude of the geofence circle                                                                                  |
-| `longitude`          | `number`                   | Yes      | --              | -180 to 180                                   | Center longitude of the geofence circle                                                                                 |
-| `radius`             | `number`                   | Yes      | --              | Minimum 100 meters                            | Radius of the geofence circle in meters                                                                                 |
-| `transitionTypes`    | `GeofenceTransitionType[]` | No       | `[ENTER, EXIT]` | Array of `ENTER`, `EXIT`, `DWELL`             | Which transitions to monitor                                                                                            |
-| `loiteringDelay`     | `number`                   | No       | `30000`         | Non-negative (milliseconds)                   | How long the device must remain inside the geofence before a DWELL event fires                                          |
-| `expirationDuration` | `number`                   | No       | Indefinite      | Positive (milliseconds)                       | If set, the geofence automatically expires after this duration. If omitted, it remains active until explicitly removed. |
-| `metadata`           | `Record<string, unknown>`  | No       | `undefined`     | Must be JSON-serializable                     | Arbitrary data attached to the geofence. Returned in transition events.                                                 |
-| `notificationOptions` | `NotificationOptions \| false` | No | `undefined`   | --                                            | Per-geofence notification override. Set to a `NotificationOptions` object to customize, `false` to suppress, or omit to use global config. See [Per-Geofence Notification Overrides](#per-geofence-notification-overrides). |
+| Property              | Type                           | Required | Default         | Constraints                                   | Description                                                                                                                                                                                                                 |
+| --------------------- | ------------------------------ | -------- | --------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identifier`          | `string`                       | Yes      | --              | Non-empty, unique across all active geofences | Unique identifier for this geofence. Consumer-provided.                                                                                                                                                                     |
+| `latitude`            | `number`                       | Yes      | --              | -90 to 90                                     | Center latitude of the geofence circle                                                                                                                                                                                      |
+| `longitude`           | `number`                       | Yes      | --              | -180 to 180                                   | Center longitude of the geofence circle                                                                                                                                                                                     |
+| `radius`              | `number`                       | Yes      | --              | Minimum 100 meters                            | Radius of the geofence circle in meters                                                                                                                                                                                     |
+| `transitionTypes`     | `GeofenceTransitionType[]`     | No       | `[ENTER, EXIT]` | Array of `ENTER`, `EXIT`, `DWELL`             | Which transitions to monitor                                                                                                                                                                                                |
+| `loiteringDelay`      | `number`                       | No       | `30000`         | Non-negative (milliseconds)                   | How long the device must remain inside the geofence before a DWELL event fires                                                                                                                                              |
+| `expirationDuration`  | `number`                       | No       | Indefinite      | Positive (milliseconds)                       | If set, the geofence automatically expires after this duration. If omitted, it remains active until explicitly removed.                                                                                                     |
+| `metadata`            | `Record<string, unknown>`      | No       | `undefined`     | Must be JSON-serializable                     | Arbitrary data attached to the geofence. Returned in transition events.                                                                                                                                                     |
+| `notificationOptions` | `NotificationOptions \| false` | No       | `undefined`     | --                                            | Per-geofence notification override. Set to a `NotificationOptions` object to customize, `false` to suppress, or omit to use global config. See [Per-Geofence Notification Overrides](#per-geofence-notification-overrides). |
 
 ## GeofenceTransitionEvent Reference
 
@@ -1214,16 +1222,17 @@ try {
 
 ## Platform Limitations
 
-| Feature              | Android                                                                  | iOS                                                          |
-| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| Maximum geofences    | 100                                                                      | 20                                                           |
-| Minimum radius       | 100m                                                                     | 100m                                                         |
-| DWELL detection      | Native (`GeofencingClient` loitering)                                    | Custom timer (software-based)                                |
-| Geofence persistence | Survives app restart (re-registered on boot via `BootCompletedReceiver`) | Managed by `CLLocationManager` (persists across restarts)    |
-| Background delivery  | `BroadcastReceiver` delivers events even when app is killed              | `CLLocationManager` delegate delivers events on app relaunch |
-| Requirements         | Google Play Services                                                     | "Always" authorization recommended                           |
-| Expiration support   | Native `setExpirationDuration`                                           | Software-based expiration check                              |
-| Event storage        | Room Database (`GeofenceTransitionEntity`)                               | Core Data                                                    |
+| Feature                | Android                                                                                                                  | iOS                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Maximum geofences      | 100                                                                                                                      | 20                                                           |
+| Minimum radius         | 100m                                                                                                                     | 100m                                                         |
+| DWELL detection        | Native (`GeofencingClient` loitering)                                                                                    | Custom timer (software-based)                                |
+| Geofence persistence   | Survives app restart; re-registered on boot via `BootCompletedReceiver` with heartbeat restored                          | Managed by `CLLocationManager` (persists across restarts)    |
+| Background delivery    | `BroadcastReceiver` delivers events even when app is killed                                                              | `CLLocationManager` delegate delivers events on app relaunch |
+| GPS pipeline keepalive | Location heartbeat (`PRIORITY_BALANCED_POWER_ACCURACY`, 15-min interval) keeps GPS active for passive geofence detection | Not needed (iOS region monitoring is active, not passive)    |
+| Requirements           | Google Play Services                                                                                                     | "Always" authorization recommended                           |
+| Expiration support     | Native `setExpirationDuration`                                                                                           | Software-based expiration check                              |
+| Event storage          | Room Database (`GeofenceTransitionEntity`)                                                                               | Core Data                                                    |
 
 > **Important:** On iOS, the system shares the 20-region limit across all region monitoring, including geofences and iBeacon regions. If your app or other apps are using region monitoring, the effective limit may be lower.
 
@@ -1238,6 +1247,8 @@ try {
 3. **Verify radius.** The minimum radius is 100 meters. Smaller radii are rejected during validation. In practice, radii under 150-200m may produce unreliable transitions on both platforms.
 4. **Test with movement.** Geofence transitions require actual device movement. Simulators and emulators may not trigger transitions reliably. Use mock location tools or test on a physical device.
 5. **Check for battery optimization.** On Android, aggressive battery optimization (Doze mode, manufacturer-specific restrictions) can delay or prevent geofence transitions. See the [Battery Optimization Guide](../production/BATTERY_OPTIMIZATION.md).
+
+> **Android GPS pipeline note:** The library includes a location heartbeat that automatically keeps the GPS subsystem active when geofences are registered but background tracking (`LocationService`) is not running. This addresses a known Android limitation where `GeofencingClient` is passive and depends on other apps making location requests. On devices with few location-requesting apps, the GPS pipeline can go dormant and geofence transitions go undetected. The heartbeat uses `PRIORITY_BALANCED_POWER_ACCURACY` at 15-minute intervals (~2-4% battery/day) and requires no configuration -- it is managed automatically. If transitions are still not firing, verify that Google Play Services is available (the heartbeat requires it) and that the app has not been battery-optimized by the manufacturer.
 
 ### DWELL events are not firing
 

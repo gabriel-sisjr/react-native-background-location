@@ -42,6 +42,9 @@ class LocationService : Service() {
     super.onCreate()
     storage = LocationStorage(this)
 
+    // Mark service as running
+    isRunning = true
+
     // Register this instance for immediate stop access
     synchronized(instanceLock) {
       activeInstance = this
@@ -606,6 +609,9 @@ class LocationService : Service() {
   override fun onDestroy() {
     super.onDestroy()
 
+    // Mark service as no longer running
+    isRunning = false
+
     // Clear active instance reference
     synchronized(instanceLock) {
       if (activeInstance === this) {
@@ -703,6 +709,11 @@ class LocationService : Service() {
     const val EXTRA_TRACKING_OPTIONS = "tracking_options"
     private const val NOTIFICATION_ID = 1
     private const val CHANNEL_ID = "background_location_channel"
+
+    /** Indicates whether the foreground location service is currently running */
+    @Volatile
+    var isRunning: Boolean = false
+      private set
 
     // Restart loop detection constants
     private const val PREFS_NAME = "location_service_prefs"
