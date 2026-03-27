@@ -21,6 +21,11 @@ import CoreLocation
   private var pendingForegroundOnly: Bool = false
   private var hasRequestedAlways: Bool = false
   private var permissionManager: CLLocationManager?
+  /// When true, the next `didChangeAuthorization` callback is the initial delegate
+  /// assignment callback and should be ignored. This prevents premature resolution
+  /// when escalating from WhenInUse to Always, because iOS fires the delegate
+  /// callback immediately with the current status upon delegate assignment.
+  private var shouldIgnoreNextAuthCallback: Bool = false
 
   private override init() {
     super.init()
@@ -171,8 +176,25 @@ import CoreLocation
 
       let currentStatus = CLLocationManager().authorizationStatus
 
-      // If already determined, return current status immediately
+      // If status is already determined, handle escalation or return immediately
       if currentStatus != .notDetermined {
+        // Special case: WhenInUse granted but caller wants Always — attempt escalation
+        if currentStatus == .authorizedWhenInUse && !foregroundOnly {
+          self.permissionCompletionHandler = completion
+          self.pendingForegroundOnly = false
+          self.hasRequestedAlways = true
+          // Skip the initial didChangeAuthorization callback that fires on delegate assignment,
+          // since we already know the status is authorizedWhenInUse
+          self.shouldIgnoreNextAuthCallback = true
+
+          let manager = CLLocationManager()
+          manager.delegate = self.locationDelegate
+          self.permissionManager = manager
+
+          manager.requestAlwaysAuthorization()
+          return
+        }
+
         completion(self.mapAuthorizationStatus(currentStatus))
         return
       }
@@ -191,8 +213,6 @@ import CoreLocation
       manager.requestWhenInUseAuthorization()
     }
   }
-
-  // MARK: - LocationManagerDelegateCallback
 
   public func didUpdateLocations(_ locations: [CLLocation]) {
     queue.async { [weak self] in
@@ -295,6 +315,15 @@ import CoreLocation
   }
 
   public func didChangeAuthorization(_ status: CLAuthorizationStatus) {
+    // Skip the initial delegate-assignment callback when escalating from WhenInUse to Always.
+    // iOS fires didChangeAuthorization immediately when a delegate is assigned, reporting the
+    // current status (authorizedWhenInUse). Without this guard, the completion handler would
+    // resolve before the Always permission dialog appears.
+    if shouldIgnoreNextAuthCallback {
+      shouldIgnoreNextAuthCallback = false
+      return
+    }
+
     // If there is a pending permission request, handle the request flow
     if let completion = permissionCompletionHandler {
       // Two-step flow: if WhenInUse was granted and we need Always, escalate once

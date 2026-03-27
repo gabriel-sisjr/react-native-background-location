@@ -30,7 +30,7 @@ import Foundation
         text: "Transition detected"
     )
 
-    @objc public init(
+    public init(
         enabled: Bool? = true,
         title: String? = nil,
         text: String? = nil,
@@ -246,7 +246,7 @@ import Foundation
     )
 
     /// Resolves {{variable}} placeholders in a template string
-    @objc public static func resolveTemplate(_ template: String, context: TransitionContext) -> String {
+    public static func resolveTemplate(_ template: String, context: TransitionContext) -> String {
         guard template.contains("{{") else { return template }
 
         let nsTemplate = template as NSString
