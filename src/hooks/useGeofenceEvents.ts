@@ -120,6 +120,5 @@ export function useGeofenceEvents(options?: UseGeofenceEventsOptions): void {
     // Subscribe once on mount. Filter, geofenceId, and onTransition are
     // accessed via refs so the handler always sees the latest values
     // without needing to re-subscribe.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

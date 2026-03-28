@@ -27,19 +27,9 @@ export interface TrackingOptionsSpec {
   maxWaitTime?: number;
   accuracy?: string;
   waitForAccurateLocation?: boolean;
-  notificationTitle?: string;
-  notificationText?: string;
-  notificationChannelName?: string;
-  notificationPriority?: string;
   foregroundOnly?: boolean;
   distanceFilter?: number;
-  notificationSmallIcon?: string;
-  notificationColor?: string;
-  notificationShowTimestamp?: boolean;
-  notificationActions?: string; // JSON serialized - Codegen does not support typed object arrays
-  notificationLargeIcon?: string;
-  notificationSubtext?: string;
-  notificationChannelId?: string;
+  notificationOptions?: string; // JSON-serialized NotificationOptions - Codegen does not support complex objects
 }
 
 export interface Spec extends TurboModule {
@@ -99,6 +89,18 @@ export interface Spec extends TurboModule {
   requestLocationPermission(
     foregroundOnly: boolean
   ): Promise<PermissionStatusResult>;
+
+  /**
+   * Checks current notification permission status without prompting
+   * @returns Notification permission status string: 'granted' | 'denied' | 'undetermined'
+   */
+  checkNotificationPermission(): Promise<string>;
+
+  /**
+   * Requests notification permissions from the user
+   * @returns Notification permission status string: 'granted' | 'denied'
+   */
+  requestNotificationPermission(): Promise<string>;
 
   /**
    * Required by NativeEventEmitter on iOS

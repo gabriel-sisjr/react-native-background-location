@@ -16,6 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * - Version 4: Added notificationLargeIcon, notificationSubtext, notificationChannelId columns
  * - Version 5: Added geofences and geofence_transitions tables for geofencing support
  * - Version 6: Added notificationConfig column to geofences table for per-geofence notification overrides
+ * - Version 7: Added notificationOptionsJson column to tracking_state for nested notification options (v0.12.0)
  */
 object Migrations {
 
@@ -102,6 +103,17 @@ object Migrations {
     }
 
     /**
+     * Migration from version 6 to 7
+     * Adds notificationOptionsJson column to tracking_state table.
+     * Legacy flat notification columns are retained (SQLite cannot DROP COLUMN).
+     */
+    val MIGRATION_6_7 = object : Migration(6, 7) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE tracking_state ADD COLUMN notificationOptionsJson TEXT")
+        }
+    }
+
+    /**
      * Get all migrations in order
      * Add new migrations to this array as they are created
      */
@@ -112,6 +124,7 @@ object Migrations {
             MIGRATION_3_4,
             MIGRATION_4_5,
             MIGRATION_5_6,
+            MIGRATION_6_7,
         )
     }
 

@@ -172,26 +172,11 @@ export function useBackgroundLocation(
                 ? String(effectiveOptions.accuracy)
                 : undefined,
               waitForAccurateLocation: effectiveOptions.waitForAccurateLocation,
-              notificationTitle: effectiveOptions.notificationTitle,
-              notificationText: effectiveOptions.notificationText,
-              notificationChannelName: effectiveOptions.notificationChannelName,
-              notificationPriority: effectiveOptions.notificationPriority
-                ? String(effectiveOptions.notificationPriority)
-                : undefined,
               foregroundOnly: effectiveOptions.foregroundOnly,
               distanceFilter: effectiveOptions.distanceFilter,
-              notificationSmallIcon: effectiveOptions.notificationSmallIcon,
-              notificationColor: effectiveOptions.notificationColor,
-              notificationShowTimestamp:
-                effectiveOptions.notificationShowTimestamp,
-              notificationActions: effectiveOptions.notificationActions
-                ? JSON.stringify(
-                    effectiveOptions.notificationActions.slice(0, 3)
-                  )
+              notificationOptions: effectiveOptions.notificationOptions
+                ? JSON.stringify(effectiveOptions.notificationOptions)
                 : undefined,
-              notificationLargeIcon: effectiveOptions.notificationLargeIcon,
-              notificationSubtext: effectiveOptions.notificationSubtext,
-              notificationChannelId: effectiveOptions.notificationChannelId,
             }
           : undefined;
         const effectiveTripId = await BackgroundLocationModule.startTracking(

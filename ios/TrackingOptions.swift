@@ -8,19 +8,9 @@ import CoreLocation
   @objc public let foregroundOnly: NSNumber?
   @objc public let waitForAccurateLocation: NSNumber?
 
-  // Notification fields — no-op on iOS (no foreground service notification concept)
-  // Stored to allow cross-platform TrackingOptions without crashes
-  @objc public let notificationTitle: String?
-  @objc public let notificationText: String?
-  @objc public let notificationSmallIcon: String?
-  @objc public let notificationColor: String?
-  @objc public let notificationShowTimestamp: NSNumber?
-  @objc public let notificationLargeIcon: String?
-  @objc public let notificationSubtext: String?
-  @objc public let notificationChannelId: String?
-  @objc public let notificationChannelName: String?
-  @objc public let notificationPriority: String?
-  @objc public let notificationActions: String?
+  // Notification options — no-op on iOS (no foreground service notification concept)
+  // Stored as JSON string to allow cross-platform TrackingOptions without crashes
+  @objc public let notificationOptions: String?
 
   @objc public init(dictionary: NSDictionary?) {
     guard let dict = dictionary else {
@@ -29,17 +19,7 @@ import CoreLocation
       self.updateInterval = nil
       self.foregroundOnly = nil
       self.waitForAccurateLocation = nil
-      self.notificationTitle = nil
-      self.notificationText = nil
-      self.notificationSmallIcon = nil
-      self.notificationColor = nil
-      self.notificationShowTimestamp = nil
-      self.notificationLargeIcon = nil
-      self.notificationSubtext = nil
-      self.notificationChannelId = nil
-      self.notificationChannelName = nil
-      self.notificationPriority = nil
-      self.notificationActions = nil
+      self.notificationOptions = nil
       super.init()
       return
     }
@@ -50,18 +30,8 @@ import CoreLocation
     self.foregroundOnly = dict["foregroundOnly"] as? NSNumber
     self.waitForAccurateLocation = dict["waitForAccurateLocation"] as? NSNumber
 
-    // Notification fields — parsed without error, unused on iOS
-    self.notificationTitle = dict["notificationTitle"] as? String
-    self.notificationText = dict["notificationText"] as? String
-    self.notificationSmallIcon = dict["notificationSmallIcon"] as? String
-    self.notificationColor = dict["notificationColor"] as? String
-    self.notificationShowTimestamp = dict["notificationShowTimestamp"] as? NSNumber
-    self.notificationLargeIcon = dict["notificationLargeIcon"] as? String
-    self.notificationSubtext = dict["notificationSubtext"] as? String
-    self.notificationChannelId = dict["notificationChannelId"] as? String
-    self.notificationChannelName = dict["notificationChannelName"] as? String
-    self.notificationPriority = dict["notificationPriority"] as? String
-    self.notificationActions = dict["notificationActions"] as? String
+    // Notification options — parsed without error, unused on iOS
+    self.notificationOptions = dict["notificationOptions"] as? String
     super.init()
   }
 

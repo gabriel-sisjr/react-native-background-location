@@ -163,7 +163,6 @@ export function useGeofencing(
         }
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notificationOptionsJson]);
 
   /**

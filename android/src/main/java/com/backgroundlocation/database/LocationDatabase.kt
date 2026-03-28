@@ -18,6 +18,7 @@ import androidx.room.RoomDatabase
  * - Version 4: Added notificationLargeIcon, notificationSubtext, notificationChannelId
  * - Version 5: Added geofences and geofence_transitions tables for geofencing support
  * - Version 6: Added notificationConfig column to geofences table for per-geofence notification overrides
+ * - Version 7: Added notificationOptionsJson column to tracking_state for nested notification options (v0.12.0)
  *
  * IMPORTANT: When changing schema:
  * 1. Increment the version number
@@ -32,7 +33,7 @@ import androidx.room.RoomDatabase
     GeofenceEntity::class,
     GeofenceTransitionEntity::class
   ],
-  version = 6,
+  version = 7,
   exportSchema = true  // Changed to true for migration validation
 )
 abstract class LocationDatabase : RoomDatabase() {

@@ -5,6 +5,7 @@ import {
   LocationPermissionStatus as LocationPermissionStatusEnum,
   LocationAccuracy as LocationAccuracyEnum,
   NotificationPriority as NotificationPriorityEnum,
+  NotificationPermissionStatus as NotificationPermissionStatusEnum,
 } from './types/enums';
 import { assertNativeModuleAvailable } from './utils/moduleCheck';
 import { GeofenceTransitionType, GeofenceErrorCode } from './types/geofencing';
@@ -23,6 +24,8 @@ export type {
   PermissionStatusResult,
 } from './NativeBackgroundLocation';
 export type {
+  LocationPermissionState,
+  NotificationPermissionState,
   PermissionState,
   UseLocationPermissionsResult,
   UseBackgroundLocationResult,
@@ -50,6 +53,7 @@ export { GEOFENCE_TEMPLATE_VARS } from './types';
 export const LocationPermissionStatus = LocationPermissionStatusEnum;
 export const LocationAccuracy = LocationAccuracyEnum;
 export const NotificationPriority = NotificationPriorityEnum;
+export const NotificationPermissionStatus = NotificationPermissionStatusEnum;
 
 // Export hooks
 export {
@@ -132,23 +136,11 @@ export default {
             ? String(trackingOptions.accuracy)
             : undefined,
           waitForAccurateLocation: trackingOptions.waitForAccurateLocation,
-          notificationTitle: trackingOptions.notificationTitle,
-          notificationText: trackingOptions.notificationText,
-          notificationChannelName: trackingOptions.notificationChannelName,
-          notificationPriority: trackingOptions.notificationPriority
-            ? String(trackingOptions.notificationPriority)
-            : undefined,
           foregroundOnly: trackingOptions.foregroundOnly,
           distanceFilter: trackingOptions.distanceFilter,
-          notificationSmallIcon: trackingOptions.notificationSmallIcon,
-          notificationColor: trackingOptions.notificationColor,
-          notificationShowTimestamp: trackingOptions.notificationShowTimestamp,
-          notificationActions: trackingOptions.notificationActions
-            ? JSON.stringify(trackingOptions.notificationActions.slice(0, 3))
+          notificationOptions: trackingOptions.notificationOptions
+            ? JSON.stringify(trackingOptions.notificationOptions)
             : undefined,
-          notificationLargeIcon: trackingOptions.notificationLargeIcon,
-          notificationSubtext: trackingOptions.notificationSubtext,
-          notificationChannelId: trackingOptions.notificationChannelId,
         }
       : undefined;
     return BackgroundLocationModule.startTracking(tripId, specOptions);

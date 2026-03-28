@@ -1,16 +1,37 @@
 /**
- * Types and interfaces for location permissions
+ * Types and interfaces for location and notification permissions
  */
 
-import type { LocationPermissionStatus } from './enums';
+import type {
+  LocationPermissionStatus,
+  NotificationPermissionStatus,
+} from './enums';
 
 /**
- * Permission state
+ * Location permission state with granular status information
  */
-export interface PermissionState {
+export interface LocationPermissionState {
   hasPermission: boolean;
   status: LocationPermissionStatus;
   canRequestAgain: boolean;
+}
+
+/**
+ * Notification permission state with granular status information
+ */
+export interface NotificationPermissionState {
+  hasPermission: boolean;
+  status: NotificationPermissionStatus;
+  canRequestAgain: boolean;
+}
+
+/**
+ * Combined permission state for location and notification permissions
+ */
+export interface PermissionState {
+  hasAllPermissions: boolean;
+  location: LocationPermissionState;
+  notification: NotificationPermissionState;
 }
 
 /**

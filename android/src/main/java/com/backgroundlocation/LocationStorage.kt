@@ -189,8 +189,11 @@ class LocationStorage(context: Context) {
   }
   
   /**
-   * Saves the current tracking state along with tracking options
-   * Uses Room Database for persistence (ASYNC - use saveTrackingStateSync for critical operations)
+   * Saves the current tracking state along with tracking options.
+   * Uses Room Database for persistence (ASYNC - use saveTrackingStateSync for critical operations).
+   *
+   * Since v0.12.0, notification settings are serialized into [notificationOptionsJson].
+   * Legacy flat notification columns are set to null for new writes.
    */
   fun saveTrackingState(tripId: String?, isActive: Boolean, options: TrackingOptions? = null) {
     scope.launch {
@@ -204,18 +207,20 @@ class LocationStorage(context: Context) {
           maxWaitTime = options?.maxWaitTime,
           accuracy = options?.accuracy?.value,
           waitForAccurateLocation = options?.waitForAccurateLocation,
-          notificationTitle = options?.notificationTitle,
-          notificationText = options?.notificationText,
-          notificationChannelName = options?.notificationChannelName,
-          notificationPriority = options?.notificationPriority,
           foregroundOnly = options?.foregroundOnly,
-          notificationSmallIcon = options?.notificationSmallIcon,
-          notificationColor = options?.notificationColor,
-          notificationShowTimestamp = options?.notificationShowTimestamp,
-          notificationActions = options?.notificationActions,
-          notificationLargeIcon = options?.notificationLargeIcon,
-          notificationSubtext = options?.notificationSubtext,
-          notificationChannelId = options?.notificationChannelId
+          notificationOptionsJson = options?.notificationOptions?.toJsonString(),
+          // Legacy flat columns set to null for new writes
+          notificationTitle = null,
+          notificationText = null,
+          notificationChannelName = null,
+          notificationPriority = null,
+          notificationSmallIcon = null,
+          notificationColor = null,
+          notificationShowTimestamp = null,
+          notificationActions = null,
+          notificationLargeIcon = null,
+          notificationSubtext = null,
+          notificationChannelId = null
         )
         trackingStateDao.upsert(entity)
       } catch (e: Exception) {
@@ -225,9 +230,11 @@ class LocationStorage(context: Context) {
   }
 
   /**
-   * Saves the current tracking state SYNCHRONOUSLY
+   * Saves the current tracking state SYNCHRONOUSLY.
    * Use this for critical operations like stopTracking where we need to ensure
-   * the state is persisted before continuing (prevents race conditions)
+   * the state is persisted before continuing (prevents race conditions).
+   *
+   * Since v0.12.0, notification settings are serialized into [notificationOptionsJson].
    */
   suspend fun saveTrackingStateSync(tripId: String?, isActive: Boolean, options: TrackingOptions? = null) {
     try {
@@ -240,14 +247,20 @@ class LocationStorage(context: Context) {
         maxWaitTime = options?.maxWaitTime,
         accuracy = options?.accuracy?.value,
         waitForAccurateLocation = options?.waitForAccurateLocation,
-        notificationTitle = options?.notificationTitle,
-        notificationText = options?.notificationText,
-        notificationChannelName = options?.notificationChannelName,
-        notificationPriority = options?.notificationPriority,
         foregroundOnly = options?.foregroundOnly,
-        notificationSmallIcon = options?.notificationSmallIcon,
-        notificationColor = options?.notificationColor,
-        notificationShowTimestamp = options?.notificationShowTimestamp
+        notificationOptionsJson = options?.notificationOptions?.toJsonString(),
+        // Legacy flat columns set to null for new writes
+        notificationTitle = null,
+        notificationText = null,
+        notificationChannelName = null,
+        notificationPriority = null,
+        notificationSmallIcon = null,
+        notificationColor = null,
+        notificationShowTimestamp = null,
+        notificationActions = null,
+        notificationLargeIcon = null,
+        notificationSubtext = null,
+        notificationChannelId = null
       )
       trackingStateDao.upsert(entity)
       android.util.Log.d("LocationStorage", "Tracking state saved synchronously: isActive=$isActive, tripId=$tripId")
@@ -258,7 +271,10 @@ class LocationStorage(context: Context) {
   }
   
   /**
-   * Gets the current tracking state - ASYNC version
+   * Gets the current tracking state - ASYNC version.
+   *
+   * Reads [notificationOptionsJson] first. If null (pre-v0.12.0 session still in DB),
+   * falls back to reconstructing [NotificationOptions] from the legacy flat columns.
    */
   suspend fun getTrackingStateAsync(): TrackingState {
     return try {
@@ -267,25 +283,28 @@ class LocationStorage(context: Context) {
       if (entity == null) {
         TrackingState(false, null, null)
       } else {
-        val options = if (entity.updateInterval != null || entity.accuracy != null) {
+        val hasAnyOption = entity.updateInterval != null || entity.accuracy != null ||
+          entity.notificationOptionsJson != null || entity.notificationTitle != null
+
+        val options = if (hasAnyOption) {
+          // Try to parse notificationOptionsJson first (v0.12.0+)
+          val notificationOptions = entity.notificationOptionsJson?.let { jsonString ->
+            try {
+              NotificationOptions.fromJsonString(jsonString)
+            } catch (e: Exception) {
+              android.util.Log.w("LocationStorage", "Failed to parse notificationOptionsJson, falling back to flat columns", e)
+              null
+            }
+          } ?: buildLegacyNotificationOptions(entity) // Fallback to legacy flat columns
+
           TrackingOptions(
             updateInterval = entity.updateInterval,
             fastestInterval = entity.fastestInterval,
             maxWaitTime = entity.maxWaitTime,
             accuracy = entity.accuracy?.let { LocationAccuracy.fromString(it) },
             waitForAccurateLocation = entity.waitForAccurateLocation,
-            notificationTitle = entity.notificationTitle,
-            notificationText = entity.notificationText,
-            notificationChannelName = entity.notificationChannelName,
-            notificationPriority = entity.notificationPriority,
             foregroundOnly = entity.foregroundOnly,
-            notificationSmallIcon = entity.notificationSmallIcon,
-            notificationColor = entity.notificationColor,
-            notificationShowTimestamp = entity.notificationShowTimestamp,
-            notificationActions = entity.notificationActions,
-            notificationLargeIcon = entity.notificationLargeIcon,
-            notificationSubtext = entity.notificationSubtext,
-            notificationChannelId = entity.notificationChannelId
+            notificationOptions = notificationOptions
           )
         } else null
 
@@ -295,6 +314,41 @@ class LocationStorage(context: Context) {
       e.printStackTrace()
       TrackingState(false, null, null)
     }
+  }
+
+  /**
+   * Builds a [NotificationOptions] from legacy flat columns in [TrackingStateEntity].
+   * Used for backward compatibility when recovering sessions saved before v0.12.0.
+   * Returns null if none of the legacy columns have values.
+   */
+  private fun buildLegacyNotificationOptions(entity: TrackingStateEntity): NotificationOptions? {
+    val hasAnyLegacy = entity.notificationTitle != null ||
+      entity.notificationText != null ||
+      entity.notificationChannelName != null ||
+      entity.notificationPriority != null ||
+      entity.notificationSmallIcon != null ||
+      entity.notificationColor != null ||
+      entity.notificationShowTimestamp != null ||
+      entity.notificationActions != null ||
+      entity.notificationLargeIcon != null ||
+      entity.notificationSubtext != null ||
+      entity.notificationChannelId != null
+
+    if (!hasAnyLegacy) return null
+
+    return NotificationOptions(
+      title = entity.notificationTitle,
+      text = entity.notificationText,
+      channelName = entity.notificationChannelName,
+      priority = entity.notificationPriority,
+      smallIcon = entity.notificationSmallIcon,
+      largeIcon = entity.notificationLargeIcon,
+      color = entity.notificationColor,
+      showTimestamp = entity.notificationShowTimestamp,
+      subtext = entity.notificationSubtext,
+      actions = entity.notificationActions,
+      channelId = entity.notificationChannelId
+    )
   }
 
   /**

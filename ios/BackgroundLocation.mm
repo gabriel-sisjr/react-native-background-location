@@ -1,5 +1,6 @@
 #import "BackgroundLocation.h"
 #import <CoreLocation/CoreLocation.h>
+#import <UserNotifications/UserNotifications.h>
 #import <React/RCTBridge.h>
 
 #if __has_include("BackgroundLocation-Swift.h")
@@ -145,61 +146,11 @@
     dict[@"waitForAccurateLocation"] = @(waitForAccurateLocation.value());
   }
 
-  // Notification fields — no-op on iOS (no foreground service notification)
-  // Parsed and stored to avoid crashes when consumers pass Android notification options
-  NSString *notificationTitle = options.notificationTitle();
-  if (notificationTitle) {
-    dict[@"notificationTitle"] = notificationTitle;
-  }
-
-  NSString *notificationText = options.notificationText();
-  if (notificationText) {
-    dict[@"notificationText"] = notificationText;
-  }
-
-  NSString *notificationSmallIcon = options.notificationSmallIcon();
-  if (notificationSmallIcon) {
-    dict[@"notificationSmallIcon"] = notificationSmallIcon;
-  }
-
-  NSString *notificationColor = options.notificationColor();
-  if (notificationColor) {
-    dict[@"notificationColor"] = notificationColor;
-  }
-
-  auto notificationShowTimestamp = options.notificationShowTimestamp();
-  if (notificationShowTimestamp.has_value()) {
-    dict[@"notificationShowTimestamp"] = @(notificationShowTimestamp.value());
-  }
-
-  NSString *notificationLargeIcon = options.notificationLargeIcon();
-  if (notificationLargeIcon) {
-    dict[@"notificationLargeIcon"] = notificationLargeIcon;
-  }
-
-  NSString *notificationSubtext = options.notificationSubtext();
-  if (notificationSubtext) {
-    dict[@"notificationSubtext"] = notificationSubtext;
-  }
-
-  NSString *notificationChannelId = options.notificationChannelId();
-  if (notificationChannelId) {
-    dict[@"notificationChannelId"] = notificationChannelId;
-  }
-
-  NSString *notificationChannelName = options.notificationChannelName();
-  if (notificationChannelName) {
-    dict[@"notificationChannelName"] = notificationChannelName;
-  }
-
-  NSString *notificationPriority = options.notificationPriority();
-  if (notificationPriority) {
-    dict[@"notificationPriority"] = notificationPriority;
-  }
-
-  NSString *notificationActions = options.notificationActions();
-  if (notificationActions) {
-    dict[@"notificationActions"] = notificationActions;
+  // Notification options — no-op on iOS (no foreground service notification concept)
+  // Passed through as JSON string to avoid crashes when consumers pass Android notification options
+  NSString *notificationOptions = options.notificationOptions();
+  if (notificationOptions) {
+    dict[@"notificationOptions"] = notificationOptions;
   }
 
   return dict;
@@ -371,6 +322,44 @@
   } @catch (NSException *exception) {
     reject(@"REQUEST_PERMISSION_ERROR", [NSString stringWithFormat:@"Failed to request permission: %@", exception.reason], nil);
   }
+}
+
+// MARK: - Notification Permission Methods
+
+- (void)checkNotificationPermission:(RCTPromiseResolveBlock)resolve
+                              reject:(RCTPromiseRejectBlock)reject
+{
+  [[UNUserNotificationCenter currentNotificationCenter] getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings * _Nonnull settings) {
+    NSString *status;
+    switch (settings.authorizationStatus) {
+      case UNAuthorizationStatusAuthorized:
+      case UNAuthorizationStatusProvisional:
+      case UNAuthorizationStatusEphemeral:
+        status = @"granted";
+        break;
+      case UNAuthorizationStatusDenied:
+        status = @"denied";
+        break;
+      case UNAuthorizationStatusNotDetermined:
+      default:
+        status = @"undetermined";
+        break;
+    }
+    resolve(status);
+  }];
+}
+
+- (void)requestNotificationPermission:(RCTPromiseResolveBlock)resolve
+                                reject:(RCTPromiseRejectBlock)reject
+{
+  [[UNUserNotificationCenter currentNotificationCenter] requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge)
+                                                                     completionHandler:^(BOOL granted, NSError * _Nullable error) {
+    if (granted) {
+      resolve(@"granted");
+    } else {
+      resolve(@"denied");
+    }
+  }];
 }
 
 // MARK: - Geofencing Methods

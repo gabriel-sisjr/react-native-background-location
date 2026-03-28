@@ -1,7 +1,10 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { useLocationPermissions } from '../../hooks/useLocationPermissions';
-import { LocationPermissionStatus } from '../../types';
+import {
+  LocationPermissionStatus,
+  NotificationPermissionStatus,
+} from '../../types';
 import BackgroundLocationModule from '../../NativeBackgroundLocation';
 
 describe('useLocationPermissions - Complete Tests', () => {
@@ -12,18 +15,42 @@ describe('useLocationPermissions - Complete Tests', () => {
       get: () => 30,
       configurable: true,
     });
+    // Default notification mocks for all Android tests
+    (
+      BackgroundLocationModule.checkNotificationPermission as jest.Mock
+    ).mockResolvedValue('granted');
+    (
+      BackgroundLocationModule.requestNotificationPermission as jest.Mock
+    ).mockResolvedValue('granted');
   });
 
   describe('Initialization', () => {
     it('should initialize with undetermined status', () => {
       const { result } = renderHook(() => useLocationPermissions());
 
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(true);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        true
+      );
       expect(result.current.isRequesting).toBe(false);
+    });
+
+    it('should have correct initial granular notification state', () => {
+      const { result } = renderHook(() => useLocationPermissions());
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.UNDETERMINED
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        true
+      );
     });
   });
 
@@ -45,8 +72,8 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
     });
@@ -63,8 +90,10 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
     });
@@ -86,7 +115,7 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
     });
@@ -123,7 +152,7 @@ describe('useLocationPermissions - Complete Tests', () => {
       });
     });
 
-    it('should check notification permission on Android 13+ (API 33)', async () => {
+    it('should check notification permission via native module on Android', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -131,8 +160,10 @@ describe('useLocationPermissions - Complete Tests', () => {
       (PermissionsAndroid.check as jest.Mock)
         .mockResolvedValueOnce(true) // ACCESS_FINE_LOCATION
         .mockResolvedValueOnce(true) // ACCESS_COARSE_LOCATION
-        .mockResolvedValueOnce(true) // ACCESS_BACKGROUND_LOCATION
-        .mockResolvedValueOnce(true); // POST_NOTIFICATIONS
+        .mockResolvedValueOnce(true); // ACCESS_BACKGROUND_LOCATION
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('granted');
 
       const { result } = renderHook(() => useLocationPermissions());
 
@@ -141,13 +172,17 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(PermissionsAndroid.check).toHaveBeenCalledTimes(4);
-      expect(PermissionsAndroid.check).toHaveBeenCalledWith(
-        'android.permission.POST_NOTIFICATIONS'
+      expect(
+        BackgroundLocationModule.checkNotificationPermission
+      ).toHaveBeenCalled();
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        true
       );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(true);
     });
 
-    it('should return false when notification permission is denied on Android 13+', async () => {
+    it('should return true for location when notification permission is denied', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -155,18 +190,102 @@ describe('useLocationPermissions - Complete Tests', () => {
       (PermissionsAndroid.check as jest.Mock)
         .mockResolvedValueOnce(true) // ACCESS_FINE_LOCATION
         .mockResolvedValueOnce(true) // ACCESS_COARSE_LOCATION
-        .mockResolvedValueOnce(true) // ACCESS_BACKGROUND_LOCATION
-        .mockResolvedValueOnce(false); // POST_NOTIFICATIONS
+        .mockResolvedValueOnce(true); // ACCESS_BACKGROUND_LOCATION
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('denied');
 
       const { result } = renderHook(() => useLocationPermissions());
 
       await act(async () => {
         const hasPermission = await result.current.checkPermissions();
-        expect(hasPermission).toBe(false);
+        // checkPermissions returns location-based result
+        expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
-        LocationPermissionStatus.DENIED
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.status).toBe(
+        LocationPermissionStatus.GRANTED
+      );
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.DENIED
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
+    });
+
+    it('should call checkNotificationPermission on Android checkPermissions', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 30,
+        configurable: true,
+      });
+      (PermissionsAndroid.check as jest.Mock)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true);
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('granted');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        await result.current.checkPermissions();
+      });
+
+      expect(
+        BackgroundLocationModule.checkNotificationPermission
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('should compute hasAllPermissions as true when both location and notification are granted', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 30,
+        configurable: true,
+      });
+      (PermissionsAndroid.check as jest.Mock)
+        .mockResolvedValueOnce(true) // FINE
+        .mockResolvedValueOnce(true) // COARSE
+        .mockResolvedValueOnce(true); // BACKGROUND
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('granted');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        await result.current.checkPermissions();
+      });
+
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(true);
+    });
+
+    it('should compute hasAllPermissions as false when location granted but notification denied', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 30,
+        configurable: true,
+      });
+      (PermissionsAndroid.check as jest.Mock)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(true);
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('denied');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const hasPermission = await result.current.checkPermissions();
+        expect(hasPermission).toBe(true); // return is location-based
+      });
+
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
       );
     });
   });
@@ -194,8 +313,8 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
       expect(result.current.isRequesting).toBe(false);
@@ -216,11 +335,15 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(true);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        true
+      );
     });
 
     it('should handle background permission denial', async () => {
@@ -245,7 +368,7 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
     });
@@ -265,10 +388,12 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.BLOCKED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
 
     it('should handle never ask again for background permission', async () => {
@@ -293,10 +418,12 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.BLOCKED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
 
     it('should skip background permission on Android 9 and below', async () => {
@@ -321,7 +448,7 @@ describe('useLocationPermissions - Complete Tests', () => {
       expect(PermissionsAndroid.request).not.toHaveBeenCalled();
     });
 
-    it('should request notification permission on Android 13+ (API 33)', async () => {
+    it('should request notification permission via native module on Android', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -332,9 +459,12 @@ describe('useLocationPermissions - Complete Tests', () => {
         'android.permission.ACCESS_COARSE_LOCATION':
           PermissionsAndroid.RESULTS.GRANTED,
       });
-      (PermissionsAndroid.request as jest.Mock)
-        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED) // background
-        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED); // notification
+      (PermissionsAndroid.request as jest.Mock).mockResolvedValueOnce(
+        PermissionsAndroid.RESULTS.GRANTED
+      ); // background
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('granted');
 
       const { result } = renderHook(() => useLocationPermissions());
 
@@ -343,18 +473,19 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(PermissionsAndroid.request).toHaveBeenCalledTimes(2);
-      expect(PermissionsAndroid.request).toHaveBeenCalledWith(
-        'android.permission.POST_NOTIFICATIONS',
-        expect.any(Object)
-      );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(
+        BackgroundLocationModule.requestNotificationPermission
+      ).toHaveBeenCalled();
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        true
+      );
     });
 
-    it('should handle notification permission denial on Android 13+', async () => {
+    it('should handle notification permission denial on Android', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -365,25 +496,35 @@ describe('useLocationPermissions - Complete Tests', () => {
         'android.permission.ACCESS_COARSE_LOCATION':
           PermissionsAndroid.RESULTS.GRANTED,
       });
-      (PermissionsAndroid.request as jest.Mock)
-        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED) // background
-        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.DENIED); // notification
+      (PermissionsAndroid.request as jest.Mock).mockResolvedValueOnce(
+        PermissionsAndroid.RESULTS.GRANTED
+      ); // background
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('denied');
 
       const { result } = renderHook(() => useLocationPermissions());
 
       await act(async () => {
         const granted = await result.current.requestPermissions();
-        expect(granted).toBe(false);
+        // requestPermissions returns true when location is granted, even if notification is denied
+        expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
-      expect(result.current.permissionStatus.status).toBe(
-        LocationPermissionStatus.DENIED
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.status).toBe(
+        LocationPermissionStatus.GRANTED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(true);
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.DENIED
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
     });
 
-    it('should handle notification permission never ask again on Android 13+', async () => {
+    it('should handle notification permission never ask again on Android', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -394,22 +535,32 @@ describe('useLocationPermissions - Complete Tests', () => {
         'android.permission.ACCESS_COARSE_LOCATION':
           PermissionsAndroid.RESULTS.GRANTED,
       });
-      (PermissionsAndroid.request as jest.Mock)
-        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED) // background
-        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN); // notification
+      (PermissionsAndroid.request as jest.Mock).mockResolvedValueOnce(
+        PermissionsAndroid.RESULTS.GRANTED
+      ); // background
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('denied');
 
       const { result } = renderHook(() => useLocationPermissions());
 
       await act(async () => {
         const granted = await result.current.requestPermissions();
-        expect(granted).toBe(false);
+        // requestPermissions returns true when location is granted, even if notification is denied
+        expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
-      expect(result.current.permissionStatus.status).toBe(
-        LocationPermissionStatus.BLOCKED
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.DENIED
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
     });
 
     it('should set isRequesting to true during request', async () => {
@@ -456,9 +607,41 @@ describe('useLocationPermissions - Complete Tests', () => {
       });
 
       expect(result.current.isRequesting).toBe(false);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
+    });
+
+    it('should return true from requestPermissions when location granted and notification denied on Android', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 30,
+        configurable: true,
+      });
+      (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
+        'android.permission.ACCESS_FINE_LOCATION':
+          PermissionsAndroid.RESULTS.GRANTED,
+        'android.permission.ACCESS_COARSE_LOCATION':
+          PermissionsAndroid.RESULTS.GRANTED,
+      });
+      (PermissionsAndroid.request as jest.Mock).mockResolvedValue(
+        PermissionsAndroid.RESULTS.GRANTED
+      );
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('denied');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const granted = await result.current.requestPermissions();
+        expect(granted).toBe(true); // location-based return
+      });
+
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
     });
   });
 
@@ -489,6 +672,13 @@ describe('useLocationPermissions - Complete Tests', () => {
     beforeEach(() => {
       Platform.OS = 'ios';
       jest.clearAllMocks();
+      // Default notification mocks for all iOS tests
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValue('granted');
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValue('granted');
     });
 
     describe('checkPermissions on iOS', () => {
@@ -510,11 +700,15 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(
           BackgroundLocationModule.checkLocationPermission
         ).toHaveBeenCalledTimes(1);
-        expect(result.current.permissionStatus.hasPermission).toBe(true);
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.hasPermission).toBe(
+          true
+        );
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.GRANTED
         );
-        expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+        expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+          false
+        );
         expect(PermissionsAndroid.check).not.toHaveBeenCalled();
       });
 
@@ -533,10 +727,12 @@ describe('useLocationPermissions - Complete Tests', () => {
           expect(hasPermission).toBe(false);
         });
 
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.UNDETERMINED
         );
-        expect(result.current.permissionStatus.canRequestAgain).toBe(true);
+        expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+          true
+        );
       });
 
       it('should map denied status correctly', async () => {
@@ -554,10 +750,12 @@ describe('useLocationPermissions - Complete Tests', () => {
           expect(hasPermission).toBe(false);
         });
 
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.DENIED
         );
-        expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+        expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+          false
+        );
       });
 
       it('should map blocked status correctly (restricted on iOS)', async () => {
@@ -575,10 +773,12 @@ describe('useLocationPermissions - Complete Tests', () => {
           expect(hasPermission).toBe(false);
         });
 
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.BLOCKED
         );
-        expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+        expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+          false
+        );
       });
 
       it('should handle errors gracefully', async () => {
@@ -614,8 +814,10 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(
           BackgroundLocationModule.requestLocationPermission
         ).toHaveBeenCalledWith(false);
-        expect(result.current.permissionStatus.hasPermission).toBe(true);
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.hasPermission).toBe(
+          true
+        );
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.GRANTED
         );
         expect(result.current.isRequesting).toBe(false);
@@ -636,11 +838,15 @@ describe('useLocationPermissions - Complete Tests', () => {
           expect(granted).toBe(false);
         });
 
-        expect(result.current.permissionStatus.hasPermission).toBe(false);
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.hasPermission).toBe(
+          false
+        );
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.DENIED
         );
-        expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+        expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+          false
+        );
       });
 
       it('should handle blocked (restricted) status', async () => {
@@ -658,7 +864,7 @@ describe('useLocationPermissions - Complete Tests', () => {
           expect(granted).toBe(false);
         });
 
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.BLOCKED
         );
       });
@@ -705,10 +911,12 @@ describe('useLocationPermissions - Complete Tests', () => {
         });
 
         expect(result.current.isRequesting).toBe(false);
-        expect(result.current.permissionStatus.status).toBe(
+        expect(result.current.permissionStatus.location.status).toBe(
           LocationPermissionStatus.DENIED
         );
-        expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+        expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+          false
+        );
       });
 
       it('should not call PermissionsAndroid on iOS', async () => {

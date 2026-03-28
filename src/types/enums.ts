@@ -76,3 +76,12 @@ export enum NotificationPriority {
    */
   MAX = 'MAX',
 }
+
+/**
+ * Notification permission status
+ */
+export enum NotificationPermissionStatus {
+  GRANTED = 'granted',
+  DENIED = 'denied',
+  UNDETERMINED = 'undetermined',
+}

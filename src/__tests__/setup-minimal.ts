@@ -129,6 +129,15 @@ jest.mock('../NativeBackgroundLocation', () => {
     requestLocationPermission: jest.fn(() => {
       return Promise.resolve({ status: 'granted', canRequestAgain: false });
     }),
+    checkNotificationPermission: jest.fn(() => {
+      return Promise.resolve('granted');
+    }),
+    requestNotificationPermission: jest.fn(() => {
+      return Promise.resolve('granted');
+    }),
+    updateNotification: jest.fn(() => {
+      return Promise.resolve();
+    }),
     addGeofence: jest.fn().mockResolvedValue(undefined),
     addGeofences: jest.fn().mockResolvedValue(undefined),
     removeGeofence: jest.fn().mockResolvedValue(undefined),
