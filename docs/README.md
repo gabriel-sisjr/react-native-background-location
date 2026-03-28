@@ -139,7 +139,7 @@ docs/
 
 ## Version
 
-This documentation is for version **0.11.0** which includes:
+This documentation is for version **0.12.0** which includes:
 
 - Android implementation (Kotlin, Room DB, WorkManager)
 - iOS implementation (Swift, CLLocationManager, Core Data)

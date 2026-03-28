@@ -109,7 +109,7 @@ function TrackingScreen() {
     onLocationUpdate: (loc) => console.log('New:', loc.latitude, loc.longitude),
   });
 
-  if (!permissionStatus.hasPermission) {
+  if (!permissionStatus.hasAllPermissions) {
     return <Button title="Grant Permissions" onPress={requestPermissions} />;
   }
 
@@ -134,12 +134,12 @@ For step-by-step setup, see the [Quick Start Guide](docs/getting-started/QUICKST
 
 ## Hooks
 
-| Hook                                                                             | Purpose                                                                                                         |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| [`useLocationPermissions`](docs/getting-started/hooks.md#uselocationpermissions) | Manages cross-platform permission flow (Android: foreground, background, notifications; iOS: WhenInUse, Always) |
-| [`useBackgroundLocation`](docs/getting-started/hooks.md#usebackgroundlocation)   | Full tracking control: start, stop, locations, trip management                                                  |
-| [`useLocationTracking`](docs/getting-started/hooks.md#uselocationtracking)       | Lightweight tracking status monitor (read-only)                                                                 |
-| [`useLocationUpdates`](docs/getting-started/hooks.md#uselocationupdates)         | Real-time event-driven location stream with warnings and action callbacks                                       |
+| Hook                                                                             | Purpose                                                                                                                        |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [`useLocationPermissions`](docs/getting-started/hooks.md#uselocationpermissions) | Manages cross-platform permission flow (Android: foreground, background, notifications; iOS: WhenInUse, Always, notifications) |
+| [`useBackgroundLocation`](docs/getting-started/hooks.md#usebackgroundlocation)   | Full tracking control: start, stop, locations, trip management                                                                 |
+| [`useLocationTracking`](docs/getting-started/hooks.md#uselocationtracking)       | Lightweight tracking status monitor (read-only)                                                                                |
+| [`useLocationUpdates`](docs/getting-started/hooks.md#uselocationupdates)         | Real-time event-driven location stream with warnings and action callbacks                                                      |
 
 See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation, options, and examples.
 
@@ -161,27 +161,35 @@ See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation,
 
 All fields are optional. Defaults are applied when omitted.
 
-| Field                       | Type                   | Default                                  | Description                                                                     |
-| --------------------------- | ---------------------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
-| `updateInterval`            | `number`               | `5000`                                   | Interval between location updates (ms)                                          |
-| `fastestInterval`           | `number`               | `3000`                                   | Fastest allowed update interval (ms)                                            |
-| `maxWaitTime`               | `number`               | `10000`                                  | Max wait before delivering batched updates (ms)                                 |
-| `accuracy`                  | `LocationAccuracy`     | `HIGH_ACCURACY`                          | Location accuracy priority                                                      |
-| `waitForAccurateLocation`   | `boolean`              | `false`                                  | Delay updates until accurate location is available                              |
-| `distanceFilter`            | `number`               | `0`                                      | Minimum distance (meters) between updates. `0` = no filter                      |
-| `foregroundOnly`            | `boolean`              | `false`                                  | Track only while app is visible (no background permission needed)               |
-| `onUpdateInterval`          | `number`               | `undefined`                              | Throttle callback execution (ms). Locations still collected at `updateInterval` |
-| `notificationTitle`         | `string`               | `"Location Tracking"`                    | Notification title                                                              |
-| `notificationText`          | `string`               | `"Tracking your location in background"` | Notification body text                                                          |
-| `notificationChannelName`   | `string`               | `"Background Location"`                  | Android notification channel name                                               |
-| `notificationPriority`      | `NotificationPriority` | `LOW`                                    | Notification priority                                                           |
-| `notificationSmallIcon`     | `string`               | system default                           | Drawable resource name for small icon                                           |
-| `notificationColor`         | `string`               | `undefined`                              | Hex color for notification accent (e.g. `"#FF5722"`)                            |
-| `notificationShowTimestamp` | `boolean`              | `false`                                  | Show timestamp on notification                                                  |
-| `notificationLargeIcon`     | `string`               | `undefined`                              | Drawable resource name for large icon                                           |
-| `notificationSubtext`       | `string`               | `undefined`                              | Subtext below notification content                                              |
-| `notificationChannelId`     | `string`               | `"background_location_channel"`          | Custom notification channel ID                                                  |
-| `notificationActions`       | `NotificationAction[]` | `undefined`                              | Up to 3 action buttons on the notification                                      |
+| Field                     | Type                  | Default         | Description                                                                                             |
+| ------------------------- | --------------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
+| `updateInterval`          | `number`              | `5000`          | Interval between location updates (ms)                                                                  |
+| `fastestInterval`         | `number`              | `3000`          | Fastest allowed update interval (ms)                                                                    |
+| `maxWaitTime`             | `number`              | `10000`         | Max wait before delivering batched updates (ms)                                                         |
+| `accuracy`                | `LocationAccuracy`    | `HIGH_ACCURACY` | Location accuracy priority                                                                              |
+| `waitForAccurateLocation` | `boolean`             | `false`         | Delay updates until accurate location is available                                                      |
+| `distanceFilter`          | `number`              | `0`             | Minimum distance (meters) between updates. `0` = no filter                                              |
+| `foregroundOnly`          | `boolean`             | `false`         | Track only while app is visible (no background permission needed)                                       |
+| `onUpdateInterval`        | `number`              | `undefined`     | Throttle callback execution (ms). Locations still collected at `updateInterval`                         |
+| `notificationOptions`     | `NotificationOptions` | see below       | Notification configuration for the foreground service. See [NotificationOptions](#notificationoptions). |
+
+#### NotificationOptions
+
+All fields are optional. These configure the Android foreground service notification. On iOS, notification fields are silently ignored.
+
+| Field           | Type                   | Default                                  | Description                                          |
+| --------------- | ---------------------- | ---------------------------------------- | ---------------------------------------------------- |
+| `title`         | `string`               | `"Location Tracking"`                    | Notification title                                   |
+| `text`          | `string`               | `"Tracking your location in background"` | Notification body text                               |
+| `channelName`   | `string`               | `"Background Location"`                  | Android notification channel name                    |
+| `channelId`     | `string`               | `"background_location_channel"`          | Custom notification channel ID                       |
+| `priority`      | `NotificationPriority` | `LOW`                                    | Notification priority                                |
+| `smallIcon`     | `string`               | system default                           | Drawable resource name for small icon                |
+| `largeIcon`     | `string`               | `undefined`                              | Drawable resource name for large icon                |
+| `color`         | `string`               | `undefined`                              | Hex color for notification accent (e.g. `"#FF5722"`) |
+| `showTimestamp` | `boolean`              | `false`                                  | Show timestamp on notification                       |
+| `subtext`       | `string`               | `undefined`                              | Subtext below notification content                   |
+| `actions`       | `NotificationAction[]` | `undefined`                              | Up to 3 action buttons on the notification           |
 
 ## Types
 
@@ -267,15 +275,37 @@ interface NotificationActionEvent {
 }
 ```
 
-### PermissionState
+### LocationPermissionState
 
 ```typescript
-interface PermissionState {
+interface LocationPermissionState {
   hasPermission: boolean;
   status: LocationPermissionStatus;
   canRequestAgain: boolean;
 }
 ```
+
+### NotificationPermissionState
+
+```typescript
+interface NotificationPermissionState {
+  hasPermission: boolean;
+  status: NotificationPermissionStatus;
+  canRequestAgain: boolean;
+}
+```
+
+### PermissionState
+
+```typescript
+interface PermissionState {
+  hasAllPermissions: boolean;
+  location: LocationPermissionState;
+  notification: NotificationPermissionState;
+}
+```
+
+`hasAllPermissions` is `true` only when both location and notification permissions are granted. Individual permission states are accessible via the `location` and `notification` sub-objects.
 
 ### UseLocationPermissionsResult
 
@@ -392,9 +422,17 @@ interface UseLocationUpdatesResult {
 | `BLOCKED`      | Permission permanently denied (must open settings).                              |
 | `UNDETERMINED` | Permission not yet requested.                                                    |
 
+### NotificationPermissionStatus
+
+| Value          | Description                            |
+| -------------- | -------------------------------------- |
+| `GRANTED`      | Notification permission granted.       |
+| `DENIED`       | Notification permission denied.        |
+| `UNDETERMINED` | Notification permission not yet asked. |
+
 ## Notification Customization
 
-The foreground service notification supports full visual customization through `TrackingOptions` fields (see [TrackingOptions](#trackingoptions) table above).
+The foreground service notification supports full visual customization through the `notificationOptions` field on `TrackingOptions` (see [NotificationOptions](#notificationoptions) table above).
 
 **Static defaults** can be configured without runtime code using AndroidManifest metadata or convention-named drawables:
 
@@ -419,7 +457,7 @@ await BackgroundLocation.updateNotification(
 );
 ```
 
-**Action buttons** (max 3) can be added via `notificationActions` and handled through the `onNotificationAction` callback in `useLocationUpdates`.
+**Action buttons** (max 3) can be added via `notificationOptions.actions` and handled through the `onNotificationAction` callback in `useLocationUpdates`.
 
 ## Documentation
 
@@ -454,7 +492,7 @@ await BackgroundLocation.updateNotification(
 | Android  | Supported | Kotlin native implementation. Min SDK 24, target SDK 34.            |
 | iOS      | Supported | Swift native implementation. CLLocationManager, Core Data, iOS 13+. |
 
-> **iOS:** Background tracking on iOS uses the system blue status bar indicator instead of a notification. Notification-related `TrackingOptions` (title, text, icon, color, actions, etc.) are Android-only and are silently ignored on iOS. See [Platform Comparison](docs/production/PLATFORM_COMPARISON.md) for detailed differences.
+> **iOS:** Background tracking on iOS uses the system blue status bar indicator instead of a notification. The `notificationOptions` field in `TrackingOptions` is Android-only and is silently ignored on iOS. See [Platform Comparison](docs/production/PLATFORM_COMPARISON.md) for detailed differences.
 
 ## Contributing
 

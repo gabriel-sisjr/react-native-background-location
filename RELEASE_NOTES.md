@@ -1,5 +1,83 @@
 # Release Notes
 
+## v0.12.0 - Breaking Changes & iOS Notification Permission
+
+> **Note:** v0.11.0 was an internal-only release and was never published to npm. v0.12.0 includes all features from v0.11.0 (geofencing, notification configuration, hook optimizations) plus the breaking changes listed below. The public upgrade path is **v0.10.x -> v0.12.0**.
+
+**Breaking Changes:**
+
+This release bundles three breaking changes that improve API consistency and enable cross-platform notification support.
+
+**1. Granular PermissionState**
+
+The `PermissionState` returned by `useLocationPermissions` has been restructured from a flat shape to a nested, granular shape:
+
+```typescript
+// Before (v0.10.x)
+const { hasPermission, status, canRequestAgain } = permissionState;
+
+// After (v0.12.0)
+const { hasAllPermissions, location, notification } = permissionState;
+// location.status, location.canRequestAgain
+// notification.status
+```
+
+See the [migration guide](docs/getting-started/hooks.md) for detailed before/after examples.
+
+**2. Unified NotificationOptions**
+
+11 flat `notification*` fields on `TrackingOptions` have been consolidated into a single `notificationOptions` object:
+
+```typescript
+// Before (v0.10.x)
+startTracking('trip', {
+  notificationTitle: 'Tracking',
+  notificationText: 'Recording route...',
+  notificationIcon: 'ic_tracking',
+  notificationPriority: NotificationPriority.HIGH,
+});
+
+// After (v0.12.0)
+startTracking('trip', {
+  notificationOptions: {
+    title: 'Tracking',
+    text: 'Recording route...',
+    smallIcon: 'ic_tracking',
+    priority: NotificationPriority.HIGH,
+  },
+});
+```
+
+The `NotificationOptions` interface is now shared between tracking foreground service notifications and geofence transition notifications, providing a consistent API surface.
+
+**3. iOS Notification Permission**
+
+`useLocationPermissions` now requests `UNUserNotificationCenter` authorization as step 3 on iOS. This means `requestPermissions()` handles the full permission flow:
+
+1. Request WhenInUse location permission
+2. Escalate to Always permission (if `foregroundOnly: false`)
+3. Request notification permission (iOS only, new in v0.12.0)
+
+**New Types:**
+
+- `NotificationPermissionStatus` enum: `GRANTED`, `DENIED`, `NOT_DETERMINED`
+- `LocationPermissionState`: `{ status: LocationPermissionStatus, canRequestAgain: boolean }`
+- `NotificationPermissionState`: `{ status: NotificationPermissionStatus }`
+
+**Fixes:**
+
+- Fixed `GeofenceNotificationConfig` type mismatch warnings across 9 Kotlin source locations
+- Fixed ~18 Gradle syntax deprecation warnings in `build.gradle` files
+- Room Database migration v6 -> v7 adds `notificationOptionsJson` column to `tracking_state` with legacy flat-column fallback for sessions started on pre-v0.12.0
+
+**Key Improvements:**
+
+- ✅ **Granular Permissions**: Separate location and notification permission state for better UX control
+- ✅ **Unified API**: Single `NotificationOptions` interface for all notification contexts (tracking + geofencing)
+- ✅ **iOS Parity**: Notification permission now part of the standard permission flow on iOS
+- ✅ **Clean Migration**: Room DB v6->v7 migration preserves existing sessions with fallback reads
+- ✅ **Fewer Warnings**: Resolved all Kotlin type mismatch and Gradle deprecation warnings
+
 ## v0.11.0 - Geofence Notification Configuration
 
 **Major Additions:**
@@ -375,6 +453,7 @@ This is the first public release of `@gabriel-sisjr/react-native-background-loca
 - 🚧 Event emitters
 - 🚧 Advanced configuration options
 
+[0.12.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.12.0
 [0.11.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.11.0
 [0.10.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.10.0
 [0.9.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.9.0

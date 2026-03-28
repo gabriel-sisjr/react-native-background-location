@@ -19,7 +19,7 @@ Manages location permissions on both Android and iOS.
 
 > **Android:** Uses `PermissionsAndroid` API with a multi-step flow: foreground permissions first, then background permission (Android 10+), then notification permission (Android 13+).
 
-> **iOS:** Uses native `CLLocationManager` via the TurboModule bridge. Calls `checkLocationPermission()` and `requestLocationPermission()` methods. Follows the two-step iOS flow: WhenInUse first, then Always authorization.
+> **iOS:** Uses native `CLLocationManager` via the TurboModule bridge. Calls `checkLocationPermission()` and `requestLocationPermission()` methods. Follows the three-step iOS flow: WhenInUse first, then Always authorization, then notification permission.
 
 ### Basic Usage
 
@@ -34,7 +34,7 @@ function PermissionScreen() {
     isRequesting
   } = useLocationPermissions();
 
-  if (!permissionStatus.hasPermission) {
+  if (!permissionStatus.hasAllPermissions) {
     return (
       <View>
         <Text>Location permissions required</Text>
@@ -57,12 +57,25 @@ function PermissionScreen() {
 interface UseLocationPermissionsResult {
   // Current permission state
   permissionStatus: {
-    hasPermission: boolean;
-    status: 'granted' | 'denied' | 'blocked' | 'undetermined';
-    canRequestAgain: boolean;
+    // True when both location AND notification permissions are granted
+    hasAllPermissions: boolean;
+
+    // Location permission details
+    location: {
+      hasPermission: boolean;
+      status: 'granted' | 'whenInUse' | 'denied' | 'blocked' | 'undetermined';
+      canRequestAgain: boolean;
+    };
+
+    // Notification permission details
+    notification: {
+      hasPermission: boolean;
+      status: 'granted' | 'denied' | 'undetermined';
+      canRequestAgain: boolean;
+    };
   };
 
-  // Request all required permissions
+  // Request all required permissions (returns true based on location result)
   requestPermissions: () => Promise<boolean>;
 
   // Check current permissions without requesting
@@ -75,13 +88,27 @@ interface UseLocationPermissionsResult {
 
 ### Permission Status
 
-- **`granted`** - All permissions granted (full background access)
-- **`whenInUse`** - iOS only: WhenInUse permission granted. `hasPermission` is `true` at this level, but background tracking may be limited without Always authorization.
+#### Location Permission (`permissionStatus.location.status`)
+
+- **`granted`** - Full background location access granted
+- **`whenInUse`** - iOS only: WhenInUse permission granted. `location.hasPermission` is `true` at this level, but background tracking may be limited without Always authorization.
 - **`denied`** - User denied permissions, can request again
 - **`blocked`** - User permanently denied (must open Settings)
 - **`undetermined`** - Permissions not yet requested
 
-> **iOS:** On iOS, `whenInUse` is treated as `hasPermission = true` because tracking can still function. However, for reliable background tracking and geofencing, "Always" permission is required. Call `requestPermissions()` to handle the full flow -- it requests WhenInUse first, then automatically escalates to Always.
+#### Notification Permission (`permissionStatus.notification.status`)
+
+Uses `NotificationPermissionStatus` enum values:
+
+- **`granted`** (`NotificationPermissionStatus.GRANTED`) - Notification permission granted
+- **`denied`** (`NotificationPermissionStatus.DENIED`) - User denied notification permission
+- **`undetermined`** (`NotificationPermissionStatus.UNDETERMINED`) - Notification permission not yet requested
+
+#### Combined Status (`permissionStatus.hasAllPermissions`)
+
+`hasAllPermissions` is `true` only when **both** `location.hasPermission` and `notification.hasPermission` are `true`. Use this for general permission gates. Use the individual sub-objects when you need to check or display specific permission states.
+
+> **iOS:** On iOS, `whenInUse` is treated as `location.hasPermission = true` because tracking can still function. However, for reliable background tracking and geofencing, "Always" permission is required. Call `requestPermissions()` to handle the full three-step flow -- it requests WhenInUse first, then escalates to Always, then requests notification permission. The return value of `requestPermissions()` is based on location permission only; notification permission is requested but does not affect the return value.
 
 ### Example: Handling Permission States
 
@@ -89,7 +116,7 @@ interface UseLocationPermissionsResult {
 function PermissionHandler() {
   const { permissionStatus, requestPermissions } = useLocationPermissions();
 
-  if (permissionStatus.status === 'blocked') {
+  if (permissionStatus.location.status === 'blocked') {
     return (
       <View>
         <Text>Permissions permanently denied</Text>
@@ -101,7 +128,7 @@ function PermissionHandler() {
     );
   }
 
-  if (permissionStatus.status === 'denied') {
+  if (permissionStatus.location.status === 'denied') {
     return (
       <View>
         <Text>We need location permissions to track your trips</Text>
@@ -129,7 +156,7 @@ function GeofencePermissionGate({ children }: { children: React.ReactNode }) {
 
   const handleRequestPermissions = async () => {
     const granted = await requestPermissions();
-    if (!granted && permissionStatus.status === LocationPermissionStatus.BLOCKED) {
+    if (!granted && permissionStatus.location.status === LocationPermissionStatus.BLOCKED) {
       Alert.alert(
         'Permission Required',
         'Please enable "Always" location access in Settings for geofencing.',
@@ -141,7 +168,7 @@ function GeofencePermissionGate({ children }: { children: React.ReactNode }) {
     }
   };
 
-  if (permissionStatus.status !== LocationPermissionStatus.GRANTED) {
+  if (permissionStatus.location.status !== LocationPermissionStatus.GRANTED) {
     return (
       <View>
         <Text>Geofencing requires "Always" location permission</Text>
@@ -158,7 +185,7 @@ function GeofencePermissionGate({ children }: { children: React.ReactNode }) {
 }
 ```
 
-> **Note:** Ensure permissions are granted via `requestPermissions()` before calling `addGeofence()` or `addGeofences()`. The `requestPermissions()` function handles the full iOS permission flow including WhenInUse-to-Always escalation.
+> **Note:** Ensure permissions are granted via `requestPermissions()` before calling `addGeofence()` or `addGeofences()`. The `requestPermissions()` function handles the full iOS permission flow including WhenInUse-to-Always escalation and notification permission.
 
 ## useBackgroundLocation
 
@@ -240,20 +267,22 @@ interface TrackingOptions {
   // @platform Android
   distanceFilter?: number;
 
-  // Notification configuration (Android only - ignored on iOS)
-  notificationTitle?: string;
-  notificationText?: string;
-  notificationPriority?: NotificationPriority;
-  notificationChannelName?: string;
+  // Unified notification configuration (Android only - ignored on iOS)
+  notificationOptions?: NotificationOptions;
+}
 
-  // Notification appearance (Android only, v0.9.0+)
-  notificationSmallIcon?: string; // Custom drawable resource name (falls back to manifest metadata → convention drawable → system default)
-  notificationColor?: string; // Hex color (e.g., "#FF5722")
-  notificationShowTimestamp?: boolean; // Show timestamp
-  notificationLargeIcon?: string; // Large icon drawable
-  notificationSubtext?: string; // Subtext below content
-  notificationChannelId?: string; // Custom channel ID
-  notificationActions?: NotificationAction[]; // Up to 3 action buttons
+interface NotificationOptions {
+  title?: string; // Notification title
+  text?: string; // Notification body text
+  priority?: NotificationPriority; // Notification priority level
+  channelName?: string; // Android notification channel name
+  smallIcon?: string; // Custom drawable resource name (falls back to manifest metadata -> convention drawable -> system default)
+  color?: string; // Hex color (e.g., "#FF5722")
+  showTimestamp?: boolean; // Show timestamp
+  largeIcon?: string; // Large icon drawable
+  subtext?: string; // Subtext below content
+  channelId?: string; // Custom channel ID
+  actions?: NotificationAction[]; // Up to 3 action buttons
 }
 ```
 
@@ -265,7 +294,7 @@ interface TrackingOptions {
 | `updateInterval` | Used directly                | Used as hint                                            | iOS may deliver updates more frequently |
 | `distanceFilter` | `setMinUpdateDistanceMeters` | `CLLocationManager.distanceFilter`                      | Works on both platforms                 |
 | `foregroundOnly` | Skips background permission  | Limits to WhenInUse                                     | Both platforms                          |
-| `notification*`  | Full customization           | Ignored                                                 | iOS uses system blue bar instead        |
+| `notificationOptions` | Full customization      | Ignored                                                 | iOS uses system blue bar instead        |
 
 > **iOS:** On iOS, the system manages background location behavior. There is no foreground service or notification -- the blue status bar indicator appears automatically when the app uses location in the background.
 
@@ -350,7 +379,9 @@ function AutoTrackingScreen() {
     options: {
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       updateInterval: 5000,
-      notificationPriority: NotificationPriority.LOW,
+      notificationOptions: {
+        priority: NotificationPriority.LOW,
+      },
     },
     onError: (error) => {
       Alert.alert('Error', error.message);
@@ -387,9 +418,11 @@ function TripManager() {
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       updateInterval: 5000,
       distanceFilter: 25, // Only update if moved 25+ meters
-      notificationTitle: 'Trip Tracking',
-      notificationText: 'Tracking your trip in background',
-      notificationPriority: NotificationPriority.LOW,
+      notificationOptions: {
+        title: 'Trip Tracking',
+        text: 'Tracking your trip in background',
+        priority: NotificationPriority.LOW,
+      },
     };
 
     const id = await startTracking(undefined, options);
@@ -440,7 +473,9 @@ await startTracking('delivery-trip', {
 // New: Start with just options (tripId auto-generated)
 const tripId = await startTracking({
   distanceFilter: 100,
-  notificationTitle: 'Delivery Active',
+  notificationOptions: {
+    title: 'Delivery Active',
+  },
 });
 
 // Existing: Start with tripId and options
@@ -750,12 +785,14 @@ function TrackingWithActions() {
 
   const startWithActions = async () => {
     await BackgroundLocation.startTracking('trip-123', {
-      notificationTitle: 'Delivery in Progress',
-      notificationText: 'En route to destination',
-      notificationActions: [
-        { id: 'stop', label: 'Stop' },
-        { id: 'emergency', label: 'Emergency' },
-      ],
+      notificationOptions: {
+        title: 'Delivery in Progress',
+        text: 'En route to destination',
+        actions: [
+          { id: 'stop', label: 'Stop' },
+          { id: 'emergency', label: 'Emergency' },
+        ],
+      },
     });
   };
 
@@ -1344,7 +1381,7 @@ function App() {
   });
 
   // Step 1: Check permissions
-  if (!permissionStatus.hasPermission) {
+  if (!permissionStatus.hasAllPermissions) {
     return (
       <View style={styles.container}>
         <Text>Location Permissions Required</Text>
@@ -1413,7 +1450,7 @@ const { permissionStatus, requestPermissions } = useLocationPermissions();
 const { startTracking } = useBackgroundLocation();
 
 const handleStart = async () => {
-  if (!permissionStatus.hasPermission) {
+  if (!permissionStatus.hasAllPermissions) {
     const granted = await requestPermissions();
     if (!granted) return;
   }
@@ -1688,6 +1725,7 @@ import type {
   // Data types
   PermissionState,
   TrackingOptions,
+  NotificationOptions,
   Coords,
   LocationUpdateEvent,
   LocationWarningEvent,
@@ -1703,6 +1741,7 @@ import type {
 import {
   // Enums
   LocationPermissionStatus,
+  NotificationPermissionStatus,
   LocationAccuracy,
   NotificationPriority,
 

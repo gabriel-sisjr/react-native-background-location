@@ -44,10 +44,10 @@ interface NotificationPermissionState {
 
 ### Migration
 
-| v0.10.x | v0.12.0 |
-|---------|---------|
-| `permissionStatus.hasPermission` | `permissionStatus.hasAllPermissions` |
-| `permissionStatus.status` | `permissionStatus.location.status` |
+| v0.10.x                            | v0.12.0                                     |
+| ---------------------------------- | ------------------------------------------- |
+| `permissionStatus.hasPermission`   | `permissionStatus.hasAllPermissions`        |
+| `permissionStatus.status`          | `permissionStatus.location.status`          |
 | `permissionStatus.canRequestAgain` | `permissionStatus.location.canRequestAgain` |
 
 ### Example
@@ -124,19 +124,19 @@ startTracking({
 
 ### Migration
 
-| v0.10.x | v0.12.0 |
-|---------|---------|
-| `notificationTitle` | `notificationOptions.title` |
-| `notificationText` | `notificationOptions.text` |
-| `notificationChannelName` | `notificationOptions.channelName` |
-| `notificationChannelId` | `notificationOptions.channelId` |
-| `notificationPriority` | `notificationOptions.priority` |
-| `notificationSmallIcon` | `notificationOptions.smallIcon` |
-| `notificationLargeIcon` | `notificationOptions.largeIcon` |
-| `notificationColor` | `notificationOptions.color` |
+| v0.10.x                     | v0.12.0                             |
+| --------------------------- | ----------------------------------- |
+| `notificationTitle`         | `notificationOptions.title`         |
+| `notificationText`          | `notificationOptions.text`          |
+| `notificationChannelName`   | `notificationOptions.channelName`   |
+| `notificationChannelId`     | `notificationOptions.channelId`     |
+| `notificationPriority`      | `notificationOptions.priority`      |
+| `notificationSmallIcon`     | `notificationOptions.smallIcon`     |
+| `notificationLargeIcon`     | `notificationOptions.largeIcon`     |
+| `notificationColor`         | `notificationOptions.color`         |
 | `notificationShowTimestamp` | `notificationOptions.showTimestamp` |
-| `notificationSubtext` | `notificationOptions.subtext` |
-| `notificationActions` | `notificationOptions.actions` |
+| `notificationSubtext`       | `notificationOptions.subtext`       |
+| `notificationActions`       | `notificationOptions.actions`       |
 
 ### New capability
 
@@ -159,9 +159,9 @@ import type { NotificationOptions } from '@gabriel-sisjr/react-native-background
 
 ---
 
-## 3. `NotificationPermissionStatus` Enum (types only)
+## 3. `NotificationPermissionStatus` Enum & iOS Notification Permission
 
-A new enum for notification permission states. This is a type-layer addition in v0.12.0 -- the iOS native implementation that requests notification permission will land in a subsequent step of this release cycle.
+A new enum for notification permission states, paired with native iOS notification permission support in `useLocationPermissions`.
 
 ### New enum
 
@@ -184,13 +184,13 @@ enum NotificationPermissionStatus {
 import { NotificationPermissionStatus } from '@gabriel-sisjr/react-native-background-location';
 ```
 
-### Planned behavior (upcoming steps)
+### iOS Permission Flow
 
-When the native implementation is complete, `useLocationPermissions` will:
+`useLocationPermissions().requestPermissions()` now includes a third step on iOS:
 
 1. Request location permission (existing behavior)
 2. Request background location permission if `foregroundOnly` is false (existing behavior)
-3. **Request notification permission on iOS** via `UNUserNotificationCenter` (new)
+3. **Request notification permission on iOS** via `UNUserNotificationCenter` (new in v0.12.0)
 
 Notification permission is optional -- `requestPermissions()` will return `true` when location is granted, even if notification permission is denied. The notification status is exposed reactively through `permissionStatus.notification` so consumers can build their own UI to guide users.
 
@@ -208,10 +208,10 @@ Notification permission is optional -- `requestPermissions()` will return `true`
 
 ## Files Changed (types layer)
 
-| File | Change |
-|------|--------|
-| `src/types/enums.ts` | Added `NotificationPermissionStatus` enum |
-| `src/types/permissions.ts` | Added `LocationPermissionState`, `NotificationPermissionState`; restructured `PermissionState` |
-| `src/types/tracking.ts` | Removed 11 flat `notification*` fields; added `notificationOptions?: NotificationOptions` |
-| `src/types/notifications.ts` | New file -- `NotificationOptions` interface (shared with geofencing) |
-| `src/types/index.ts` | Updated exports for all new types and enums |
+| File                         | Change                                                                                         |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `src/types/enums.ts`         | Added `NotificationPermissionStatus` enum                                                      |
+| `src/types/permissions.ts`   | Added `LocationPermissionState`, `NotificationPermissionState`; restructured `PermissionState` |
+| `src/types/tracking.ts`      | Removed 11 flat `notification*` fields; added `notificationOptions?: NotificationOptions`      |
+| `src/types/notifications.ts` | New file -- `NotificationOptions` interface (shared with geofencing)                           |
+| `src/types/index.ts`         | Updated exports for all new types and enums                                                    |
