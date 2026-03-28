@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type { TrackingStatus } from '../types';
 
@@ -106,10 +106,13 @@ export function useLocationTracking(
     }
   }, [autoRefresh, refresh]);
 
-  return {
-    isTracking: status.active,
-    tripId: status.tripId || null,
-    refresh,
-    isLoading,
-  };
+  return useMemo(
+    () => ({
+      isTracking: status.active,
+      tripId: status.tripId || null,
+      refresh,
+      isLoading,
+    }),
+    [status.active, status.tripId, refresh, isLoading]
+  );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { NativeEventEmitter } from 'react-native';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type {
@@ -87,6 +87,15 @@ export function useLocationUpdates(
   const [error, setError] = useState<Error | null>(null);
   const wasClearedRef = useRef(false);
   const lastCallbackTimeRef = useRef<number>(0);
+
+  const onLocationUpdateRef = useRef(onLocationUpdate);
+  onLocationUpdateRef.current = onLocationUpdate;
+
+  const onLocationWarningRef = useRef(onLocationWarning);
+  onLocationWarningRef.current = onLocationWarning;
+
+  const onNotificationActionRef = useRef(onNotificationAction);
+  onNotificationActionRef.current = onNotificationAction;
 
   /**
    * Clear error state
@@ -178,13 +187,17 @@ export function useLocationUpdates(
 
       try {
         const status = await BackgroundLocationModule.isTracking();
-        setIsTracking(status.active);
+        setIsTracking((prev) =>
+          prev === status.active ? prev : status.active
+        );
 
         // If we have a provided tripId, use it; otherwise use the active one
         const effectiveTripId = providedTripId || status.tripId;
 
         if (effectiveTripId) {
-          setTripId(effectiveTripId);
+          setTripId((prev) =>
+            prev === effectiveTripId ? prev : effectiveTripId
+          );
 
           // Load existing locations if autoLoad is enabled and wasn't recently cleared
           if (autoLoad && !wasClearedRef.current) {
@@ -256,14 +269,14 @@ export function useLocationUpdates(
           setLastLocation(newLocation);
 
           // Call callback if provided (with optional throttling)
-          if (onLocationUpdate) {
+          if (onLocationUpdateRef.current) {
             const now = Date.now();
             if (
               !onUpdateInterval ||
               now - lastCallbackTimeRef.current >= onUpdateInterval
             ) {
               lastCallbackTimeRef.current = now;
-              onLocationUpdate(newLocation);
+              onLocationUpdateRef.current(newLocation);
             }
           }
         }
@@ -273,7 +286,7 @@ export function useLocationUpdates(
     return () => {
       subscription.remove();
     };
-  }, [tripId, onLocationUpdate, onUpdateInterval]);
+  }, [tripId, onUpdateInterval]);
 
   /**
    * Listen for location warning events (SERVICE_TIMEOUT, TASK_REMOVED, etc.)
@@ -294,7 +307,7 @@ export function useLocationUpdates(
         // Only process warnings for the trip we're watching (or all if no specific trip)
         if (!tripId || warningEvent.tripId === tripId) {
           setLastWarning(warningEvent);
-          onLocationWarning?.(warningEvent);
+          onLocationWarningRef.current?.(warningEvent);
         }
       }
     );
@@ -302,13 +315,13 @@ export function useLocationUpdates(
     return () => {
       warningSubscription.remove();
     };
-  }, [tripId, onLocationWarning]);
+  }, [tripId]);
 
   /**
    * Listen for notification action events
    */
   useEffect(() => {
-    if (!isNativeModuleAvailable() || !onNotificationAction) {
+    if (!isNativeModuleAvailable()) {
       return;
     }
 
@@ -321,7 +334,7 @@ export function useLocationUpdates(
       (event: any) => {
         const actionEvent = event as NotificationActionEvent;
         if (!tripId || actionEvent.tripId === tripId) {
-          onNotificationAction(actionEvent);
+          onNotificationActionRef.current?.(actionEvent);
         }
       }
     );
@@ -329,7 +342,7 @@ export function useLocationUpdates(
     return () => {
       actionSubscription.remove();
     };
-  }, [tripId, onNotificationAction]);
+  }, [tripId]);
 
   /**
    * Reset state when trip changes
@@ -345,15 +358,28 @@ export function useLocationUpdates(
     }
   }, [providedTripId, tripId, autoLoad, loadExistingLocations]);
 
-  return {
-    tripId,
-    isTracking,
-    locations,
-    lastLocation,
-    lastWarning,
-    isLoading,
-    error,
-    clearError,
-    clearLocations,
-  };
+  return useMemo(
+    () => ({
+      tripId,
+      isTracking,
+      locations,
+      lastLocation,
+      lastWarning,
+      isLoading,
+      error,
+      clearError,
+      clearLocations,
+    }),
+    [
+      tripId,
+      isTracking,
+      locations,
+      lastLocation,
+      lastWarning,
+      isLoading,
+      error,
+      clearError,
+      clearLocations,
+    ]
+  );
 }

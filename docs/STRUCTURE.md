@@ -22,7 +22,8 @@ react-native-background-location/
 │   │   ├── QUICKSTART.md               # 5-minute quick start guide
 │   │   ├── INTEGRATION_GUIDE.md        # Detailed integration steps
 │   │   ├── IOS_SETUP.md                # iOS-specific setup guide
-│   │   ├── hooks.md                    # React Hooks API guide
+│   │   ├── hooks.md                    # React Hooks API guide (6 hooks)
+│   │   ├── geofencing.md               # Geofencing guide (API, hooks, types)
 │   │   └── REAL_TIME_UPDATES.md        # useLocationUpdates guide
 │   │
 │   ├── production/                     # Before publishing your app
@@ -38,6 +39,11 @@ react-native-background-location/
 │   │   ├── TESTING.md                  # Testing procedures
 │   │   ├── IMPLEMENTATION_SUMMARY.md   # Technical implementation
 │   │   └── REALTIME_DEBUG_GUIDE.md     # Real-time debugging
+│   │
+│   ├── geofencing/                     # Geofencing planning & analysis
+│   │   ├── ADVANCED_USAGE.md           # Server-driven geofencing, callbacks, examples
+│   │   ├── BUSINESS_CASE.md            # Geofencing business case & justification
+│   │   └── TECHNICAL_PLAN.md           # Geofencing technical implementation plan
 │   │
 │   └── ios/                            # iOS planning & analysis
 │       ├── BUSINESS_REQUIREMENTS.md    # iOS requirements analysis
@@ -72,13 +78,14 @@ Files that should be immediately accessible:
 
 Documentation for **new users** and **integration**:
 
-| File                     | Purpose                     | Audience                            |
-| ------------------------ | --------------------------- | ----------------------------------- |
-| **QUICKSTART.md**        | Get running in 5 minutes    | New users                           |
-| **INTEGRATION_GUIDE.md** | Step-by-step integration    | Developers adding to existing app   |
-| **IOS_SETUP.md**         | iOS-specific configuration  | Developers building for iOS         |
-| **hooks.md**             | React Hooks API guide       | Developers using React Hooks        |
-| **REAL_TIME_UPDATES.md** | Real-time location watching | Developers using useLocationUpdates |
+| File                     | Purpose                     | Audience                              |
+| ------------------------ | --------------------------- | ------------------------------------- |
+| **QUICKSTART.md**        | Get running in 5 minutes    | New users                             |
+| **INTEGRATION_GUIDE.md** | Step-by-step integration    | Developers adding to existing app     |
+| **IOS_SETUP.md**         | iOS-specific configuration  | Developers building for iOS           |
+| **hooks.md**             | React Hooks API guide       | Developers using React Hooks          |
+| **geofencing.md**        | Geofencing guide            | Developers implementing geofencing    |
+| **REAL_TIME_UPDATES.md** | Real-time location watching | Developers using useLocationUpdates   |
 
 ### docs/production/
 
@@ -91,6 +98,16 @@ Documentation for **production readiness**:
 | **BATTERY_OPTIMIZATION.md**   | Platform-specific battery management | Developers, QA                      |
 | **CRASH_RECOVERY.md**         | Session persistence and recovery     | Developers                          |
 | **PLATFORM_COMPARISON.md**    | Android vs iOS differences           | Developers targeting both platforms |
+### docs/geofencing/
+
+Documentation for **geofencing planning and analysis**:
+
+| File                  | Purpose                              | Audience                              |
+| --------------------- | ------------------------------------ | ------------------------------------- |
+| **ADVANCED_USAGE.md** | Server-driven geofencing, callbacks, full examples | Developers building production apps   |
+| **BUSINESS_CASE.md**  | Business justification for geofencing | Product managers, stakeholders        |
+| **TECHNICAL_PLAN.md** | Technical implementation plan         | Contributors, maintainers             |
+
 ### docs/development/
 
 Documentation for **maintainers** and **contributors**:
@@ -233,15 +250,16 @@ When adding new documentation:
 
 ## Current Documentation Stats
 
-- **Total docs:** 24 files
-- **Getting Started:** 5 guides (Quick Start, Integration, iOS Setup, Hooks, Real-Time Updates)
+- **Total docs:** 27 files
+- **Getting Started:** 6 guides (Quick Start, Integration, iOS Setup, Hooks, Geofencing, Real-Time Updates)
 - **Production:** 6 guides (Google Play Compliance, App Store Compliance, Battery Optimization, Crash Recovery, Platform Comparison, Migration)
 - **Development:** 5 guides (CI/CD, Publishing, Testing, Implementation, Real-Time Debug)
+- **Geofencing:** 3 files (Advanced Usage, Business Case, Technical Plan)
 - **iOS Planning:** 2 files (Business Requirements, Implementation Plan)
 - **Root level:** 5 files (README, CHANGELOG, CONTRIBUTING, etc.)
 - **Workflows:** 3 automated workflows (CI, Publish, Pre-release)
 
 ---
 
-**Last Updated:** March 21, 2026
-**Version:** 0.10.0
+**Last Updated:** March 24, 2026
+**Version:** 0.11.0

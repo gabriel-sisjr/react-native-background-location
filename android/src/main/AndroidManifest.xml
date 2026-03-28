@@ -17,6 +17,9 @@
   <!-- Notification permission for Android 13+ -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+  <!-- Boot completed permission for geofence recovery after reboot -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
   <application>
     <!-- Location tracking foreground service -->
     <service
@@ -31,6 +34,22 @@
       android:name=".NotificationActionReceiver"
       android:enabled="true"
       android:exported="false" />
+
+    <!-- Receiver for geofence transition events -->
+    <receiver
+      android:name=".GeofenceBroadcastReceiver"
+      android:enabled="true"
+      android:exported="false" />
+
+    <!-- Receiver for restoring geofences after device reboot -->
+    <receiver
+      android:name=".BootCompletedReceiver"
+      android:enabled="true"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+      </intent-filter>
+    </receiver>
 
     <!--
       WorkManager SystemForegroundService override.

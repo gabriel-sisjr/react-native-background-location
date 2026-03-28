@@ -120,7 +120,7 @@ You do not need to add a separate privacy manifest for the library. However, you
 iOS uses a two-step permission flow:
 
 1. **When In Use** -- User grants foreground location access
-2. **Always** -- User upgrades to background location access
+2. **Always** -- User upgrades to background location access (required for geofencing and reliable background tracking)
 
 The library handles this flow automatically via `requestLocationPermission`:
 
@@ -136,14 +136,18 @@ const foregroundResult =
   await BackgroundLocation.requestLocationPermission(true);
 ```
 
-Or use the hook:
+Use the hook to request permissions, which handles the full flow including WhenInUse-to-Always escalation on iOS:
 
 ```typescript
 import { useLocationPermissions } from '@gabriel-sisjr/react-native-background-location';
 
 function App() {
-  const { permissionStatus, requestPermissions, checkPermissions, isRequesting } =
-    useLocationPermissions();
+  const {
+    permissionStatus,
+    requestPermissions,
+    checkPermissions,
+    isRequesting,
+  } = useLocationPermissions();
 
   const handleGrantPermissions = async () => {
     const granted = await requestPermissions();
@@ -164,6 +168,8 @@ function App() {
   );
 }
 ```
+
+> **Geofencing note:** Ensure permissions are granted via `requestPermissions()` before calling `addGeofence()` or `addGeofences()`. The `requestPermissions()` function handles the full iOS permission flow including WhenInUse-to-Always escalation.
 
 ### Permission Status Values on iOS
 

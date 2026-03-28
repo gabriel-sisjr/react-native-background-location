@@ -14,6 +14,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * - Version 2: Added notification customization columns to tracking_state
  * - Version 3: Added notificationActions column to tracking_state
  * - Version 4: Added notificationLargeIcon, notificationSubtext, notificationChannelId columns
+ * - Version 5: Added geofences and geofence_transitions tables for geofencing support
+ * - Version 6: Added notificationConfig column to geofences table for per-geofence notification overrides
  */
 object Migrations {
 
@@ -52,6 +54,54 @@ object Migrations {
     }
 
     /**
+     * Migration from version 4 to 5
+     * Adds geofences and geofence_transitions tables for geofencing support
+     */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS geofences (
+                    identifier TEXT NOT NULL PRIMARY KEY,
+                    latitude REAL NOT NULL,
+                    longitude REAL NOT NULL,
+                    radius REAL NOT NULL,
+                    transitionTypes INTEGER NOT NULL,
+                    loiteringDelay INTEGER NOT NULL,
+                    expirationDuration INTEGER,
+                    metadata TEXT,
+                    createdAt INTEGER NOT NULL
+                )
+            """)
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS geofence_transitions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    geofenceId TEXT NOT NULL,
+                    transitionType TEXT NOT NULL,
+                    latitude REAL NOT NULL,
+                    longitude REAL NOT NULL,
+                    distanceFromCenter REAL NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    metadata TEXT
+                )
+            """)
+            database.execSQL("""
+                CREATE INDEX IF NOT EXISTS index_geofence_transitions_geofenceId
+                ON geofence_transitions(geofenceId)
+            """)
+        }
+    }
+
+    /**
+     * Migration from version 5 to 6
+     * Adds notificationConfig column to geofences table for per-geofence notification overrides
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE geofences ADD COLUMN notificationConfig TEXT")
+        }
+    }
+
+    /**
      * Get all migrations in order
      * Add new migrations to this array as they are created
      */
@@ -60,6 +110,8 @@ object Migrations {
             MIGRATION_1_2,
             MIGRATION_2_3,
             MIGRATION_3_4,
+            MIGRATION_4_5,
+            MIGRATION_5_6,
         )
     }
 

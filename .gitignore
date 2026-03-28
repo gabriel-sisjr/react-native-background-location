@@ -90,3 +90,7 @@ coverage/
 
 # Misc
 */.watchman-*
+
+# AI
+.claude
+claude.md

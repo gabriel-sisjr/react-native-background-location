@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type { TrackingOptionsSpec } from '../NativeBackgroundLocation';
 import type {
@@ -78,6 +78,17 @@ export function useBackgroundLocation(
   const [locations, setLocations] = useState<Coords[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  // Refs for consumer callbacks to avoid regenerating startTracking/stopTracking
+  // when consumers pass inline functions
+  const onTrackingStartRef = useRef(onTrackingStart);
+  onTrackingStartRef.current = onTrackingStart;
+
+  const onTrackingStopRef = useRef(onTrackingStop);
+  onTrackingStopRef.current = onTrackingStop;
+
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   /**
    * Check tracking status on mount
@@ -191,20 +202,20 @@ export function useBackgroundLocation(
         setIsTracking(true);
         setLocations([]); // Clear previous locations
 
-        onTrackingStart?.(effectiveTripId);
+        onTrackingStartRef.current?.(effectiveTripId);
 
         return effectiveTripId;
       } catch (err) {
         const trackingError =
           err instanceof Error ? err : new Error('Failed to start tracking');
         setError(trackingError);
-        onError?.(trackingError);
+        onErrorRef.current?.(trackingError);
         return null;
       } finally {
         setIsLoading(false);
       }
     },
-    [clearError, onTrackingStart, onError, trackingOptions]
+    [clearError, trackingOptions]
   );
 
   /**
@@ -214,7 +225,7 @@ export function useBackgroundLocation(
     if (!isNativeModuleAvailable()) {
       setIsTracking(false);
       console.warn('BackgroundLocation not available - simulated stop');
-      onTrackingStop?.();
+      onTrackingStopRef.current?.();
       return;
     }
 
@@ -224,17 +235,17 @@ export function useBackgroundLocation(
     try {
       await BackgroundLocationModule.stopTracking();
       setIsTracking(false);
-      onTrackingStop?.();
+      onTrackingStopRef.current?.();
     } catch (err) {
       const stopError =
         err instanceof Error ? err : new Error('Failed to stop tracking');
       setError(stopError);
-      onError?.(stopError);
+      onErrorRef.current?.(stopError);
       throw stopError;
     } finally {
       setIsLoading(false);
     }
-  }, [clearError, onTrackingStop, onError]);
+  }, [clearError]);
 
   /**
    * Refresh locations for current trip
@@ -259,11 +270,11 @@ export function useBackgroundLocation(
       const locError =
         err instanceof Error ? err : new Error('Failed to get locations');
       setError(locError);
-      onError?.(locError);
+      onErrorRef.current?.(locError);
     } finally {
       setIsLoading(false);
     }
-  }, [tripId, clearError, onError]);
+  }, [tripId, clearError]);
 
   /**
    * Clear all data for current trip
@@ -289,22 +300,36 @@ export function useBackgroundLocation(
       const tripError =
         err instanceof Error ? err : new Error('Failed to clear trip');
       setError(tripError);
-      onError?.(tripError);
+      onErrorRef.current?.(tripError);
     } finally {
       setIsLoading(false);
     }
-  }, [tripId, clearError, onError]);
+  }, [tripId, clearError]);
 
-  return {
-    tripId,
-    isTracking,
-    locations,
-    isLoading,
-    error,
-    startTracking,
-    stopTracking,
-    refreshLocations,
-    clearCurrentTrip,
-    clearError,
-  };
+  return useMemo(
+    () => ({
+      tripId,
+      isTracking,
+      locations,
+      isLoading,
+      error,
+      startTracking,
+      stopTracking,
+      refreshLocations,
+      clearCurrentTrip,
+      clearError,
+    }),
+    [
+      tripId,
+      isTracking,
+      locations,
+      isLoading,
+      error,
+      startTracking,
+      stopTracking,
+      refreshLocations,
+      clearCurrentTrip,
+      clearError,
+    ]
+  );
 }
