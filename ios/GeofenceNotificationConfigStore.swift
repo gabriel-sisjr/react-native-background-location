@@ -2,8 +2,6 @@ import Foundation
 
 /// Persists global geofence notification config to UserDefaults.
 /// Follows the existing `bg_location_*` key prefix convention.
-///
-/// @since 0.11.0
 @objc public class GeofenceNotificationConfigStore: NSObject {
 
     @objc public static let shared = GeofenceNotificationConfigStore()

@@ -8,8 +8,6 @@ import org.json.JSONObject
  *
  * Serialized as a JSON string when crossing the TurboModule bridge (Codegen does not
  * support complex nested objects).
- *
- * @since 0.12.0
  */
 data class NotificationOptions(
     val enabled: Boolean? = true,

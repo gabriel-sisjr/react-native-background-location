@@ -2,9 +2,6 @@ package com.backgroundlocation
 
 /**
  * Data class representing tracking configuration options.
- *
- * Since v0.12.0, all notification-related fields are grouped under
- * [notificationOptions] instead of being flat top-level fields.
  */
 data class TrackingOptions(
   val updateInterval: Long? = null,

@@ -5,8 +5,6 @@ import org.json.JSONObject
 /**
  * Kotlin representation of NotificationOptions from TypeScript.
  * All fields nullable to support partial configs and Phase 2 merge semantics.
- *
- * @since 0.11.0
  */
 data class GeofenceNotificationConfig(
     val enabled: Boolean? = true,

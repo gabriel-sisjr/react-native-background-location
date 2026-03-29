@@ -10,8 +10,6 @@ import org.json.JSONObject
 /**
  * Handles notifications for geofence transition events.
  * Uses config-driven notification content with template variable resolution.
- *
- * @since 0.11.0
  */
 object GeofenceNotificationHelper {
 

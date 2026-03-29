@@ -8,8 +8,6 @@ import android.content.SharedPreferences
  *
  * IMPORTANT: GeofenceBroadcastReceiver runs outside the React Native module
  * lifecycle. This store must work with only a Context (no module dependency).
- *
- * @since 0.11.0
  */
 object GeofenceNotificationConfigStore {
 
