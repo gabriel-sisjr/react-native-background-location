@@ -66,6 +66,34 @@ function toLocationPermissionState(
 }
 
 /**
+ * Requests Android notification permission using PermissionsAndroid on API 33+,
+ * falling back to the native module on older versions where the permission is auto-granted.
+ */
+async function requestAndroidNotificationPermission(): Promise<string> {
+  if (Number(Platform.Version) >= 33) {
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
+  }
+  return BackgroundLocationModule.requestNotificationPermission();
+}
+
+/**
+ * Checks Android notification permission using PermissionsAndroid on API 33+,
+ * falling back to the native module on older versions where the permission is auto-granted.
+ */
+async function checkAndroidNotificationPermission(): Promise<string> {
+  if (Number(Platform.Version) >= 33) {
+    const granted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+    return granted ? 'granted' : 'denied';
+  }
+  return BackgroundLocationModule.checkNotificationPermission();
+}
+
+/**
  * Maps a native notification permission status string to NotificationPermissionState
  */
 function toNotificationPermissionState(
@@ -98,7 +126,7 @@ function toNotificationPermissionState(
  * Notification permission denial is non-blocking — background tracking only requires
  * location permissions. Notification denial only affects geofence visual notifications.
  *
- * Android: Uses PermissionsAndroid for location, native module for notification permissions.
+ * Android: Uses PermissionsAndroid for location and notification permissions (API 33+), falling back to native module for notifications on older SDKs.
  * iOS: Uses CLLocationManager authorization (WhenInUse -> Always two-step flow) + native module for notifications.
  *
  * @example
@@ -194,9 +222,8 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
         canRequestAgain: true,
       };
 
-      // Check notification permission via native module
-      const notificationStatus =
-        await BackgroundLocationModule.checkNotificationPermission();
+      // Check notification permission (PermissionsAndroid on API 33+, native module on older)
+      const notificationStatus = await checkAndroidNotificationPermission();
       const notification = toNotificationPermissionState(notificationStatus);
 
       setPermissionStatus({
@@ -300,8 +327,7 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
         };
 
         // Still request notification even if location denied
-        const notificationStatus =
-          await BackgroundLocationModule.requestNotificationPermission();
+        const notificationStatus = await requestAndroidNotificationPermission();
         const notification = toNotificationPermissionState(notificationStatus);
         warnNotificationDenied(notificationStatus);
 
@@ -346,7 +372,7 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
 
           // Still request notification even if background location denied
           const notificationStatus =
-            await BackgroundLocationModule.requestNotificationPermission();
+            await requestAndroidNotificationPermission();
           const notification =
             toNotificationPermissionState(notificationStatus);
           warnNotificationDenied(notificationStatus);
@@ -361,9 +387,8 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
         }
       }
 
-      // Step 3: Request notification permission via native module (non-blocking)
-      const notificationStatus =
-        await BackgroundLocationModule.requestNotificationPermission();
+      // Step 3: Request notification permission (PermissionsAndroid on API 33+, native module on older)
+      const notificationStatus = await requestAndroidNotificationPermission();
       const notification = toNotificationPermissionState(notificationStatus);
       warnNotificationDenied(notificationStatus);
 

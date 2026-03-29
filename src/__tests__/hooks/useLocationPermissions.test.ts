@@ -152,9 +152,40 @@ describe('useLocationPermissions - Complete Tests', () => {
       });
     });
 
-    it('should check notification permission via native module on Android', async () => {
+    it('should check notification permission via PermissionsAndroid on Android 13+ (API 33)', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
+        configurable: true,
+      });
+      (PermissionsAndroid.check as jest.Mock)
+        .mockResolvedValueOnce(true) // ACCESS_FINE_LOCATION
+        .mockResolvedValueOnce(true) // ACCESS_COARSE_LOCATION
+        .mockResolvedValueOnce(true) // ACCESS_BACKGROUND_LOCATION
+        .mockResolvedValueOnce(true); // POST_NOTIFICATIONS
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const hasPermission = await result.current.checkPermissions();
+        expect(hasPermission).toBe(true);
+      });
+
+      expect(PermissionsAndroid.check).toHaveBeenCalledWith(
+        'android.permission.POST_NOTIFICATIONS'
+      );
+      expect(
+        BackgroundLocationModule.checkNotificationPermission
+      ).not.toHaveBeenCalled();
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        true
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(true);
+    });
+
+    it('should check notification permission via native module on Android 12 (API < 33)', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 31,
         configurable: true,
       });
       (PermissionsAndroid.check as jest.Mock)
@@ -175,14 +206,12 @@ describe('useLocationPermissions - Complete Tests', () => {
       expect(
         BackgroundLocationModule.checkNotificationPermission
       ).toHaveBeenCalled();
-      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
       expect(result.current.permissionStatus.notification.hasPermission).toBe(
         true
       );
-      expect(result.current.permissionStatus.hasAllPermissions).toBe(true);
     });
 
-    it('should return true for location when notification permission is denied', async () => {
+    it('should return true for location when notification permission is denied on API 33+', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -190,10 +219,8 @@ describe('useLocationPermissions - Complete Tests', () => {
       (PermissionsAndroid.check as jest.Mock)
         .mockResolvedValueOnce(true) // ACCESS_FINE_LOCATION
         .mockResolvedValueOnce(true) // ACCESS_COARSE_LOCATION
-        .mockResolvedValueOnce(true); // ACCESS_BACKGROUND_LOCATION
-      (
-        BackgroundLocationModule.checkNotificationPermission as jest.Mock
-      ).mockResolvedValueOnce('denied');
+        .mockResolvedValueOnce(true) // ACCESS_BACKGROUND_LOCATION
+        .mockResolvedValueOnce(false); // POST_NOTIFICATIONS denied
 
       const { result } = renderHook(() => useLocationPermissions());
 
@@ -448,9 +475,46 @@ describe('useLocationPermissions - Complete Tests', () => {
       expect(PermissionsAndroid.request).not.toHaveBeenCalled();
     });
 
-    it('should request notification permission via native module on Android', async () => {
+    it('should request notification permission via PermissionsAndroid on Android 13+ (API 33)', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
+        configurable: true,
+      });
+      (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
+        'android.permission.ACCESS_FINE_LOCATION':
+          PermissionsAndroid.RESULTS.GRANTED,
+        'android.permission.ACCESS_COARSE_LOCATION':
+          PermissionsAndroid.RESULTS.GRANTED,
+      });
+      (PermissionsAndroid.request as jest.Mock)
+        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED) // background
+        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED); // POST_NOTIFICATIONS
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const granted = await result.current.requestPermissions();
+        expect(granted).toBe(true);
+      });
+
+      expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+        'android.permission.POST_NOTIFICATIONS'
+      );
+      expect(
+        BackgroundLocationModule.requestNotificationPermission
+      ).not.toHaveBeenCalled();
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.status).toBe(
+        LocationPermissionStatus.GRANTED
+      );
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        true
+      );
+    });
+
+    it('should request notification permission via native module on Android 12 (API < 33)', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 30,
         configurable: true,
       });
       (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
@@ -476,16 +540,12 @@ describe('useLocationPermissions - Complete Tests', () => {
       expect(
         BackgroundLocationModule.requestNotificationPermission
       ).toHaveBeenCalled();
-      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
-      expect(result.current.permissionStatus.location.status).toBe(
-        LocationPermissionStatus.GRANTED
-      );
       expect(result.current.permissionStatus.notification.hasPermission).toBe(
         true
       );
     });
 
-    it('should handle notification permission denial on Android', async () => {
+    it('should handle notification permission denial on Android 13+ (API 33)', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -496,12 +556,9 @@ describe('useLocationPermissions - Complete Tests', () => {
         'android.permission.ACCESS_COARSE_LOCATION':
           PermissionsAndroid.RESULTS.GRANTED,
       });
-      (PermissionsAndroid.request as jest.Mock).mockResolvedValueOnce(
-        PermissionsAndroid.RESULTS.GRANTED
-      ); // background
-      (
-        BackgroundLocationModule.requestNotificationPermission as jest.Mock
-      ).mockResolvedValueOnce('denied');
+      (PermissionsAndroid.request as jest.Mock)
+        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED) // background
+        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.DENIED); // POST_NOTIFICATIONS
 
       const { result } = renderHook(() => useLocationPermissions());
 
@@ -511,6 +568,9 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(true);
       });
 
+      expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+        'android.permission.POST_NOTIFICATIONS'
+      );
       expect(result.current.permissionStatus.location.hasPermission).toBe(true);
       expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
@@ -524,7 +584,7 @@ describe('useLocationPermissions - Complete Tests', () => {
       expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
     });
 
-    it('should handle notification permission never ask again on Android', async () => {
+    it('should handle notification permission never ask again on Android 13+ (API 33)', async () => {
       Object.defineProperty(Platform, 'Version', {
         get: () => 33,
         configurable: true,
@@ -535,12 +595,9 @@ describe('useLocationPermissions - Complete Tests', () => {
         'android.permission.ACCESS_COARSE_LOCATION':
           PermissionsAndroid.RESULTS.GRANTED,
       });
-      (PermissionsAndroid.request as jest.Mock).mockResolvedValueOnce(
-        PermissionsAndroid.RESULTS.GRANTED
-      ); // background
-      (
-        BackgroundLocationModule.requestNotificationPermission as jest.Mock
-      ).mockResolvedValueOnce('denied');
+      (PermissionsAndroid.request as jest.Mock)
+        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.GRANTED) // background
+        .mockResolvedValueOnce(PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN); // POST_NOTIFICATIONS
 
       const { result } = renderHook(() => useLocationPermissions());
 
