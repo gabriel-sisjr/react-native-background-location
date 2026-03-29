@@ -68,14 +68,14 @@ The `NotificationOptions` interface is now shared between tracking foreground se
 
 - Fixed `GeofenceNotificationConfig` type mismatch warnings across 9 Kotlin source locations
 - Fixed ~18 Gradle syntax deprecation warnings in `build.gradle` files
-- Room Database migration v6 -> v7 adds `notificationOptionsJson` column to `tracking_state` with legacy flat-column fallback for sessions started on pre-v0.12.0
+- Room Database schema reset to v1 with `fallbackToDestructiveMigration()` -- clean schema with no migration chain (all 6 legacy migrations deleted)
 
 **Key Improvements:**
 
 - ✅ **Granular Permissions**: Separate location and notification permission state for better UX control
 - ✅ **Unified API**: Single `NotificationOptions` interface for all notification contexts (tracking + geofencing)
 - ✅ **iOS Parity**: Notification permission now part of the standard permission flow on iOS
-- ✅ **Clean Migration**: Room DB v6->v7 migration preserves existing sessions with fallback reads
+- ✅ **Clean Schema**: Room DB reset to v1 with destructive migration fallback -- no legacy migration chain
 - ✅ **Fewer Warnings**: Resolved all Kotlin type mismatch and Gradle deprecation warnings
 
 ## v0.11.0 - Geofence Notification Configuration

@@ -367,8 +367,6 @@ interface UseGeofencingOptions {
    * Global notification configuration for geofence transitions.
    * When provided, calls configureGeofenceNotifications() on mount.
    * Changes to this object trigger reconfiguration.
-   *
-   * @since 0.11.0
    */
   notificationOptions?: NotificationOptions;
 }
@@ -923,7 +921,7 @@ function GeofenceSetup() {
   // requestPermissions() handles the full flow:
   // Step 1: Request foreground location
   // Step 2: Request background location (Always)
-  // Step 3: Request notification permission (iOS only)
+  // Step 3: Request notification permission (both platforms)
   const granted = await requestPermissions();
 }
 ```
@@ -990,8 +988,6 @@ yarn example android   # or: yarn example ios
 Navigate to the Geofencing screen, select a location preset (Apple Park, Googleplex, or Moscone Center), choose a notification preset, and tap "Add Geofence" to register it with the selected notification configuration.
 
 ### Per-Geofence Notification Overrides
-
-> **Since 0.12.0**
 
 Individual geofences can override the global notification configuration by providing a `notificationOptions` field on the `GeofenceRegion` object. This allows different geofences to produce different notification content, or to suppress notifications entirely for specific geofences.
 

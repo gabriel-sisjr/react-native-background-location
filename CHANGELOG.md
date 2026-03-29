@@ -15,7 +15,7 @@
 - `LocationPermissionState` type with `status` and `canRequestAgain` fields
 - `NotificationPermissionState` type with `status` field
 - `NotificationOptions` unified interface for both tracking foreground service and geofencing notifications
-- Room Database migration v6 -> v7 adding `notificationOptionsJson` column to `tracking_state` table with legacy flat-column fallback for pre-v0.12.0 sessions
+- Room Database schema reset to v1 with `fallbackToDestructiveMigration()` -- clean schema with no migration chain (all legacy migrations deleted)
 
 ### Changed
 
@@ -26,6 +26,7 @@
 
 ### Fixed
 
+- Android 13+ (API 33+) `POST_NOTIFICATIONS` permission dialog never appearing -- the native `requestNotificationPermission()` was a status-check stub that never triggered the system dialog. `useLocationPermissions` now uses `PermissionsAndroid.request(POST_NOTIFICATIONS)` on API 33+ to properly show the permission popup, falling back to the native module on older SDKs where notification permission is auto-granted.
 - `GeofenceNotificationConfig` type mismatch warnings in Kotlin (9 occurrences) -- notification config properties now use correct types
 - Gradle syntax deprecation warnings (~18 occurrences) -- updated `build.gradle` to use non-deprecated API patterns
 

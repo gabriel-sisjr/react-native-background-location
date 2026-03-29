@@ -960,8 +960,6 @@ interface UseGeofencingOptions {
    * Global notification configuration for geofence transitions.
    * When provided, calls configureGeofenceNotifications() on mount.
    * Changes to this object trigger reconfiguration.
-   *
-   * @since 0.11.0
    */
   notificationOptions?: NotificationOptions;
 }
