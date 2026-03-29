@@ -26,6 +26,7 @@ import {
   GeofenceTransitionType,
   NotificationPriority,
   LocationPermissionStatus,
+  NotificationPermissionStatus,
 } from '@gabriel-sisjr/react-native-background-location';
 import type {
   GeofenceTransitionEvent,
@@ -229,6 +230,38 @@ function permissionColor(status: string): string {
   }
 }
 
+/**
+ * Returns a human-readable label for the notification permission status.
+ */
+function notificationPermissionLabel(status: string): string {
+  switch (status) {
+    case NotificationPermissionStatus.GRANTED:
+      return 'Granted';
+    case NotificationPermissionStatus.DENIED:
+      return 'Denied';
+    case NotificationPermissionStatus.UNDETERMINED:
+      return 'Not Determined';
+    default:
+      return 'Not Determined';
+  }
+}
+
+/**
+ * Returns a color for the notification permission status badge.
+ */
+function notificationPermissionColor(status: string): string {
+  switch (status) {
+    case NotificationPermissionStatus.GRANTED:
+      return '#4CAF50';
+    case NotificationPermissionStatus.DENIED:
+      return '#f44336';
+    case NotificationPermissionStatus.UNDETERMINED:
+      return '#FF9800';
+    default:
+      return '#FF9800';
+  }
+}
+
 export function GeofencingScreen() {
   const {
     geofences,
@@ -379,22 +412,55 @@ export function GeofencingScreen() {
               styles.permissionBadge,
               {
                 backgroundColor:
-                  permissionColor(permissionStatus.status) + '20',
-                borderColor: permissionColor(permissionStatus.status),
+                  permissionColor(permissionStatus.location.status) + '20',
+                borderColor: permissionColor(permissionStatus.location.status),
               },
             ]}
           >
             <Text
               style={[
                 styles.permissionBadgeText,
-                { color: permissionColor(permissionStatus.status) },
+                { color: permissionColor(permissionStatus.location.status) },
               ]}
             >
-              {permissionLabel(permissionStatus.status)}
+              {permissionLabel(permissionStatus.location.status)}
             </Text>
           </View>
         </View>
-        {permissionStatus.status !== LocationPermissionStatus.GRANTED && (
+        <View style={styles.permissionRow}>
+          <Text style={styles.permissionLabel}>Notification:</Text>
+          <View
+            style={[
+              styles.permissionBadge,
+              {
+                backgroundColor:
+                  notificationPermissionColor(
+                    permissionStatus.notification.status
+                  ) + '20',
+                borderColor: notificationPermissionColor(
+                  permissionStatus.notification.status
+                ),
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.permissionBadgeText,
+                {
+                  color: notificationPermissionColor(
+                    permissionStatus.notification.status
+                  ),
+                },
+              ]}
+            >
+              {notificationPermissionLabel(
+                permissionStatus.notification.status
+              )}
+            </Text>
+          </View>
+        </View>
+        {permissionStatus.location.status !==
+          LocationPermissionStatus.GRANTED && (
           <View style={styles.permissionWarning}>
             <Text style={styles.permissionWarningText}>
               Geofencing requires "Always" location permission for reliable
@@ -408,11 +474,11 @@ export function GeofencingScreen() {
               <Text style={styles.buttonText}>
                 {isRequesting
                   ? 'Requesting...'
-                  : permissionStatus.status ===
+                  : permissionStatus.location.status ===
                         LocationPermissionStatus.BLOCKED ||
-                      (permissionStatus.status ===
+                      (permissionStatus.location.status ===
                         LocationPermissionStatus.DENIED &&
-                        !permissionStatus.canRequestAgain)
+                        !permissionStatus.location.canRequestAgain)
                     ? 'Open Settings'
                     : 'Request Always Permission'}
               </Text>

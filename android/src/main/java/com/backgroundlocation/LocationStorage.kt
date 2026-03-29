@@ -189,8 +189,8 @@ class LocationStorage(context: Context) {
   }
   
   /**
-   * Saves the current tracking state along with tracking options
-   * Uses Room Database for persistence (ASYNC - use saveTrackingStateSync for critical operations)
+   * Saves the current tracking state along with tracking options.
+   * Uses Room Database for persistence (ASYNC - use saveTrackingStateSync for critical operations).
    */
   fun saveTrackingState(tripId: String?, isActive: Boolean, options: TrackingOptions? = null) {
     scope.launch {
@@ -204,18 +204,8 @@ class LocationStorage(context: Context) {
           maxWaitTime = options?.maxWaitTime,
           accuracy = options?.accuracy?.value,
           waitForAccurateLocation = options?.waitForAccurateLocation,
-          notificationTitle = options?.notificationTitle,
-          notificationText = options?.notificationText,
-          notificationChannelName = options?.notificationChannelName,
-          notificationPriority = options?.notificationPriority,
           foregroundOnly = options?.foregroundOnly,
-          notificationSmallIcon = options?.notificationSmallIcon,
-          notificationColor = options?.notificationColor,
-          notificationShowTimestamp = options?.notificationShowTimestamp,
-          notificationActions = options?.notificationActions,
-          notificationLargeIcon = options?.notificationLargeIcon,
-          notificationSubtext = options?.notificationSubtext,
-          notificationChannelId = options?.notificationChannelId
+          notificationOptionsJson = options?.notificationOptions?.toJsonString()
         )
         trackingStateDao.upsert(entity)
       } catch (e: Exception) {
@@ -225,9 +215,9 @@ class LocationStorage(context: Context) {
   }
 
   /**
-   * Saves the current tracking state SYNCHRONOUSLY
+   * Saves the current tracking state SYNCHRONOUSLY.
    * Use this for critical operations like stopTracking where we need to ensure
-   * the state is persisted before continuing (prevents race conditions)
+   * the state is persisted before continuing (prevents race conditions).
    */
   suspend fun saveTrackingStateSync(tripId: String?, isActive: Boolean, options: TrackingOptions? = null) {
     try {
@@ -240,14 +230,8 @@ class LocationStorage(context: Context) {
         maxWaitTime = options?.maxWaitTime,
         accuracy = options?.accuracy?.value,
         waitForAccurateLocation = options?.waitForAccurateLocation,
-        notificationTitle = options?.notificationTitle,
-        notificationText = options?.notificationText,
-        notificationChannelName = options?.notificationChannelName,
-        notificationPriority = options?.notificationPriority,
         foregroundOnly = options?.foregroundOnly,
-        notificationSmallIcon = options?.notificationSmallIcon,
-        notificationColor = options?.notificationColor,
-        notificationShowTimestamp = options?.notificationShowTimestamp
+        notificationOptionsJson = options?.notificationOptions?.toJsonString()
       )
       trackingStateDao.upsert(entity)
       android.util.Log.d("LocationStorage", "Tracking state saved synchronously: isActive=$isActive, tripId=$tripId")
@@ -258,7 +242,8 @@ class LocationStorage(context: Context) {
   }
   
   /**
-   * Gets the current tracking state - ASYNC version
+   * Gets the current tracking state - ASYNC version.
+   * Reconstructs [TrackingOptions] from the persisted entity fields.
    */
   suspend fun getTrackingStateAsync(): TrackingState {
     return try {
@@ -267,25 +252,27 @@ class LocationStorage(context: Context) {
       if (entity == null) {
         TrackingState(false, null, null)
       } else {
-        val options = if (entity.updateInterval != null || entity.accuracy != null) {
+        val hasAnyOption = entity.updateInterval != null || entity.accuracy != null ||
+          entity.notificationOptionsJson != null
+
+        val options = if (hasAnyOption) {
+          val notificationOptions = entity.notificationOptionsJson?.let { jsonString ->
+            try {
+              NotificationOptions.fromJsonString(jsonString)
+            } catch (e: Exception) {
+              android.util.Log.w("LocationStorage", "Failed to parse notificationOptionsJson", e)
+              null
+            }
+          }
+
           TrackingOptions(
             updateInterval = entity.updateInterval,
             fastestInterval = entity.fastestInterval,
             maxWaitTime = entity.maxWaitTime,
             accuracy = entity.accuracy?.let { LocationAccuracy.fromString(it) },
             waitForAccurateLocation = entity.waitForAccurateLocation,
-            notificationTitle = entity.notificationTitle,
-            notificationText = entity.notificationText,
-            notificationChannelName = entity.notificationChannelName,
-            notificationPriority = entity.notificationPriority,
             foregroundOnly = entity.foregroundOnly,
-            notificationSmallIcon = entity.notificationSmallIcon,
-            notificationColor = entity.notificationColor,
-            notificationShowTimestamp = entity.notificationShowTimestamp,
-            notificationActions = entity.notificationActions,
-            notificationLargeIcon = entity.notificationLargeIcon,
-            notificationSubtext = entity.notificationSubtext,
-            notificationChannelId = entity.notificationChannelId
+            notificationOptions = notificationOptions
           )
         } else null
 

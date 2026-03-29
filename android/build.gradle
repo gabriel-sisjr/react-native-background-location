@@ -31,11 +31,11 @@ def getExtOrIntegerDefault(name) {
 android {
   namespace "com.backgroundlocation"
 
-  compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
+  compileSdk = getExtOrIntegerDefault("compileSdkVersion")
 
   defaultConfig {
-    minSdkVersion getExtOrIntegerDefault("minSdkVersion")
-    targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
+    minSdk = getExtOrIntegerDefault("minSdkVersion")
+    targetSdk = getExtOrIntegerDefault("targetSdkVersion")
 
     // Export Room schemas for migration testing and validation
     ksp {
@@ -54,7 +54,7 @@ android {
     }
   }
 
-  lintOptions {
+  lint {
     disable "GradleCompatible"
   }
 

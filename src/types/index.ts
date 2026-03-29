@@ -7,6 +7,7 @@ export {
   LocationPermissionStatus,
   LocationAccuracy,
   NotificationPriority,
+  NotificationPermissionStatus,
 } from './enums';
 
 // Tracking types
@@ -23,6 +24,8 @@ export type {
 
 // Permission types
 export type {
+  LocationPermissionState,
+  NotificationPermissionState,
   PermissionState,
   UseLocationPermissionsResult,
 } from './permissions';

@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.12.0] - 2026-03-28
+
+### BREAKING CHANGES
+
+- **Granular PermissionState**: `PermissionState` restructured from flat `{ hasPermission, status, canRequestAgain }` to nested `{ hasAllPermissions, location: { status, canRequestAgain }, notification: { status } }`. All consumers destructuring the old shape must update.
+- **Unified NotificationOptions**: 11 flat `notification*` fields on `TrackingOptions` (`notificationTitle`, `notificationText`, `notificationIcon`, etc.) consolidated into a single `notificationOptions: NotificationOptions` object. The flat fields are removed.
+- **iOS notification permission**: `useLocationPermissions` now requests `UNUserNotificationCenter` authorization as step 3 on iOS, making notification permission part of the standard permission flow.
+
+### Added
+
+- iOS notification permission request in `useLocationPermissions` hook (step 3 after WhenInUse and Always authorization)
+- `NotificationPermissionStatus` enum (`GRANTED`, `DENIED`, `UNDETERMINED`)
+- `LocationPermissionState` type with `status` and `canRequestAgain` fields
+- `NotificationPermissionState` type with `status` field
+- `NotificationOptions` unified interface for both tracking foreground service and geofencing notifications
+- Room Database schema reset to v1 with `fallbackToDestructiveMigration()` -- clean schema with no migration chain (all legacy migrations deleted)
+
+### Changed
+
+- `PermissionState` restructured from flat shape to granular `{ hasAllPermissions, location, notification }` shape
+- `TrackingOptions` notification fields (`notificationTitle`, `notificationText`, `notificationIcon`, `notificationLargeIcon`, `notificationColor`, `notificationChannelId`, `notificationChannelName`, `notificationPriority`, `notificationActions`, `notificationSubText`, `notificationShowTimestamp`) consolidated into `notificationOptions: NotificationOptions` object
+- Android `requestPermissions()` now returns `true` when location permission is granted even if `POST_NOTIFICATIONS` is denied (notification permission is non-blocking)
+- `NotificationOptions` interface is now shared between tracking foreground service and geofence notification configuration
+
+### Fixed
+
+- Android 13+ (API 33+) `POST_NOTIFICATIONS` permission dialog never appearing -- the native `requestNotificationPermission()` was a status-check stub that never triggered the system dialog. `useLocationPermissions` now uses `PermissionsAndroid.request(POST_NOTIFICATIONS)` on API 33+ to properly show the permission popup, falling back to the native module on older SDKs where notification permission is auto-granted.
+- `GeofenceNotificationConfig` type mismatch warnings in Kotlin (9 occurrences) -- notification config properties now use correct types
+- Gradle syntax deprecation warnings (~18 occurrences) -- updated `build.gradle` to use non-deprecated API patterns
+
 ## [0.11.0] - 2026-03-25
 
 ### Added
@@ -937,3 +967,16 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - Location update intervals are not yet configurable
 - No event emitters for real-time location updates
 - Storage limited to SharedPreferences (consider SQLite for large datasets)
+
+[0.12.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.12.0
+[0.11.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.11.0
+[0.10.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.10.0
+[0.9.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.9.0
+[0.8.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.8.0
+[0.7.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.7.0
+[0.6.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.6.0
+[0.5.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.5.0
+[0.4.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.4.0
+[0.3.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.3.0
+[0.2.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.2.0
+[0.1.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.1.0

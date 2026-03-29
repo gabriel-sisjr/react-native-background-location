@@ -262,4 +262,4 @@ When adding new documentation:
 ---
 
 **Last Updated:** March 24, 2026
-**Version:** 0.11.0
+**Version:** 0.12.0

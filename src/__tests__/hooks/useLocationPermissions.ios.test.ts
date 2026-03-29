@@ -1,13 +1,22 @@
 import { act, renderHook } from '@testing-library/react-native';
 import { Platform, PermissionsAndroid } from 'react-native';
 import { useLocationPermissions } from '../../hooks/useLocationPermissions';
-import { LocationPermissionStatus } from '../../types';
+import {
+  LocationPermissionStatus,
+  NotificationPermissionStatus,
+} from '../../types';
 import BackgroundLocationModule from '../../NativeBackgroundLocation';
 
 describe('useLocationPermissions - iOS Specific Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     Platform.OS = 'ios';
+    (
+      BackgroundLocationModule.checkNotificationPermission as jest.Mock
+    ).mockResolvedValue('granted');
+    (
+      BackgroundLocationModule.requestNotificationPermission as jest.Mock
+    ).mockResolvedValue('granted');
   });
 
   describe('WhenInUse status mapping', () => {
@@ -25,7 +34,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         await result.current.checkPermissions();
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
     });
@@ -45,7 +54,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
     });
 
     it('should return true from requestPermissions when result is whenInUse', async () => {
@@ -63,8 +72,8 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
     });
@@ -83,7 +92,9 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         await result.current.checkPermissions();
       });
 
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
   });
 
@@ -154,7 +165,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
 
@@ -164,11 +175,13 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
 
     it('should remain whenInUse if user denies Always upgrade', async () => {
@@ -192,7 +205,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         await result.current.checkPermissions();
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
 
@@ -201,10 +214,12 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true); // whenInUse still counts as having permission
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
   });
 
@@ -225,7 +240,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
 
@@ -243,7 +258,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(true); // still has partial permission
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
     });
@@ -262,10 +277,10 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         await result.current.checkPermissions();
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
 
       // User revokes all location access in Settings
       (
@@ -280,10 +295,12 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
     });
 
     it('should detect downgrade from whenInUse to denied via Settings', async () => {
@@ -300,7 +317,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         await result.current.checkPermissions();
       });
 
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
 
       (
         BackgroundLocationModule.checkLocationPermission as jest.Mock
@@ -314,7 +331,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
     });
@@ -336,11 +353,15 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.BLOCKED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
     });
 
     it('should map denied status with canRequestAgain false', async () => {
@@ -358,11 +379,15 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
     });
 
     it('should distinguish blocked from denied as different statuses', async () => {
@@ -380,7 +405,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         await result.current.checkPermissions();
       });
 
-      const blockedStatus = result.current.permissionStatus.status;
+      const blockedStatus = result.current.permissionStatus.location.status;
 
       // Second: check denied
       (
@@ -394,7 +419,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         await result.current.checkPermissions();
       });
 
-      const deniedStatus = result.current.permissionStatus.status;
+      const deniedStatus = result.current.permissionStatus.location.status;
 
       expect(blockedStatus).toBe(LocationPermissionStatus.BLOCKED);
       expect(deniedStatus).toBe(LocationPermissionStatus.DENIED);
@@ -416,10 +441,12 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.BLOCKED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
   });
 
@@ -447,10 +474,12 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(true);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        true
+      );
       expect(result.current.isRequesting).toBe(false);
 
       // Step 2: Request - granted
@@ -459,11 +488,13 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
       expect(result.current.isRequesting).toBe(false);
     });
 
@@ -571,7 +602,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
       expect(result.current.isRequesting).toBe(false);
@@ -582,7 +613,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
       expect(result.current.isRequesting).toBe(false);
@@ -710,10 +741,12 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
       expect(result.current.isRequesting).toBe(false);
 
       // Second: check works normally
@@ -729,11 +762,13 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(true);
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        true
+      );
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
     });
 
     it('should recover from failed request and allow subsequent request', async () => {
@@ -749,7 +784,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
       expect(result.current.isRequesting).toBe(false);
@@ -767,10 +802,10 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
       expect(result.current.isRequesting).toBe(false);
     });
 
@@ -788,7 +823,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
       });
 
       // State should remain at initial (error path does not update state)
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
 
@@ -805,7 +840,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
     });
@@ -816,7 +851,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
       const { result } = renderHook(() => useLocationPermissions());
 
       // Initial state is undetermined
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
 
@@ -832,16 +867,16 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
     });
 
     it('should transition from undetermined to whenInUse', async () => {
       const { result } = renderHook(() => useLocationPermissions());
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
 
@@ -857,16 +892,16 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
     });
 
     it('should transition from undetermined to denied', async () => {
       const { result } = renderHook(() => useLocationPermissions());
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
 
@@ -882,17 +917,21 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
 
     it('should transition from undetermined to blocked (restricted)', async () => {
       const { result } = renderHook(() => useLocationPermissions());
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
 
@@ -908,11 +947,15 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.BLOCKED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(false);
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
 
     it('should remain undetermined when check returns undetermined', async () => {
@@ -925,7 +968,7 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
 
       const { result } = renderHook(() => useLocationPermissions());
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
 
@@ -934,16 +977,18 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(true);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        true
+      );
     });
 
     it('should transition from undetermined to denied on error during request', async () => {
       const { result } = renderHook(() => useLocationPermissions());
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
 
@@ -956,10 +1001,161 @@ describe('useLocationPermissions - iOS Specific Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
+    });
+  });
+
+  describe('iOS notification permission', () => {
+    it('should call checkNotificationPermission alongside checkLocationPermission', async () => {
+      (
+        BackgroundLocationModule.checkLocationPermission as jest.Mock
+      ).mockResolvedValueOnce({
+        status: 'granted',
+        canRequestAgain: false,
+      });
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('granted');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        await result.current.checkPermissions();
+      });
+
+      expect(
+        BackgroundLocationModule.checkLocationPermission
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        BackgroundLocationModule.checkNotificationPermission
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call requestNotificationPermission as step 2 after location', async () => {
+      const callOrder: string[] = [];
+      (
+        BackgroundLocationModule.requestLocationPermission as jest.Mock
+      ).mockImplementationOnce(() => {
+        callOrder.push('location');
+        return Promise.resolve({ status: 'granted', canRequestAgain: false });
+      });
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockImplementationOnce(() => {
+        callOrder.push('notification');
+        return Promise.resolve('granted');
+      });
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        await result.current.requestPermissions();
+      });
+
+      expect(callOrder).toEqual(['location', 'notification']);
+    });
+
+    it('should return true from requestPermissions even when notification denied', async () => {
+      (
+        BackgroundLocationModule.requestLocationPermission as jest.Mock
+      ).mockResolvedValueOnce({
+        status: 'granted',
+        canRequestAgain: false,
+      });
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('denied');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const granted = await result.current.requestPermissions();
+        expect(granted).toBe(true);
+      });
+
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.DENIED
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
+    });
+
+    it('should update notification state after checkPermissions', async () => {
+      (
+        BackgroundLocationModule.checkLocationPermission as jest.Mock
+      ).mockResolvedValueOnce({
+        status: 'granted',
+        canRequestAgain: false,
+      });
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('denied');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        await result.current.checkPermissions();
+      });
+
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.DENIED
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
+    });
+
+    it('should update notification state after requestPermissions', async () => {
+      (
+        BackgroundLocationModule.requestLocationPermission as jest.Mock
+      ).mockResolvedValueOnce({
+        status: 'granted',
+        canRequestAgain: false,
+      });
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('granted');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        await result.current.requestPermissions();
+      });
+
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        true
+      );
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.GRANTED
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(true);
+    });
+
+    it('should have correct initial notification state', () => {
+      const { result } = renderHook(() => useLocationPermissions());
+
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.UNDETERMINED
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        true
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
     });
   });
 });

@@ -2,8 +2,6 @@ import Foundation
 
 /// Swift representation of NotificationOptions from TypeScript.
 /// All fields optional to support partial configs and Phase 2 merge semantics.
-///
-/// @since 0.11.0
 @objc public class GeofenceNotificationConfig: NSObject {
 
     @objc public let enabled: NSNumber?  // nil = inherit, true/false = explicit

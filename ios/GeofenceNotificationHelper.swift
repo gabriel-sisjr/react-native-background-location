@@ -6,8 +6,6 @@ import UserNotifications
 /// IMPORTANT: This class checks notification authorization status but
 /// NEVER requests permissions. The consuming app is responsible for
 /// calling `UNUserNotificationCenter.requestAuthorization()`.
-///
-/// @since 0.11.0
 @objc public class GeofenceNotificationHelper: NSObject {
 
     @objc public static let shared = GeofenceNotificationHelper()

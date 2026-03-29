@@ -224,7 +224,9 @@ describe('useBackgroundLocation', () => {
       const options: TrackingOptions = {
         updateInterval: 5000,
         accuracy: LocationAccuracy.HIGH_ACCURACY,
-        notificationPriority: NotificationPriority.HIGH,
+        notificationOptions: {
+          priority: NotificationPriority.HIGH,
+        },
       };
       (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
         mockTripId
@@ -241,7 +243,7 @@ describe('useBackgroundLocation', () => {
         {
           updateInterval: 5000,
           accuracy: 'HIGH_ACCURACY',
-          notificationPriority: 'HIGH',
+          notificationOptions: JSON.stringify({ priority: 'HIGH' }),
         }
       );
     });
@@ -270,15 +272,15 @@ describe('useBackgroundLocation', () => {
       );
     });
 
-    it('should convert notificationActions to JSON string (sliced to 3)', async () => {
+    it('should pass notificationOptions with actions as JSON string', async () => {
       const options: TrackingOptions = {
         updateInterval: 5000,
-        notificationActions: [
-          { id: 'stop', label: 'Stop' },
-          { id: 'pause', label: 'Pause' },
-          { id: 'resume', label: 'Resume' },
-          { id: 'extra', label: 'Extra' },
-        ],
+        notificationOptions: {
+          actions: [
+            { id: 'stop', label: 'Stop' },
+            { id: 'pause', label: 'Pause' },
+          ],
+        },
       };
       (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
         mockTripId
@@ -294,16 +296,17 @@ describe('useBackgroundLocation', () => {
         mockTripId,
         expect.objectContaining({
           updateInterval: 5000,
-          notificationActions: JSON.stringify([
-            { id: 'stop', label: 'Stop' },
-            { id: 'pause', label: 'Pause' },
-            { id: 'resume', label: 'Resume' },
-          ]),
+          notificationOptions: JSON.stringify({
+            actions: [
+              { id: 'stop', label: 'Stop' },
+              { id: 'pause', label: 'Pause' },
+            ],
+          }),
         })
       );
     });
 
-    it('should pass undefined for notificationActions when not provided', async () => {
+    it('should pass undefined for notificationOptions when not provided', async () => {
       const options: TrackingOptions = {
         updateInterval: 5000,
       };
@@ -321,7 +324,55 @@ describe('useBackgroundLocation', () => {
         mockTripId,
         expect.objectContaining({
           updateInterval: 5000,
-          notificationActions: undefined,
+          notificationOptions: undefined,
+        })
+      );
+    });
+
+    it('should serialize complete notificationOptions to JSON string', async () => {
+      const options: TrackingOptions = {
+        updateInterval: 5000,
+        notificationOptions: {
+          title: 'Location Tracking',
+          text: 'Tracking in background',
+          channelName: 'Background Location',
+          priority: NotificationPriority.LOW,
+          smallIcon: 'ic_notification',
+          color: '#4CAF50',
+          showTimestamp: true,
+          largeIcon: 'ic_notification_large',
+          subtext: 'Example',
+          channelId: 'location_channel',
+          actions: [{ id: 'stop', label: 'Stop' }],
+        },
+      };
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, options);
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          updateInterval: 5000,
+          notificationOptions: JSON.stringify({
+            title: 'Location Tracking',
+            text: 'Tracking in background',
+            channelName: 'Background Location',
+            priority: 'LOW',
+            smallIcon: 'ic_notification',
+            color: '#4CAF50',
+            showTimestamp: true,
+            largeIcon: 'ic_notification_large',
+            subtext: 'Example',
+            channelId: 'location_channel',
+            actions: [{ id: 'stop', label: 'Stop' }],
+          }),
         })
       );
     });
@@ -1224,13 +1275,15 @@ describe('useBackgroundLocation', () => {
     it('should pass notification options without crashing on iOS (no-op)', async () => {
       const optionsWithNotification: TrackingOptions = {
         accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
-        notificationTitle: 'Tracking Active',
-        notificationText: 'Your location is being tracked',
-        notificationPriority: NotificationPriority.HIGH,
-        notificationChannelName: 'location_channel',
-        notificationSmallIcon: 'ic_notification',
-        notificationColor: '#4CAF50',
-        notificationShowTimestamp: true,
+        notificationOptions: {
+          title: 'Tracking Active',
+          text: 'Your location is being tracked',
+          priority: NotificationPriority.HIGH,
+          channelName: 'location_channel',
+          smallIcon: 'ic_notification',
+          color: '#4CAF50',
+          showTimestamp: true,
+        },
       };
       (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
         mockTripId
@@ -1250,9 +1303,15 @@ describe('useBackgroundLocation', () => {
         mockTripId,
         expect.objectContaining({
           accuracy: 'BALANCED_POWER_ACCURACY',
-          notificationTitle: 'Tracking Active',
-          notificationText: 'Your location is being tracked',
-          notificationPriority: 'HIGH',
+          notificationOptions: JSON.stringify({
+            title: 'Tracking Active',
+            text: 'Your location is being tracked',
+            priority: 'HIGH',
+            channelName: 'location_channel',
+            smallIcon: 'ic_notification',
+            color: '#4CAF50',
+            showTimestamp: true,
+          }),
         })
       );
     });

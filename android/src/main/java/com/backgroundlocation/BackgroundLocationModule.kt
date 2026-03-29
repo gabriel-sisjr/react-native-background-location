@@ -337,7 +337,10 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   }
 
   /**
-   * Parses TrackingOptions from ReadableMap
+   * Parses TrackingOptions from ReadableMap.
+   *
+   * Notification settings are received as a single JSON string in the
+   * `notificationOptions` field (Codegen does not support complex nested objects).
    */
   private fun parseTrackingOptions(options: ReadableMap?): TrackingOptions {
     if (options == null) {
@@ -345,25 +348,26 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     }
 
     val accuracyString = if (options.hasKey("accuracy")) options.getString("accuracy") else null
+
+    val notificationOptions = if (options.hasKey("notificationOptions") && !options.isNull("notificationOptions")) {
+      try {
+        val jsonString = options.getString("notificationOptions")
+        if (jsonString != null) NotificationOptions.fromJsonString(jsonString) else null
+      } catch (e: Exception) {
+        android.util.Log.w("BackgroundLocationModule", "Failed to parse notificationOptions", e)
+        null
+      }
+    } else null
+
     return TrackingOptions(
       updateInterval = if (options.hasKey("updateInterval")) options.getDouble("updateInterval").toLong() else null,
       fastestInterval = if (options.hasKey("fastestInterval")) options.getDouble("fastestInterval").toLong() else null,
       maxWaitTime = if (options.hasKey("maxWaitTime")) options.getDouble("maxWaitTime").toLong() else null,
       accuracy = LocationAccuracy.fromString(accuracyString),
       waitForAccurateLocation = if (options.hasKey("waitForAccurateLocation")) options.getBoolean("waitForAccurateLocation") else null,
-      notificationTitle = if (options.hasKey("notificationTitle")) options.getString("notificationTitle") else null,
-      notificationText = if (options.hasKey("notificationText")) options.getString("notificationText") else null,
-      notificationChannelName = if (options.hasKey("notificationChannelName")) options.getString("notificationChannelName") else null,
-      notificationPriority = if (options.hasKey("notificationPriority")) options.getString("notificationPriority") else null,
       foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null,
       distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null,
-      notificationSmallIcon = if (options.hasKey("notificationSmallIcon")) options.getString("notificationSmallIcon") else null,
-      notificationColor = if (options.hasKey("notificationColor")) options.getString("notificationColor") else null,
-      notificationShowTimestamp = if (options.hasKey("notificationShowTimestamp")) options.getBoolean("notificationShowTimestamp") else null,
-      notificationActions = if (options.hasKey("notificationActions")) options.getString("notificationActions") else null,
-      notificationLargeIcon = if (options.hasKey("notificationLargeIcon")) options.getString("notificationLargeIcon") else null,
-      notificationSubtext = if (options.hasKey("notificationSubtext")) options.getString("notificationSubtext") else null,
-      notificationChannelId = if (options.hasKey("notificationChannelId")) options.getString("notificationChannelId") else null
+      notificationOptions = notificationOptions
     )
   }
 
@@ -533,6 +537,38 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       promise.resolve(result)
     } catch (e: Exception) {
       promise.reject("REQUEST_PERMISSION_ERROR", "Failed to check location permission: ${e.message}", e)
+    }
+  }
+
+  /**
+   * Checks the current notification permission status without prompting.
+   * On Android 13+ (TIRAMISU), checks POST_NOTIFICATIONS permission.
+   * On older versions, notifications are always allowed.
+   *
+   * @returns "granted" | "denied" | "undetermined"
+   */
+  override fun checkNotificationPermission(promise: Promise) {
+    try {
+      val status = if (hasNotificationPermission()) "granted" else "denied"
+      promise.resolve(status)
+    } catch (e: Exception) {
+      promise.reject("CHECK_NOTIFICATION_PERMISSION_ERROR", e.message, e)
+    }
+  }
+
+  /**
+   * Requests notification permission from the user.
+   * On Android, the actual permission request is handled by PermissionsAndroid in JS.
+   * This method returns the current permission status.
+   *
+   * @returns "granted" | "denied"
+   */
+  override fun requestNotificationPermission(promise: Promise) {
+    try {
+      val status = if (hasNotificationPermission()) "granted" else "denied"
+      promise.resolve(status)
+    } catch (e: Exception) {
+      promise.reject("REQUEST_NOTIFICATION_PERMISSION_ERROR", e.message, e)
     }
   }
 

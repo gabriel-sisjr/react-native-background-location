@@ -11,8 +11,6 @@ import android.content.Context
  * 3. Global config transitionOverrides[transitionType]
  * 4. Global config (configureGeofenceNotifications)
  * 5. Built-in defaults (GeofenceNotificationConfig.DEFAULTS)
- *
- * @since 0.12.0
  */
 object GeofenceNotificationConfigResolver {
 

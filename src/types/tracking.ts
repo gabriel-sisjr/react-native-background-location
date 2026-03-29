@@ -2,7 +2,8 @@
  * Types and interfaces for location tracking
  */
 
-import type { LocationAccuracy, NotificationPriority } from './enums';
+import type { LocationAccuracy } from './enums';
+import type { NotificationOptions } from './notifications';
 
 /**
  * Location coordinates with extended location data
@@ -262,28 +263,14 @@ export interface TrackingOptions {
   distanceFilter?: number;
 
   /**
-   * Notification title for foreground service
-   * @default "Location Tracking"
+   * Notification configuration for the foreground service notification.
+   *
+   * Replaces the previous flat `notification*` fields. All notification
+   * settings are now grouped under this single object.
+   *
+   * @see NotificationOptions
    */
-  notificationTitle?: string;
-
-  /**
-   * Notification text for foreground service
-   * @default "Tracking your location in background"
-   */
-  notificationText?: string;
-
-  /**
-   * Notification channel name (Android)
-   * @default "Background Location"
-   */
-  notificationChannelName?: string;
-
-  /**
-   * Notification priority (Android)
-   * @default NotificationPriority.LOW
-   */
-  notificationPriority?: NotificationPriority;
+  notificationOptions?: NotificationOptions;
 
   /**
    * Foreground-only mode (does not require background location permission)
@@ -302,62 +289,4 @@ export interface TrackingOptions {
    * @default undefined (callback called on every location update)
    */
   onUpdateInterval?: number;
-
-  /**
-   * Name of the drawable resource to use as the notification small icon
-   * Must be a valid drawable resource name in the app's res/drawable directory
-   * @example "ic_notification"
-   * @default Android's built-in ic_menu_mylocation
-   * @platform Android
-   */
-  notificationSmallIcon?: string;
-
-  /**
-   * Hex color string for the notification accent color
-   * @example "#FF5722"
-   * @default undefined (system default)
-   * @platform Android
-   */
-  notificationColor?: string;
-
-  /**
-   * Whether to show the timestamp on the notification
-   * @default false
-   * @platform Android
-   */
-  notificationShowTimestamp?: boolean;
-
-  /**
-   * Action buttons to display on the foreground service notification
-   * Maximum of 3 actions. Additional actions will be ignored.
-   * @platform Android
-   */
-  notificationActions?: NotificationAction[];
-
-  /**
-   * Name of the drawable resource to use as the notification large icon
-   * Must be a valid drawable resource name in the app's res/drawable directory
-   * The large icon appears as a bigger image on the right side of the notification
-   * @example "ic_large_logo"
-   * @default undefined (no large icon)
-   * @platform Android
-   */
-  notificationLargeIcon?: string;
-
-  /**
-   * Subtext displayed below the notification content
-   * @example "2.5km remaining"
-   * @default undefined (no subtext)
-   * @platform Android
-   */
-  notificationSubtext?: string;
-
-  /**
-   * Custom notification channel ID
-   * Allows using a custom channel instead of the default "background_location_channel"
-   * The channel will be created automatically if it does not exist
-   * @default "background_location_channel"
-   * @platform Android
-   */
-  notificationChannelId?: string;
 }

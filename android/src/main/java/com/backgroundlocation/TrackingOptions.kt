@@ -1,7 +1,7 @@
 package com.backgroundlocation
 
 /**
- * Data class representing tracking configuration options
+ * Data class representing tracking configuration options.
  */
 data class TrackingOptions(
   val updateInterval: Long? = null,
@@ -9,19 +9,9 @@ data class TrackingOptions(
   val maxWaitTime: Long? = null,
   val accuracy: LocationAccuracy? = null,
   val waitForAccurateLocation: Boolean? = null,
-  val notificationTitle: String? = null,
-  val notificationText: String? = null,
-  val notificationChannelName: String? = null,
-  val notificationPriority: String? = null,
   val foregroundOnly: Boolean? = null,
   val distanceFilter: Float? = null,
-  val notificationSmallIcon: String? = null,
-  val notificationColor: String? = null,
-  val notificationShowTimestamp: Boolean? = null,
-  val notificationActions: String? = null, // JSON serialized array of {id, label}
-  val notificationLargeIcon: String? = null,
-  val notificationSubtext: String? = null,
-  val notificationChannelId: String? = null
+  val notificationOptions: NotificationOptions? = null
 ) {
   companion object {
     // Default values
@@ -37,6 +27,17 @@ data class TrackingOptions(
     const val DEFAULT_DISTANCE_FILTER = 0f // No distance filter
     const val DEFAULT_NOTIFICATION_SHOW_TIMESTAMP = false
   }
+
+  // --- Computed property accessors for fields that LocationService.kt accesses directly ---
+
+  val notificationSmallIcon: String? get() = notificationOptions?.smallIcon
+  val notificationColor: String? get() = notificationOptions?.color
+  val notificationLargeIcon: String? get() = notificationOptions?.largeIcon
+  val notificationSubtext: String? get() = notificationOptions?.subtext
+  val notificationActions: String? get() = notificationOptions?.actions
+  val notificationChannelId: String? get() = notificationOptions?.channelId
+
+  // --- Default-fallback accessors ---
 
   /**
    * Gets the update interval with default fallback
@@ -66,22 +67,22 @@ data class TrackingOptions(
   /**
    * Gets the notification title with default fallback
    */
-  fun getNotificationTitleOrDefault(): String = notificationTitle ?: DEFAULT_NOTIFICATION_TITLE
+  fun getNotificationTitleOrDefault(): String = notificationOptions?.title ?: DEFAULT_NOTIFICATION_TITLE
 
   /**
    * Gets the notification text with default fallback
    */
-  fun getNotificationTextOrDefault(): String = notificationText ?: DEFAULT_NOTIFICATION_TEXT
+  fun getNotificationTextOrDefault(): String = notificationOptions?.text ?: DEFAULT_NOTIFICATION_TEXT
 
   /**
    * Gets the notification channel name with default fallback
    */
-  fun getNotificationChannelNameOrDefault(): String = notificationChannelName ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
+  fun getNotificationChannelNameOrDefault(): String = notificationOptions?.channelName ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
 
   /**
    * Gets the notification priority with default fallback
    */
-  fun getNotificationPriorityOrDefault(): String = notificationPriority ?: DEFAULT_NOTIFICATION_PRIORITY
+  fun getNotificationPriorityOrDefault(): String = notificationOptions?.priority ?: DEFAULT_NOTIFICATION_PRIORITY
 
   /**
    * Gets foregroundOnly with default fallback
@@ -96,6 +97,5 @@ data class TrackingOptions(
   /**
    * Gets notificationShowTimestamp with default fallback
    */
-  fun getNotificationShowTimestampOrDefault(): Boolean = notificationShowTimestamp ?: DEFAULT_NOTIFICATION_SHOW_TIMESTAMP
+  fun getNotificationShowTimestampOrDefault(): Boolean = notificationOptions?.showTimestamp ?: DEFAULT_NOTIFICATION_SHOW_TIMESTAMP
 }
-

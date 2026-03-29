@@ -8,7 +8,7 @@ Side-by-side comparison of how `@gabriel-sisjr/react-native-background-location`
 | ---------------------------- | --------------------------------------------- | -------------------------------------------------------- |
 | Background location tracking | Foreground Service + FusedLocationProvider    | CLLocationManager + background entitlement               |
 | Local persistence            | Room Database (SQLite)                        | Core Data (SQLite)                                       |
-| Permission flow              | 3-step (foreground, background, notification) | 2-step (When In Use, Always)                             |
+| Permission flow              | 3-step (foreground, background, notification) | 3-step (When In Use, Always, Notification)               |
 | Background mechanism         | Foreground Service (must show notification)   | Background Location Updates (blue bar indicator)         |
 | Crash recovery               | WorkManager (Android 12+) / direct restart    | RecoveryManager + Significant Location Monitoring        |
 | User-visible indicator       | Persistent notification (fully customizable)  | Blue status bar / Dynamic Island pill (not customizable) |
@@ -66,13 +66,16 @@ Step 2: ACCESS_BACKGROUND_LOCATION (Android 10+, separate dialog)
 Step 3: POST_NOTIFICATIONS (Android 13+, for foreground service notification)
 ```
 
-**iOS (2-step):**
+**iOS (3-step):**
 
 ```
 Step 1: requestWhenInUseAuthorization()
     |
     v  (if foregroundOnly = false)
 Step 2: requestAlwaysAuthorization()
+    |
+    v
+Step 3: UNUserNotificationCenter.requestAuthorization() (notification permission)
 ```
 
 ### Permission Status Mapping
@@ -85,13 +88,53 @@ Step 2: requestAlwaysAuthorization()
 | `DENIED`                 | User denied (can ask again)                  | `denied`                               |
 | `BLOCKED`                | User selected "Never ask again"              | `restricted` (parental controls / MDM) |
 
+### Notification Permission Status
+
+The `useLocationPermissions` hook now also tracks notification permission status on both platforms via the `NotificationPermissionStatus` enum:
+
+| NotificationPermissionStatus | Android                                     | iOS                                    |
+| ---------------------------- | ------------------------------------------- | -------------------------------------- |
+| `GRANTED`                    | `POST_NOTIFICATIONS` granted (Android 13+)  | `UNAuthorizationStatus.authorized`     |
+| `DENIED`                     | `POST_NOTIFICATIONS` denied                 | `UNAuthorizationStatus.denied`         |
+| `UNDETERMINED`               | Never requested (or Android < 13)           | `UNAuthorizationStatus.notDetermined`  |
+
+### Permission State Structure
+
+The `permissionStatus` returned by `useLocationPermissions` uses a granular nested structure:
+
+```typescript
+interface PermissionState {
+  hasAllPermissions: boolean;     // true when both location AND notification are granted
+  location: {
+    hasPermission: boolean;       // true when location permission is fully granted
+    status: LocationPermissionStatus;
+    canRequestAgain: boolean;
+  };
+  notification: {
+    hasPermission: boolean;       // true when notification permission is granted
+    status: NotificationPermissionStatus;
+    canRequestAgain: boolean;
+  };
+}
+```
+
+| Property                             | Description                                                     |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `hasAllPermissions`                  | `true` only when both location and notification are granted     |
+| `location.hasPermission`             | `true` when location permission matches the requested level     |
+| `location.status`                    | Current `LocationPermissionStatus` value                        |
+| `location.canRequestAgain`           | `false` if user blocked location permanently                    |
+| `notification.hasPermission`         | `true` when notification permission is granted                  |
+| `notification.status`                | Current `NotificationPermissionStatus` value                    |
+| `notification.canRequestAgain`       | `false` if user blocked notifications permanently               |
+
 ### Permission Methods
 
 | Method                             | Android Behavior                                         | iOS Behavior                                   |
 | ---------------------------------- | -------------------------------------------------------- | ---------------------------------------------- |
 | `checkLocationPermission()`        | Checks native permission status via `PermissionsAndroid` | Checks `CLLocationManager.authorizationStatus` |
-| `requestLocationPermission(false)` | Requests foreground + background + notification          | Requests WhenInUse, then escalates to Always   |
-| `requestLocationPermission(true)`  | Requests foreground only                                 | Requests WhenInUse only                        |
+| `requestLocationPermission(false)` | Requests foreground + background + notification          | Requests WhenInUse, then Always, then Notification |
+| `requestLocationPermission(true)`  | Requests foreground only                                 | Requests WhenInUse only                            |
 
 ## Persistence
 
@@ -148,16 +191,16 @@ Step 2: requestAlwaysAuthorization()
 | Aspect                | Android                                         | iOS                              |
 | --------------------- | ----------------------------------------------- | -------------------------------- |
 | Notification required | Yes (foreground service must show notification) | No notification concept          |
-| Notification title    | Customizable via `notificationTitle`            | Not applicable                   |
-| Notification text     | Customizable via `notificationText`             | Not applicable                   |
-| Notification icon     | Customizable via `notificationSmallIcon`        | Not applicable                   |
-| Notification color    | Customizable via `notificationColor`            | Not applicable                   |
-| Notification actions  | Up to 3 action buttons                          | Not applicable                   |
-| Notification channel  | Customizable via `notificationChannelId`        | Not applicable                   |
+| Notification title    | Customizable via `notificationOptions.title`    | Not applicable                   |
+| Notification text     | Customizable via `notificationOptions.text`     | Not applicable                   |
+| Notification icon     | Customizable via `notificationOptions.smallIcon` | Not applicable                  |
+| Notification color    | Customizable via `notificationOptions.color`    | Not applicable                   |
+| Notification actions  | Up to 3 action buttons via `notificationOptions.actions` | Not applicable          |
+| Notification channel  | Customizable via `notificationOptions.channelId` | Not applicable                  |
 | Update notification   | `updateNotification(title, text)`               | No-op (returns successfully)     |
 | Background indicator  | Notification in shade                           | Blue status bar / Dynamic Island |
 
-> **Cross-platform tip:** You can pass notification options on iOS without error. They are parsed and stored but have no visible effect. This means you can use the same `TrackingOptions` object on both platforms without platform-specific branching.
+> **Cross-platform tip:** You can pass `notificationOptions` on iOS without error. The values are parsed and stored but have no visible effect on the notification UI. This means you can use the same `TrackingOptions` object on both platforms without platform-specific branching.
 
 ## TrackingOptions: Platform Applicability
 
@@ -170,17 +213,18 @@ Step 2: requestAlwaysAuthorization()
 | `waitForAccurateLocation`   | Applied | Stored only | iOS relies on `desiredAccuracy` instead                           |
 | `distanceFilter`            | Applied | Applied     | Both platforms support minimum distance between updates           |
 | `foregroundOnly`            | Applied | Applied     | Controls `allowsBackgroundLocationUpdates` on iOS                 |
-| `notificationTitle`         | Applied | Ignored     | No notification on iOS                                            |
-| `notificationText`          | Applied | Ignored     | No notification on iOS                                            |
-| `notificationSmallIcon`     | Applied | Ignored     | No notification on iOS                                            |
-| `notificationColor`         | Applied | Ignored     | No notification on iOS                                            |
-| `notificationShowTimestamp` | Applied | Ignored     | No notification on iOS                                            |
-| `notificationActions`       | Applied | Ignored     | No notification on iOS                                            |
-| `notificationLargeIcon`     | Applied | Ignored     | No notification on iOS                                            |
-| `notificationSubtext`       | Applied | Ignored     | No notification on iOS                                            |
-| `notificationChannelId`     | Applied | Ignored     | No notification on iOS                                            |
-| `notificationChannelName`   | Applied | Ignored     | No notification on iOS                                            |
-| `notificationPriority`      | Applied | Ignored     | No notification on iOS                                            |
+| `notificationOptions`       | Applied | Stored only | Unified notification config object; no visible effect on iOS      |
+| `.title`                    | Applied | Ignored     | Foreground service notification title                             |
+| `.text`                     | Applied | Ignored     | Foreground service notification body text                         |
+| `.smallIcon`                | Applied | Ignored     | Android drawable resource name for the small icon                 |
+| `.largeIcon`                | Applied | Ignored     | Android drawable resource name for the large icon                 |
+| `.color`                    | Applied | Ignored     | Hex color string for notification accent color                    |
+| `.showTimestamp`            | Applied | Ignored     | Whether to show timestamp on the notification                     |
+| `.subtext`                  | Applied | Ignored     | Subtext displayed below the notification content                  |
+| `.channelId`                | Applied | Ignored     | Android notification channel ID                                   |
+| `.channelName`              | Applied | Ignored     | Android notification channel name                                 |
+| `.priority`                 | Applied | Ignored     | Notification priority (`NotificationPriority` enum)               |
+| `.actions`                  | Applied | Ignored     | Up to 3 action buttons on the notification                        |
 | `onUpdateInterval`          | Applied | Applied     | JS-level throttling, works on both platforms                      |
 
 ## Events
@@ -270,17 +314,19 @@ function TrackingScreen() {
   });
 
   const handleStart = async () => {
-    if (!permissionStatus.hasPermission) {
+    if (!permissionStatus.hasAllPermissions) {
       await requestPermissions();
     }
 
     // Same options work on both platforms
-    // Notification options are silently ignored on iOS
+    // notificationOptions are silently ignored on iOS
     await startTracking({
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       distanceFilter: 50,
-      notificationTitle: 'Tracking Active',  // Android only, ignored on iOS
-      notificationText: 'Recording your route',  // Android only, ignored on iOS
+      notificationOptions: {
+        title: 'Tracking Active',   // Android only, ignored on iOS
+        text: 'Recording your route', // Android only, ignored on iOS
+      },
     });
   };
 

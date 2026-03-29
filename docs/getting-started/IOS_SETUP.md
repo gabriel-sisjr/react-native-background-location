@@ -54,6 +54,8 @@ Add the following entries to your app's `Info.plist` (or `ios/<YourApp>/Info.pli
 
 > **Important:** All three `NSLocation*` keys are required. `NSLocationAlwaysUsageDescription` is needed for backwards compatibility with iOS versions prior to the "Always and When In Use" split. Apple will reject apps that are missing any of these keys when requesting Always authorization.
 
+> **Notification permission:** No additional `Info.plist` keys are required for notification permission. The library requests notification authorization at runtime via `UNUserNotificationCenter.requestAuthorization()`. This is separate from the location permission keys above.
+
 ### Usage Description Guidelines
 
 Apple reviews these strings carefully. They must:
@@ -117,12 +119,15 @@ You do not need to add a separate privacy manifest for the library. However, you
 
 ## Step 6: Request Permissions in Your App
 
-iOS uses a two-step permission flow:
+iOS uses a three-step permission flow:
 
-1. **When In Use** -- User grants foreground location access
-2. **Always** -- User upgrades to background location access (required for geofencing and reliable background tracking)
+1. **When In Use** -- User grants foreground location access via `CLLocationManager.requestWhenInUseAuthorization()`
+2. **Always** -- User upgrades to background location access via `CLLocationManager.requestAlwaysAuthorization()` (required for geofencing and reliable background tracking)
+3. **Notification** -- User grants notification permission via `UNUserNotificationCenter.requestAuthorization()` (required for geofence visual notifications)
 
-The library handles this flow automatically via `requestLocationPermission`:
+The library handles this flow automatically. The `requestPermissions()` hook executes all three steps in sequence. Notification permission denial is **non-blocking** -- it does not prevent location tracking or geofence detection. Only visual notifications (geofence alerts) are affected.
+
+### Using the Low-Level API
 
 ```typescript
 import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
@@ -136,7 +141,9 @@ const foregroundResult =
   await BackgroundLocation.requestLocationPermission(true);
 ```
 
-Use the hook to request permissions, which handles the full flow including WhenInUse-to-Always escalation on iOS:
+### Using the Hook (Recommended)
+
+The `useLocationPermissions` hook handles the full three-step flow including WhenInUse-to-Always escalation and notification permission on iOS. Permission state is granular, separating location and notification into independent sub-objects:
 
 ```typescript
 import { useLocationPermissions } from '@gabriel-sisjr/react-native-background-location';
@@ -152,13 +159,19 @@ function App() {
   const handleGrantPermissions = async () => {
     const granted = await requestPermissions();
     if (granted) {
-      // Ready to start tracking
+      // Location permissions granted -- ready to start tracking.
+      // Check notification permission separately if needed:
+      if (!permissionStatus.notification.hasPermission) {
+        console.warn('Notifications disabled -- geofence alerts will not appear');
+      }
     }
   };
 
   return (
     <View>
-      <Text>Status: {permissionStatus.status}</Text>
+      <Text>Location: {permissionStatus.location.status}</Text>
+      <Text>Notification: {permissionStatus.notification.status}</Text>
+      <Text>All granted: {permissionStatus.hasAllPermissions ? 'Yes' : 'No'}</Text>
       <Button
         title="Grant Permissions"
         onPress={handleGrantPermissions}
@@ -169,9 +182,31 @@ function App() {
 }
 ```
 
-> **Geofencing note:** Ensure permissions are granted via `requestPermissions()` before calling `addGeofence()` or `addGeofences()`. The `requestPermissions()` function handles the full iOS permission flow including WhenInUse-to-Always escalation.
+> **Geofencing note:** Ensure permissions are granted via `requestPermissions()` before calling `addGeofence()` or `addGeofences()`. The `requestPermissions()` function handles the full iOS permission flow including WhenInUse-to-Always escalation and notification permission.
 
-### Permission Status Values on iOS
+### Permission State Shape
+
+The `permissionStatus` object returned by `useLocationPermissions` uses a granular nested structure:
+
+```typescript
+interface PermissionState {
+  hasAllPermissions: boolean;      // true only when both location AND notification are granted
+  location: {
+    hasPermission: boolean;        // true if location access is granted (Always or WhenInUse)
+    status: LocationPermissionStatus;
+    canRequestAgain: boolean;
+  };
+  notification: {
+    hasPermission: boolean;        // true if notification permission is granted
+    status: NotificationPermissionStatus;
+    canRequestAgain: boolean;      // true only when status is UNDETERMINED
+  };
+}
+```
+
+> **Migration note:** In v0.11.x, `permissionStatus` was a flat object with `hasPermission`, `status`, and `canRequestAgain` at the top level. In v0.12.0, these fields moved into `permissionStatus.location`. The top-level `hasPermission` was replaced by `hasAllPermissions`, which requires both location and notification to be granted. If you only need to check location, use `permissionStatus.location.hasPermission`.
+
+### Location Permission Status Values
 
 | Status         | CLAuthorizationStatus  | Meaning                                                           |
 | -------------- | ---------------------- | ----------------------------------------------------------------- |
@@ -180,6 +215,32 @@ function App() {
 | `granted`      | `.authorizedAlways`    | Full background tracking support                                  |
 | `denied`       | `.denied`              | User explicitly denied                                            |
 | `blocked`      | `.restricted`          | Restricted by parental controls or MDM                            |
+
+### Notification Permission Status Values
+
+| Status         | UNAuthorizationStatus | Meaning                                                                      |
+| -------------- | --------------------- | ---------------------------------------------------------------------------- |
+| `undetermined` | `.notDetermined`      | User has not been asked yet                                                  |
+| `granted`      | `.authorized`         | Notifications are allowed -- geofence alerts will appear                     |
+| `denied`       | `.denied`             | User denied notifications -- tracking still works, only visual alerts hidden |
+
+The `NotificationPermissionStatus` enum provides these values:
+
+```typescript
+import { NotificationPermissionStatus } from '@gabriel-sisjr/react-native-background-location';
+
+NotificationPermissionStatus.GRANTED;      // 'granted'
+NotificationPermissionStatus.DENIED;       // 'denied'
+NotificationPermissionStatus.UNDETERMINED; // 'undetermined'
+```
+
+### Notification Permission Behavior on iOS
+
+- `requestPermissions()` calls `UNUserNotificationCenter.requestAuthorization()` as the final step after location permission is resolved
+- iOS shows the notification permission dialog **once**. If the user denies, `canRequestAgain` becomes `false` and subsequent calls return `denied` immediately
+- No additional `Info.plist` keys are required for notification permission -- it is handled entirely at runtime
+- Notification denial does **not** block tracking or geofence detection -- only the visual notification display is affected
+- In `__DEV__` mode, a one-time console warning is emitted when notification permission is denied
 
 ## Step 7: Start Tracking
 
@@ -192,14 +253,16 @@ const tripId = await BackgroundLocation.startTracking({
   accuracy: LocationAccuracy.HIGH_ACCURACY,
   distanceFilter: 50,
   // Notification options are ignored on iOS (no foreground service)
-  notificationTitle: 'Tracking Active',
-  notificationText: 'Recording your route',
+  notificationOptions: {
+    title: 'Tracking Active',
+    text: 'Recording your route',
+  },
 });
 
 console.log('Tracking started:', tripId);
 ```
 
-> **Note:** Notification-related options (`notificationTitle`, `notificationText`, `notificationSmallIcon`, etc.) are accepted without error but have no effect on iOS. iOS shows a blue status bar indicator instead. See [Platform Comparison](../production/PLATFORM_COMPARISON.md) for details.
+> **Note:** The `notificationOptions` object (and all of its fields) is accepted without error but has no effect on iOS. iOS shows a blue status bar indicator instead. See [Platform Comparison](../production/PLATFORM_COMPARISON.md) for details.
 
 ## Troubleshooting
 
@@ -276,9 +339,10 @@ This means the `.xcdatamodeld` file was not bundled correctly. Verify:
 
 ### Permission Dialog Not Appearing
 
-- iOS only shows the permission dialog **once**. If the user previously denied, they must go to Settings > Privacy & Security > Location Services > Your App
-- Check `checkLocationPermission()` first to see current status
-- If status is `denied` or `blocked`, direct the user to Settings:
+- iOS only shows the location permission dialog **once**. If the user previously denied, they must go to Settings > Privacy & Security > Location Services > Your App
+- The notification permission dialog is also shown **once**. If denied, the user must re-enable it in Settings > Your App > Notifications
+- Check `checkPermissions()` first to see current status via `permissionStatus.location` and `permissionStatus.notification`
+- If location status is `denied` or `blocked`, or notification status is `denied`, direct the user to Settings:
 
 ```typescript
 import { Linking, Platform } from 'react-native';
@@ -297,7 +361,10 @@ After setup, verify the following:
 - [ ] Info.plist contains all three `NSLocation*` usage description keys
 - [ ] Info.plist contains `UIBackgroundModes` with `location`
 - [ ] Background Modes capability is visible in Xcode
-- [ ] Permission dialog appears when calling `requestLocationPermission`
+- [ ] Location permission dialog appears when calling `requestPermissions`
+- [ ] Notification permission dialog appears after location permission is granted
+- [ ] `permissionStatus.location.status` reflects the correct location authorization
+- [ ] `permissionStatus.notification.status` reflects the correct notification authorization
 - [ ] Location updates arrive when tracking starts
 - [ ] Blue status bar indicator appears during background tracking
 - [ ] App continues to receive location updates when backgrounded (with Always permission)

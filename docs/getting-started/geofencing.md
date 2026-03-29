@@ -21,9 +21,10 @@ Geofencing operates entirely in the background. Once a geofence is registered, t
 
 Before using geofencing, ensure the following requirements are met:
 
-- **Location permissions:** Background location access is required for reliable geofence monitoring. Use `useLocationPermissions` (or the aliased `useGeofencePermissions`) and call `requestPermissions()` to request permissions before registering geofences. This handles the full permission flow including WhenInUse-to-Always escalation on iOS.
+- **Location permissions:** Background location access is required for reliable geofence monitoring. Use `useLocationPermissions` (or the aliased `useGeofencePermissions`) and call `requestPermissions()` to request permissions before registering geofences. This handles the full permission flow including WhenInUse-to-Always escalation on iOS. The hook returns a granular `permissionStatus` with `hasAllPermissions` (combined check) and nested `location` / `notification` states -- see the [Hooks Guide](hooks.md) for details.
+- **Notification permissions (iOS):** As of v0.12.0, `useLocationPermissions` requests notification permission as step 3 on iOS. The `permissionStatus.notification` field exposes the notification permission state (`GRANTED`, `DENIED`, `UNDETERMINED`). You no longer need a separate library to request notification permissions for geofence alerts on iOS.
 - **Android:** Google Play Services must be installed and available on the device. The `GeofencingClient` API requires it. Without Play Services, a `GeofenceError` with code `PLAY_SERVICES_UNAVAILABLE` is thrown.
-- **iOS:** "Always" authorization is **required** for reliable `CLLocationManager` region monitoring in the background. "When In Use" authorization works only when the app is in the foreground. Ensure permissions are granted via `requestPermissions()` from the hook before calling `addGeofence()` or `addGeofences()`.
+- **iOS:** "Always" authorization is **required** for reliable `CLLocationManager` region monitoring in the background. "When In Use" authorization works only when the app is in the foreground. Ensure permissions are granted via `requestPermissions()` from the hook before calling `addGeofence()` or `addGeofences()`. Check `permissionStatus.location.hasPermission` and `permissionStatus.location.status` to verify the current state.
 - **Minimum platform versions:** iOS 13+, Android SDK 24+ (API level 24).
 - **Library installation:** `@gabriel-sisjr/react-native-background-location` must be installed and linked. See the [Quick Start Guide](QUICKSTART.md) for installation instructions.
 
@@ -366,8 +367,6 @@ interface UseGeofencingOptions {
    * Global notification configuration for geofence transitions.
    * When provided, calls configureGeofenceNotifications() on mount.
    * Changes to this object trigger reconfiguration.
-   *
-   * @since 0.11.0
    */
   notificationOptions?: NotificationOptions;
 }
@@ -896,19 +895,38 @@ console.log('Current config:', config);
 
 #### iOS: Notification Permissions
 
-iOS requires explicit notification permission before displaying alerts. The library uses `UNUserNotificationCenter` for geofence transition notifications, but it does **not** request notification permissions automatically.
+iOS requires explicit notification permission before displaying alerts. The library uses `UNUserNotificationCenter` for geofence transition notifications.
 
-Your app must call `UNUserNotificationCenter.requestAuthorization` (typically via a library like `react-native-permissions` or your own native module) before geofence notifications will appear on iOS. Without this authorization, transition events are still detected and delivered to your JS callbacks, but no visual notification is shown.
+As of v0.12.0, the `useLocationPermissions` hook requests notification permission automatically on iOS as step 3 of its permission flow (after location permissions are granted). You no longer need a separate library like `react-native-permissions` to request notification authorization.
+
+The notification permission state is exposed through the granular `permissionStatus` object:
 
 ```typescript
-// Example using react-native-permissions
-import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import { useLocationPermissions, NotificationPermissionStatus } from '@gabriel-sisjr/react-native-background-location';
 
-const result = await request(PERMISSIONS.IOS.NOTIFICATIONS);
-if (result === RESULTS.GRANTED) {
-  console.log('Notifications authorized');
+function GeofenceSetup() {
+  const { permissionStatus, requestPermissions } = useLocationPermissions();
+
+  // Check notification permission specifically
+  const { notification } = permissionStatus;
+  // notification.hasPermission   — boolean
+  // notification.status          — NotificationPermissionStatus (GRANTED, DENIED, UNDETERMINED)
+  // notification.canRequestAgain — boolean
+
+  // Check all permissions at once (location + notification)
+  if (permissionStatus.hasAllPermissions) {
+    // Ready to register geofences with notifications
+  }
+
+  // requestPermissions() handles the full flow:
+  // Step 1: Request foreground location
+  // Step 2: Request background location (Always)
+  // Step 3: Request notification permission (both platforms)
+  const granted = await requestPermissions();
 }
 ```
+
+Without notification authorization, transition events are still detected and delivered to your JS callbacks, but no visual notification is shown. Check `permissionStatus.notification.status` to determine whether to guide the user to Settings.
 
 #### iOS: Foreground Display
 
@@ -944,6 +962,8 @@ On Android 8.0 (API 26) and above, notification channels are immutable after cre
 
 **From v0.11.0:** Both platforms use template-based defaults. The default notification title is `{{transitionType}} zone: {{identifier}}` and the default text is `Transition detected`. If your app relied on the previous hardcoded text, call `configureGeofenceNotifications()` with your preferred strings at app startup.
 
+**From v0.12.0:** The `useLocationPermissions` hook now requests notification permission on iOS as step 3 of the permission flow. The permission state returned by the hook has changed from a flat structure (`{ hasPermission, status, canRequestAgain }`) to a granular nested structure (`{ hasAllPermissions, location: { hasPermission, status, canRequestAgain }, notification: { hasPermission, status, canRequestAgain } }`). See the [Hooks Guide](hooks.md) for migration details. If your app previously used a separate library to request notification permissions on iOS for geofence alerts, you can remove that dependency.
+
 ### Example App: Notification Presets Demo
 
 The example app's `GeofencingScreen` includes an interactive notification presets demo that showcases the full range of notification configuration options. When adding a geofence, you can select one of five presets to see how each configuration style works in practice.
@@ -968,8 +988,6 @@ yarn example android   # or: yarn example ios
 Navigate to the Geofencing screen, select a location preset (Apple Park, Googleplex, or Moscone Center), choose a notification preset, and tap "Add Geofence" to register it with the selected notification configuration.
 
 ### Per-Geofence Notification Overrides
-
-> **Since 0.12.0**
 
 Individual geofences can override the global notification configuration by providing a `notificationOptions` field on the `GeofenceRegion` object. This allows different geofences to produce different notification content, or to suppress notifications entirely for specific geofences.
 
@@ -1232,7 +1250,7 @@ try {
 | Geofence persistence   | Survives app restart; re-registered on boot via `BootCompletedReceiver` with heartbeat restored                          | Managed by `CLLocationManager` (persists across restarts)    |
 | Background delivery    | `BroadcastReceiver` delivers events even when app is killed                                                              | `CLLocationManager` delegate delivers events on app relaunch |
 | GPS pipeline keepalive | Location heartbeat (`PRIORITY_BALANCED_POWER_ACCURACY`, 15-min interval) keeps GPS active for passive geofence detection | Not needed (iOS region monitoring is active, not passive)    |
-| Permission escalation  | `requestPermissions()` requests `ACCESS_BACKGROUND_LOCATION`                                                             | `requestPermissions()` calls `requestAlwaysAuthorization()` with delegate guard      |
+| Permission escalation  | `requestPermissions()` requests `ACCESS_BACKGROUND_LOCATION`                                                             | `requestPermissions()` calls `requestAlwaysAuthorization()` with delegate guard, then requests notification permission (v0.12.0+)      |
 | Requirements           | Google Play Services                                                                                                     | "Always" authorization required (request via `requestPermissions()` before adding geofences) |
 | Expiration support     | Native `setExpirationDuration`                                                                                           | Software-based expiration check                              |
 | Event storage          | Room Database (`GeofenceTransitionEntity`)                                                                               | Core Data                                                    |
@@ -1245,7 +1263,7 @@ try {
 
 ### Geofence transitions are not firing
 
-1. **Check permissions.** Background location access is required. On iOS, ensure "Always" authorization is granted via `requestPermissions()` from the `useLocationPermissions` hook before registering geofences. On Android, ensure `ACCESS_BACKGROUND_LOCATION` is granted. The `requestPermissions()` function handles the full permission flow on both platforms.
+1. **Check permissions.** Background location access is required. Use `permissionStatus.location.hasPermission` to verify location permission is granted, and `permissionStatus.location.status` to inspect the exact state. On iOS, ensure "Always" authorization is granted via `requestPermissions()` from the `useLocationPermissions` hook before registering geofences. On Android, ensure `ACCESS_BACKGROUND_LOCATION` is granted. The `requestPermissions()` function handles the full permission flow on both platforms, including notification permission on iOS (check `permissionStatus.notification.status` for notification authorization state).
 2. **Check Google Play Services (Android).** Verify Play Services is installed and up to date. Call `getMaxGeofences()` -- if it throws `PLAY_SERVICES_UNAVAILABLE`, Play Services is the issue.
 3. **Verify radius.** The minimum radius is 100 meters. Smaller radii are rejected during validation. In practice, radii under 150-200m may produce unreliable transitions on both platforms.
 4. **Test with movement.** Geofence transitions require actual device movement. Simulators and emulators may not trigger transitions reliably. Use mock location tools or test on a physical device.

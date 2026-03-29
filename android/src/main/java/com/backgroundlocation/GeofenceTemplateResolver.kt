@@ -7,8 +7,6 @@ import org.json.JSONObject
  *
  * Template resolution happens on the native side because geofence
  * notifications must render when the JS runtime is not active.
- *
- * @since 0.11.0
  */
 object GeofenceTemplateResolver {
 

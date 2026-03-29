@@ -5,8 +5,6 @@ import org.json.JSONObject
 /**
  * Kotlin representation of NotificationOptions from TypeScript.
  * All fields nullable to support partial configs and Phase 2 merge semantics.
- *
- * @since 0.11.0
  */
 data class GeofenceNotificationConfig(
     val enabled: Boolean? = true,
@@ -44,16 +42,16 @@ data class GeofenceNotificationConfig(
 
             return GeofenceNotificationConfig(
                 enabled = if (json.has("enabled")) json.getBoolean("enabled") else null,
-                title = json.optString("title", null),
-                text = json.optString("text", null),
-                channelName = json.optString("channelName", null),
-                channelId = json.optString("channelId", null),
-                priority = json.optString("priority", null),
-                smallIcon = json.optString("smallIcon", null),
-                largeIcon = json.optString("largeIcon", null),
-                color = json.optString("color", null),
+                title = json.opt("title") as? String,
+                text = json.opt("text") as? String,
+                channelName = json.opt("channelName") as? String,
+                channelId = json.opt("channelId") as? String,
+                priority = json.opt("priority") as? String,
+                smallIcon = json.opt("smallIcon") as? String,
+                largeIcon = json.opt("largeIcon") as? String,
+                color = json.opt("color") as? String,
                 showTimestamp = if (json.has("showTimestamp")) json.getBoolean("showTimestamp") else null,
-                subtext = json.optString("subtext", null),
+                subtext = json.opt("subtext") as? String,
                 transitionOverrides = overrides
             )
         }
