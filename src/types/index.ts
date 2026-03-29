@@ -7,6 +7,7 @@ export {
   LocationPermissionStatus,
   LocationAccuracy,
   NotificationPriority,
+  NotificationPermissionStatus,
 } from './enums';
 
 // Tracking types
@@ -23,6 +24,8 @@ export type {
 
 // Permission types
 export type {
+  LocationPermissionState,
+  NotificationPermissionState,
   PermissionState,
   UseLocationPermissionsResult,
 } from './permissions';
@@ -34,3 +37,12 @@ export type {
   UseLocationUpdatesOptions,
   UseLocationUpdatesResult,
 } from './hooks';
+
+// Notification types
+export type { NotificationOptions } from './notifications';
+export { GEOFENCE_TEMPLATE_VARS } from './notifications';
+
+// Geofencing types
+export { GeofenceTransitionType, GeofenceErrorCode } from './geofencing';
+
+export type { GeofenceRegion, GeofenceTransitionEvent } from './geofencing';

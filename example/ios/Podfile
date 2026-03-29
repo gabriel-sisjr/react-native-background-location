@@ -58,5 +58,21 @@ target 'BackgroundLocationExample' do
       Pod::UI.warn "Failed to configure MapLibre: #{e.message}"
       Pod::UI.warn e.backtrace.first(5).join("\n")
     end
+
+    # Fix Xcode 26 / iOS 26 SDK compatibility for C++ pods
+    # fmt consteval errors, glog/Yoga warnings-as-errors on new clang
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        case target.name
+        when 'fmt'
+          # Downgrade fmt to C++17 so consteval is unavailable (fmt supports C++11-20)
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        when 'glog'
+          config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+        when 'Yoga'
+          config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+        end
+      end
+    end
   end
 end

@@ -27,19 +27,9 @@ export interface TrackingOptionsSpec {
   maxWaitTime?: number;
   accuracy?: string;
   waitForAccurateLocation?: boolean;
-  notificationTitle?: string;
-  notificationText?: string;
-  notificationChannelName?: string;
-  notificationPriority?: string;
   foregroundOnly?: boolean;
   distanceFilter?: number;
-  notificationSmallIcon?: string;
-  notificationColor?: string;
-  notificationShowTimestamp?: boolean;
-  notificationActions?: string; // JSON serialized - Codegen does not support typed object arrays
-  notificationLargeIcon?: string;
-  notificationSubtext?: string;
-  notificationChannelId?: string;
+  notificationOptions?: string; // JSON-serialized NotificationOptions - Codegen does not support complex objects
 }
 
 export interface Spec extends TurboModule {
@@ -101,6 +91,18 @@ export interface Spec extends TurboModule {
   ): Promise<PermissionStatusResult>;
 
   /**
+   * Checks current notification permission status without prompting
+   * @returns Notification permission status string: 'granted' | 'denied' | 'undetermined'
+   */
+  checkNotificationPermission(): Promise<string>;
+
+  /**
+   * Requests notification permissions from the user
+   * @returns Notification permission status string: 'granted' | 'denied'
+   */
+  requestNotificationPermission(): Promise<string>;
+
+  /**
    * Required by NativeEventEmitter on iOS
    * Called when a JS listener is added
    */
@@ -111,6 +113,74 @@ export interface Spec extends TurboModule {
    * Called when JS listeners are removed
    */
   removeListeners(count: number): void;
+
+  // --- Geofencing Methods ---
+
+  /**
+   * Registers a single geofence region for monitoring
+   * @param regionJson JSON-serialized GeofenceRegion object
+   */
+  addGeofence(regionJson: string): Promise<void>;
+
+  /**
+   * Registers multiple geofence regions atomically (all-or-nothing)
+   * @param regionsJson JSON-serialized GeofenceRegion[] array
+   */
+  addGeofences(regionsJson: string): Promise<void>;
+
+  /**
+   * Removes a single geofence by identifier
+   * @param identifier The geofence identifier to remove
+   */
+  removeGeofence(identifier: string): Promise<void>;
+
+  /**
+   * Removes multiple geofences by identifiers
+   * @param identifiersJson JSON-serialized string[] array of identifiers
+   */
+  removeGeofences(identifiersJson: string): Promise<void>;
+
+  /**
+   * Removes all registered geofences
+   */
+  removeAllGeofences(): Promise<void>;
+
+  /**
+   * Returns all currently active geofences
+   * @returns JSON-serialized GeofenceRegion[] array
+   */
+  getActiveGeofences(): Promise<string>;
+
+  /**
+   * Returns the maximum number of geofences supported by the platform
+   * @returns Platform limit (Android: 100, iOS: 20)
+   */
+  getMaxGeofences(): Promise<number>;
+
+  /**
+   * Retrieves stored geofence transition events
+   * @param identifier Optional geofence identifier to filter by. If omitted, returns all transitions.
+   * @returns JSON-serialized GeofenceTransitionEvent[] array
+   */
+  getGeofenceTransitions(identifier?: string): Promise<string>;
+
+  /**
+   * Clears stored geofence transition events
+   * @param identifier Optional geofence identifier to clear. If omitted, clears all transitions.
+   */
+  clearGeofenceTransitions(identifier?: string): Promise<void>;
+
+  /**
+   * Configures global notification options for geofence transitions
+   * @param configJson JSON-serialized NotificationOptions object
+   */
+  configureGeofenceNotifications(configJson: string): Promise<void>;
+
+  /**
+   * Retrieves the current geofence notification configuration
+   * @returns JSON-serialized NotificationOptions object, or '{}' if not configured
+   */
+  getGeofenceNotificationConfig(): Promise<string>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('BackgroundLocation');

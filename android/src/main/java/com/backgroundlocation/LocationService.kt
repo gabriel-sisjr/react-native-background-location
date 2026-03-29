@@ -42,6 +42,9 @@ class LocationService : Service() {
     super.onCreate()
     storage = LocationStorage(this)
 
+    // Mark service as running
+    isRunning = true
+
     // Register this instance for immediate stop access
     synchronized(instanceLock) {
       activeInstance = this
@@ -129,29 +132,30 @@ class LocationService : Service() {
   }
 
   /**
-   * Parses TrackingOptions from Bundle
+   * Parses TrackingOptions from Bundle.
+   * Notification settings are stored as a single JSON string under `notificationOptions`.
    */
   private fun parseTrackingOptionsFromBundle(bundle: android.os.Bundle): TrackingOptions {
     val accuracyString = bundle.getString("accuracy")
+
+    val notificationOptions = bundle.getString("notificationOptions")?.let { jsonString ->
+      try {
+        NotificationOptions.fromJsonString(jsonString)
+      } catch (e: Exception) {
+        android.util.Log.w("LocationService", "Failed to parse notificationOptions from Bundle", e)
+        null
+      }
+    }
+
     return TrackingOptions(
       updateInterval = if (bundle.containsKey("updateInterval")) bundle.getLong("updateInterval") else null,
       fastestInterval = if (bundle.containsKey("fastestInterval")) bundle.getLong("fastestInterval") else null,
       maxWaitTime = if (bundle.containsKey("maxWaitTime")) bundle.getLong("maxWaitTime") else null,
       accuracy = LocationAccuracy.fromString(accuracyString),
       waitForAccurateLocation = if (bundle.containsKey("waitForAccurateLocation")) bundle.getBoolean("waitForAccurateLocation") else null,
-      notificationTitle = bundle.getString("notificationTitle"),
-      notificationText = bundle.getString("notificationText"),
-      notificationChannelName = bundle.getString("notificationChannelName"),
-      notificationPriority = bundle.getString("notificationPriority"),
       foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
       distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null,
-      notificationSmallIcon = bundle.getString("notificationSmallIcon"),
-      notificationColor = bundle.getString("notificationColor"),
-      notificationShowTimestamp = if (bundle.containsKey("notificationShowTimestamp")) bundle.getBoolean("notificationShowTimestamp") else null,
-      notificationActions = bundle.getString("notificationActions"),
-      notificationLargeIcon = bundle.getString("notificationLargeIcon"),
-      notificationSubtext = bundle.getString("notificationSubtext"),
-      notificationChannelId = bundle.getString("notificationChannelId")
+      notificationOptions = notificationOptions
     )
   }
 
@@ -606,6 +610,9 @@ class LocationService : Service() {
   override fun onDestroy() {
     super.onDestroy()
 
+    // Mark service as no longer running
+    isRunning = false
+
     // Clear active instance reference
     synchronized(instanceLock) {
       if (activeInstance === this) {
@@ -632,8 +639,10 @@ class LocationService : Service() {
    */
   internal fun updateNotificationContent(title: String, text: String) {
     trackingOptions = trackingOptions.copy(
-      notificationTitle = title,
-      notificationText = text
+      notificationOptions = (trackingOptions.notificationOptions ?: NotificationOptions()).copy(
+        title = title,
+        text = text
+      )
     )
 
     try {
@@ -703,6 +712,11 @@ class LocationService : Service() {
     const val EXTRA_TRACKING_OPTIONS = "tracking_options"
     private const val NOTIFICATION_ID = 1
     private const val CHANNEL_ID = "background_location_channel"
+
+    /** Indicates whether the foreground location service is currently running */
+    @Volatile
+    var isRunning: Boolean = false
+      private set
 
     // Restart loop detection constants
     private const val PREFS_NAME = "location_service_prefs"
@@ -805,19 +819,9 @@ class LocationService : Service() {
         if (options.maxWaitTime != null) putLong("maxWaitTime", options.maxWaitTime)
         if (options.accuracy != null) putString("accuracy", options.accuracy.value)
         if (options.waitForAccurateLocation != null) putBoolean("waitForAccurateLocation", options.waitForAccurateLocation)
-        if (options.notificationTitle != null) putString("notificationTitle", options.notificationTitle)
-        if (options.notificationText != null) putString("notificationText", options.notificationText)
-        if (options.notificationChannelName != null) putString("notificationChannelName", options.notificationChannelName)
-        if (options.notificationPriority != null) putString("notificationPriority", options.notificationPriority)
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
         if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
-        if (options.notificationSmallIcon != null) putString("notificationSmallIcon", options.notificationSmallIcon)
-        if (options.notificationColor != null) putString("notificationColor", options.notificationColor)
-        if (options.notificationShowTimestamp != null) putBoolean("notificationShowTimestamp", options.notificationShowTimestamp)
-        if (options.notificationActions != null) putString("notificationActions", options.notificationActions)
-        if (options.notificationLargeIcon != null) putString("notificationLargeIcon", options.notificationLargeIcon)
-        if (options.notificationSubtext != null) putString("notificationSubtext", options.notificationSubtext)
-        if (options.notificationChannelId != null) putString("notificationChannelId", options.notificationChannelId)
+        options.notificationOptions?.let { putString("notificationOptions", it.toJsonString()) }
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

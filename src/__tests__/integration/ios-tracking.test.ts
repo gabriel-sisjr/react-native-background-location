@@ -19,6 +19,8 @@ jest.mock('../../NativeBackgroundLocation', () => ({
     updateNotification: jest.fn(),
     checkLocationPermission: jest.fn(),
     requestLocationPermission: jest.fn(),
+    checkNotificationPermission: jest.fn(),
+    requestNotificationPermission: jest.fn(),
   },
 }));
 
@@ -53,6 +55,17 @@ describe('iOS Tracking Integration Tests', () => {
     (BackgroundLocationModule.checkLocationPermission as jest.Mock) = jest.fn();
     (BackgroundLocationModule.requestLocationPermission as jest.Mock) =
       jest.fn();
+    (BackgroundLocationModule.checkNotificationPermission as jest.Mock) =
+      jest.fn();
+    (BackgroundLocationModule.requestNotificationPermission as jest.Mock) =
+      jest.fn();
+
+    (
+      BackgroundLocationModule.checkNotificationPermission as jest.Mock
+    ).mockResolvedValue('granted');
+    (
+      BackgroundLocationModule.requestNotificationPermission as jest.Mock
+    ).mockResolvedValue('granted');
 
     (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
       active: false,
@@ -69,6 +82,10 @@ describe('iOS Tracking Integration Tests', () => {
     (BackgroundLocationModule.updateNotification as jest.Mock) = jest.fn();
     (BackgroundLocationModule.checkLocationPermission as jest.Mock) = jest.fn();
     (BackgroundLocationModule.requestLocationPermission as jest.Mock) =
+      jest.fn();
+    (BackgroundLocationModule.checkNotificationPermission as jest.Mock) =
+      jest.fn();
+    (BackgroundLocationModule.requestNotificationPermission as jest.Mock) =
       jest.fn();
   });
 
@@ -89,10 +106,12 @@ describe('iOS Tracking Integration Tests', () => {
         expect(hasPermission).toBe(false);
       });
 
-      expect(permResult.current.permissionStatus.status).toBe(
+      expect(permResult.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.UNDETERMINED
       );
-      expect(permResult.current.permissionStatus.canRequestAgain).toBe(true);
+      expect(permResult.current.permissionStatus.location.canRequestAgain).toBe(
+        true
+      );
 
       // Step 2: Request permissions - returns granted
       (
@@ -107,10 +126,12 @@ describe('iOS Tracking Integration Tests', () => {
         expect(granted).toBe(true);
       });
 
-      expect(permResult.current.permissionStatus.status).toBe(
+      expect(permResult.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.GRANTED
       );
-      expect(permResult.current.permissionStatus.hasPermission).toBe(true);
+      expect(permResult.current.permissionStatus.location.hasPermission).toBe(
+        true
+      );
 
       // Step 3: Start tracking with options
       (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
@@ -206,8 +227,10 @@ describe('iOS Tracking Integration Tests', () => {
       });
 
       // WhenInUse should still mean hasPermission = true
-      expect(permResult.current.permissionStatus.hasPermission).toBe(true);
-      expect(permResult.current.permissionStatus.status).toBe(
+      expect(permResult.current.permissionStatus.location.hasPermission).toBe(
+        true
+      );
+      expect(permResult.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
 
@@ -251,14 +274,14 @@ describe('iOS Tracking Integration Tests', () => {
         expect(hasPermission).toBe(true);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.WHEN_IN_USE
       );
       // WhenInUse is not GRANTED but still has permission
-      expect(result.current.permissionStatus.status).not.toBe(
+      expect(result.current.permissionStatus.location.status).not.toBe(
         LocationPermissionStatus.GRANTED
       );
-      expect(result.current.permissionStatus.hasPermission).toBe(true);
+      expect(result.current.permissionStatus.location.hasPermission).toBe(true);
     });
   });
 
@@ -743,8 +766,10 @@ describe('iOS Tracking Integration Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(permResult.current.permissionStatus.hasPermission).toBe(false);
-      expect(permResult.current.permissionStatus.status).toBe(
+      expect(permResult.current.permissionStatus.location.hasPermission).toBe(
+        false
+      );
+      expect(permResult.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.DENIED
       );
 
@@ -788,10 +813,12 @@ describe('iOS Tracking Integration Tests', () => {
         expect(granted).toBe(false);
       });
 
-      expect(result.current.permissionStatus.status).toBe(
+      expect(result.current.permissionStatus.location.status).toBe(
         LocationPermissionStatus.BLOCKED
       );
-      expect(result.current.permissionStatus.canRequestAgain).toBe(false);
+      expect(result.current.permissionStatus.location.canRequestAgain).toBe(
+        false
+      );
     });
   });
 

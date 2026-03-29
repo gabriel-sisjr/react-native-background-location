@@ -1,9 +1,35 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
-import { LocationPermissionStatus } from '../types';
-import type { UseLocationPermissionsResult, PermissionState } from '../types';
+import {
+  LocationPermissionStatus,
+  NotificationPermissionStatus,
+} from '../types';
+import type {
+  UseLocationPermissionsResult,
+  PermissionState,
+  LocationPermissionState,
+  NotificationPermissionState,
+} from '../types';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type { PermissionStatusResult } from '../NativeBackgroundLocation';
+
+/**
+ * Module-level flag to prevent repeated notification denial warnings in __DEV__.
+ * Intentionally module-scoped (not useRef) for once-per-app-session behavior.
+ */
+let notificationWarned = false;
+
+/**
+ * Emits a console.warn once per session when notification permission is denied in __DEV__
+ */
+function warnNotificationDenied(status: string): void {
+  if (status !== 'granted' && __DEV__ && !notificationWarned) {
+    console.warn(
+      '[BackgroundLocation] Notification permission was denied. Geofence visual notifications will not appear. Background tracking is unaffected.'
+    );
+    notificationWarned = true;
+  }
+}
 
 /**
  * Maps native permission status string to LocationPermissionStatus enum
@@ -24,9 +50,11 @@ function mapNativeStatus(status: string): LocationPermissionStatus {
 }
 
 /**
- * Converts a native PermissionStatusResult to a PermissionState
+ * Converts a native PermissionStatusResult to a LocationPermissionState
  */
-function toPermissionState(result: PermissionStatusResult): PermissionState {
+function toLocationPermissionState(
+  result: PermissionStatusResult
+): LocationPermissionState {
   const status = mapNativeStatus(result.status);
   return {
     hasPermission:
@@ -38,19 +66,80 @@ function toPermissionState(result: PermissionStatusResult): PermissionState {
 }
 
 /**
- * Hook to manage location permissions for background tracking
+ * Requests Android notification permission using PermissionsAndroid on API 33+,
+ * falling back to the native module on older versions where the permission is auto-granted.
+ */
+async function requestAndroidNotificationPermission(): Promise<string> {
+  if (Number(Platform.Version) >= 33) {
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
+  }
+  return BackgroundLocationModule.requestNotificationPermission();
+}
+
+/**
+ * Checks Android notification permission using PermissionsAndroid on API 33+,
+ * falling back to the native module on older versions where the permission is auto-granted.
+ */
+async function checkAndroidNotificationPermission(): Promise<string> {
+  if (Number(Platform.Version) >= 33) {
+    const granted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
+    );
+    return granted ? 'granted' : 'denied';
+  }
+  return BackgroundLocationModule.checkNotificationPermission();
+}
+
+/**
+ * Maps a native notification permission status string to NotificationPermissionState
+ */
+function toNotificationPermissionState(
+  status: string
+): NotificationPermissionState {
+  let mappedStatus: NotificationPermissionStatus;
+  switch (status) {
+    case 'granted':
+      mappedStatus = NotificationPermissionStatus.GRANTED;
+      break;
+    case 'denied':
+      mappedStatus = NotificationPermissionStatus.DENIED;
+      break;
+    default:
+      mappedStatus = NotificationPermissionStatus.UNDETERMINED;
+      break;
+  }
+
+  return {
+    hasPermission: mappedStatus === NotificationPermissionStatus.GRANTED,
+    status: mappedStatus,
+    canRequestAgain: mappedStatus === NotificationPermissionStatus.UNDETERMINED,
+  };
+}
+
+/**
+ * Hook to manage location and notification permissions for background tracking
  *
- * Handles requesting and checking location permissions on Android and iOS.
- * Android: Uses PermissionsAndroid for foreground, background, and notification permissions.
- * iOS: Uses CLLocationManager authorization (WhenInUse → Always two-step flow).
+ * Provides granular permission state separating location and notification permissions.
+ * Notification permission denial is non-blocking — background tracking only requires
+ * location permissions. Notification denial only affects geofence visual notifications.
+ *
+ * Android: Uses PermissionsAndroid for location and notification permissions (API 33+), falling back to native module for notifications on older SDKs.
+ * iOS: Uses CLLocationManager authorization (WhenInUse -> Always two-step flow) + native module for notifications.
  *
  * @example
  * ```tsx
  * function App() {
  *   const { permissionStatus, requestPermissions, isRequesting } = useLocationPermissions();
  *
- *   if (!permissionStatus.hasPermission) {
- *     return <Button onPress={requestPermissions}>Grant Permissions</Button>;
+ *   if (!permissionStatus.location.hasPermission) {
+ *     return <Button onPress={requestPermissions}>Grant Location Permissions</Button>;
+ *   }
+ *
+ *   if (!permissionStatus.notification.hasPermission) {
+ *     return <Text>Notifications disabled - geofence alerts won't appear</Text>;
  *   }
  *
  *   return <TrackingScreen />;
@@ -60,21 +149,42 @@ function toPermissionState(result: PermissionStatusResult): PermissionState {
 export function useLocationPermissions(): UseLocationPermissionsResult {
   const [isRequesting, setIsRequesting] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<PermissionState>({
-    hasPermission: false,
-    status: LocationPermissionStatus.UNDETERMINED,
-    canRequestAgain: true,
+    hasAllPermissions: false,
+    location: {
+      hasPermission: false,
+      status: LocationPermissionStatus.UNDETERMINED,
+      canRequestAgain: true,
+    },
+    notification: {
+      hasPermission: false,
+      status: NotificationPermissionStatus.UNDETERMINED,
+      canRequestAgain: true,
+    },
   });
 
   /**
    * Check current permission status without requesting
+   * @returns true if location permissions are granted
    */
   const checkPermissions = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'ios') {
       try {
-        const result = await BackgroundLocationModule.checkLocationPermission();
-        const state = toPermissionState(result);
-        setPermissionStatus(state);
-        return state.hasPermission;
+        const [locationResult, notificationStatus] = await Promise.all([
+          BackgroundLocationModule.checkLocationPermission(),
+          BackgroundLocationModule.checkNotificationPermission(),
+        ]);
+
+        const location = toLocationPermissionState(locationResult);
+        const notification = toNotificationPermissionState(notificationStatus);
+
+        setPermissionStatus({
+          hasAllPermissions:
+            location.hasPermission && notification.hasPermission,
+          location,
+          notification,
+        });
+
+        return location.hasPermission;
       } catch (error) {
         console.error('Error checking iOS permissions:', error);
         return false;
@@ -101,29 +211,28 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
         );
       }
 
-      // Check notification permission for Android 13+
-      let notificationPermission = true;
-      if (Platform.Version >= 33) {
-        notificationPermission = await PermissionsAndroid.check(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS
-        );
-      }
+      const locationGranted =
+        fineLocation && coarseLocation && backgroundLocation;
 
-      const allGranted =
-        fineLocation &&
-        coarseLocation &&
-        backgroundLocation &&
-        notificationPermission;
-
-      setPermissionStatus({
-        hasPermission: allGranted,
-        status: allGranted
+      const location: LocationPermissionState = {
+        hasPermission: locationGranted,
+        status: locationGranted
           ? LocationPermissionStatus.GRANTED
           : LocationPermissionStatus.DENIED,
         canRequestAgain: true,
+      };
+
+      // Check notification permission (PermissionsAndroid on API 33+, native module on older)
+      const notificationStatus = await checkAndroidNotificationPermission();
+      const notification = toNotificationPermissionState(notificationStatus);
+
+      setPermissionStatus({
+        hasAllPermissions: location.hasPermission && notification.hasPermission,
+        location,
+        notification,
       });
 
-      return allGranted;
+      return location.hasPermission;
     } catch (error) {
       console.error('Error checking permissions:', error);
       return false;
@@ -131,23 +240,51 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
   }, []);
 
   /**
-   * Request all required location permissions
+   * Request all required permissions (location + notification).
+   *
+   * Returns true if location permissions are granted.
+   * Notification permission is requested but its denial does not
+   * affect the return value — check `permissionStatus.notification`
+   * for notification-specific state.
    */
   const requestPermissions = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'ios') {
       setIsRequesting(true);
       try {
-        const result =
+        // Step 1: Request location permission (WhenInUse → Always escalation)
+        const locationResult =
           await BackgroundLocationModule.requestLocationPermission(false);
-        const state = toPermissionState(result);
-        setPermissionStatus(state);
-        return state.hasPermission;
+        const location = toLocationPermissionState(locationResult);
+
+        // Step 2: Request notification permission (non-blocking)
+        const notificationStatus =
+          await BackgroundLocationModule.requestNotificationPermission();
+        const notification = toNotificationPermissionState(notificationStatus);
+
+        warnNotificationDenied(notificationStatus);
+
+        setPermissionStatus({
+          hasAllPermissions:
+            location.hasPermission && notification.hasPermission,
+          location,
+          notification,
+        });
+
+        return location.hasPermission;
       } catch (error) {
         console.error('Error requesting iOS permissions:', error);
         setPermissionStatus({
-          hasPermission: false,
-          status: LocationPermissionStatus.DENIED,
-          canRequestAgain: false,
+          hasAllPermissions: false,
+          location: {
+            hasPermission: false,
+            status: LocationPermissionStatus.DENIED,
+            canRequestAgain: false,
+          },
+          notification: {
+            hasPermission: false,
+            status: NotificationPermissionStatus.UNDETERMINED,
+            canRequestAgain: true,
+          },
         });
         return false;
       } finally {
@@ -181,12 +318,23 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
           foregroundPermissions['android.permission.ACCESS_COARSE_LOCATION'] !==
             PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
 
-        setPermissionStatus({
+        const location: LocationPermissionState = {
           hasPermission: false,
           status: canRequestAgain
             ? LocationPermissionStatus.DENIED
             : LocationPermissionStatus.BLOCKED,
           canRequestAgain,
+        };
+
+        // Still request notification even if location denied
+        const notificationStatus = await requestAndroidNotificationPermission();
+        const notification = toNotificationPermissionState(notificationStatus);
+        warnNotificationDenied(notificationStatus);
+
+        setPermissionStatus({
+          hasAllPermissions: false,
+          location,
+          notification,
         });
 
         return false;
@@ -214,66 +362,63 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
           const canRequestAgain =
             backgroundResult !== PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
 
-          setPermissionStatus({
+          const location: LocationPermissionState = {
             hasPermission: false,
             status: canRequestAgain
               ? LocationPermissionStatus.DENIED
               : LocationPermissionStatus.BLOCKED,
             canRequestAgain,
+          };
+
+          // Still request notification even if background location denied
+          const notificationStatus =
+            await requestAndroidNotificationPermission();
+          const notification =
+            toNotificationPermissionState(notificationStatus);
+          warnNotificationDenied(notificationStatus);
+
+          setPermissionStatus({
+            hasAllPermissions: false,
+            location,
+            notification,
           });
 
           return false;
         }
       }
 
-      // Step 3: Request notification permission for Android 13+
-      let notificationGranted = true;
-      if (Platform.Version >= 33) {
-        const notificationResult = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-          {
-            title: 'Notification Permission',
-            message:
-              'This app needs notification permission to show location tracking status.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
+      // Step 3: Request notification permission (PermissionsAndroid on API 33+, native module on older)
+      const notificationStatus = await requestAndroidNotificationPermission();
+      const notification = toNotificationPermissionState(notificationStatus);
+      warnNotificationDenied(notificationStatus);
 
-        notificationGranted =
-          notificationResult === PermissionsAndroid.RESULTS.GRANTED;
-
-        if (!notificationGranted) {
-          const canRequestAgain =
-            notificationResult !== PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
-
-          setPermissionStatus({
-            hasPermission: false,
-            status: canRequestAgain
-              ? LocationPermissionStatus.DENIED
-              : LocationPermissionStatus.BLOCKED,
-            canRequestAgain,
-          });
-
-          return false;
-        }
-      }
-
-      // All permissions granted
-      setPermissionStatus({
+      const location: LocationPermissionState = {
         hasPermission: true,
         status: LocationPermissionStatus.GRANTED,
         canRequestAgain: true,
+      };
+
+      setPermissionStatus({
+        hasAllPermissions: location.hasPermission && notification.hasPermission,
+        location,
+        notification,
       });
 
       return true;
     } catch (error) {
       console.error('Error requesting permissions:', error);
       setPermissionStatus({
-        hasPermission: false,
-        status: LocationPermissionStatus.DENIED,
-        canRequestAgain: true,
+        hasAllPermissions: false,
+        location: {
+          hasPermission: false,
+          status: LocationPermissionStatus.DENIED,
+          canRequestAgain: true,
+        },
+        notification: {
+          hasPermission: false,
+          status: NotificationPermissionStatus.UNDETERMINED,
+          canRequestAgain: true,
+        },
       });
       return false;
     } finally {
@@ -281,10 +426,13 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
     }
   }, []);
 
-  return {
-    permissionStatus,
-    requestPermissions,
-    checkPermissions,
-    isRequesting,
-  };
+  return useMemo(
+    () => ({
+      permissionStatus,
+      requestPermissions,
+      checkPermissions,
+      isRequesting,
+    }),
+    [permissionStatus, requestPermissions, checkPermissions, isRequesting]
+  );
 }

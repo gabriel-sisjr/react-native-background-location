@@ -1,17 +1,76 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.12.0] - 2026-03-28
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### BREAKING CHANGES
 
-## [Unreleased]
+- **Granular PermissionState**: `PermissionState` restructured from flat `{ hasPermission, status, canRequestAgain }` to nested `{ hasAllPermissions, location: { status, canRequestAgain }, notification: { status } }`. All consumers destructuring the old shape must update.
+- **Unified NotificationOptions**: 11 flat `notification*` fields on `TrackingOptions` (`notificationTitle`, `notificationText`, `notificationIcon`, etc.) consolidated into a single `notificationOptions: NotificationOptions` object. The flat fields are removed.
+- **iOS notification permission**: `useLocationPermissions` now requests `UNUserNotificationCenter` authorization as step 3 on iOS, making notification permission part of the standard permission flow.
 
-### Planned
+### Added
 
-- Geofencing support
-- Automatic data retention policies
-- Background sync with remote server
+- iOS notification permission request in `useLocationPermissions` hook (step 3 after WhenInUse and Always authorization)
+- `NotificationPermissionStatus` enum (`GRANTED`, `DENIED`, `UNDETERMINED`)
+- `LocationPermissionState` type with `status` and `canRequestAgain` fields
+- `NotificationPermissionState` type with `status` field
+- `NotificationOptions` unified interface for both tracking foreground service and geofencing notifications
+- Room Database schema reset to v1 with `fallbackToDestructiveMigration()` -- clean schema with no migration chain (all legacy migrations deleted)
+
+### Changed
+
+- `PermissionState` restructured from flat shape to granular `{ hasAllPermissions, location, notification }` shape
+- `TrackingOptions` notification fields (`notificationTitle`, `notificationText`, `notificationIcon`, `notificationLargeIcon`, `notificationColor`, `notificationChannelId`, `notificationChannelName`, `notificationPriority`, `notificationActions`, `notificationSubText`, `notificationShowTimestamp`) consolidated into `notificationOptions: NotificationOptions` object
+- Android `requestPermissions()` now returns `true` when location permission is granted even if `POST_NOTIFICATIONS` is denied (notification permission is non-blocking)
+- `NotificationOptions` interface is now shared between tracking foreground service and geofence notification configuration
+
+### Fixed
+
+- Android 13+ (API 33+) `POST_NOTIFICATIONS` permission dialog never appearing -- the native `requestNotificationPermission()` was a status-check stub that never triggered the system dialog. `useLocationPermissions` now uses `PermissionsAndroid.request(POST_NOTIFICATIONS)` on API 33+ to properly show the permission popup, falling back to the native module on older SDKs where notification permission is auto-granted.
+- `GeofenceNotificationConfig` type mismatch warnings in Kotlin (9 occurrences) -- notification config properties now use correct types
+- Gradle syntax deprecation warnings (~18 occurrences) -- updated `build.gradle` to use non-deprecated API patterns
+
+## [0.11.0] - 2026-03-25
+
+### Added
+
+- `configureGeofenceNotifications(options)` -- global notification configuration for geofence transitions
+- `getGeofenceNotificationConfig()` -- retrieve current notification configuration
+- `NotificationOptions` interface -- unified notification configuration type for the library
+- `GEOFENCE_TEMPLATE_VARS` constant -- template variable reference for autocomplete
+- Template variable support in notification title and text: `{{identifier}}`, `{{transitionType}}`, `{{latitude}}`, `{{longitude}}`, `{{radius}}`, `{{timestamp}}`, `{{metadata.KEY}}`
+- iOS geofence transition notifications via `UNUserNotificationCenter` (previously iOS showed no notifications)
+- `notificationOptions` on `UseGeofencingOptions` for hook-based configuration
+- `notificationOptions` field on `GeofenceRegion` for per-geofence notification overrides
+  - Set to a `NotificationOptions` object to customize notification content for a specific geofence
+  - Set to `false` as shorthand for `{ enabled: false }` to suppress notifications for a specific geofence
+  - Omit (or set to `undefined`) to inherit the global configuration
+- `transitionOverrides` field on `NotificationOptions` for per-transition-type notification customization
+  - Supports `ENTER`, `EXIT`, and `DWELL` keys, each accepting a partial `NotificationOptions` object
+  - Works at both the per-geofence level and the global level (`configureGeofenceNotifications()`)
+- Notification resolution chain: per-geofence transition override -> per-geofence config -> global transition override -> global config -> built-in defaults
+- Mixed batch support: `addGeofences()` accepts geofences with different notification configurations in a single call
+- Example app: notification presets demo in `GeofencingScreen` with 5 selectable presets (Default, Custom Templates, Per-Transition, Silent, High Priority), live JSON config preview, and per-geofence preset badges
+- **Android**: Location heartbeat in `GeofenceManager` -- a lightweight `FusedLocationProviderClient` request (`PRIORITY_BALANCED_POWER_ACCURACY`, 15-min interval, 5-min fastest) that keeps the GPS pipeline active when geofences are registered but `LocationService` is not running. Solves the known Android limitation where `GeofencingClient` is passive and misses transitions on devices with few location-requesting apps. Battery impact: ~2-4%/day. Automatically managed:
+  - Starts when geofences are added and tracking is not active
+  - Stops when `LocationService` starts (redundant with active tracking)
+  - Restarts when `LocationService` stops if geofences remain
+  - Stops when all geofences are removed
+  - Restored after device boot via `BootCompletedReceiver` -> `restoreGeofences`
+- **Android**: `setNotificationResponsiveness(5000)` on `Geofence.Builder` for faster geofence transition notifications (reduced from system default ~5 minutes to 5 seconds)
+
+### Improved
+
+- **Hook reference stability**: All hooks (`useGeofencing`, `useGeofenceEvents`, `useLocationUpdates`, `useBackgroundLocation`, `useLocationTracking`, `useLocationPermissions`) now internalize reference stabilization via `useRef` pattern. Consumers no longer need to wrap options or callbacks with `useMemo`/`useCallback` — inline objects and functions work correctly without causing unnecessary effect re-runs or listener re-subscriptions.
+- **Memoized hook return values**: All hooks now return `useMemo`-wrapped objects, preventing unnecessary re-renders in consumer components that rely on referential equality.
+- **Polling optimization**: `useLocationUpdates` 5-second status polling now skips `setState` calls when values are unchanged, eliminating periodic unnecessary re-renders.
+- **Metadata serialization fix**: `GeofenceRegion.metadata` is no longer double-serialized when passed through `addGeofence()`/`addGeofences()`. Previously, Android would crash (`java.lang.String cannot be converted to JSONObject`) and iOS would silently drop the metadata. Template variables like `{{metadata.fieldName}}` now resolve correctly on both platforms.
+
+### Changed
+
+- (Android): Geofence notification text changed from hardcoded English ("Entered geofence" / "Geofence: {id}") to template-based defaults ("{{transitionType}} zone: {{identifier}}" / "Transition detected"). Customize via `configureGeofenceNotifications()`.
+- **Android**: Room Database migration v5 -> v6 -- adds `notificationConfig TEXT` column to the geofence table for persisting per-geofence notification configuration
+- **iOS**: Core Data model version v3 -- adds optional `notificationConfig` attribute for per-geofence notification persistence
 
 ## [0.10.0] - 2026-03-21
 
@@ -909,290 +968,9 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - No event emitters for real-time location updates
 - Storage limited to SharedPreferences (consider SQLite for large datasets)
 
----
-
-## Release Notes
-
-### v0.8.0 - Distance Filter & Callback Throttling
-
-**Major Additions:**
-
-This release introduces distance filtering for location updates and callback throttling for better control over location callbacks.
-
-**📏 Distance Filter:**
-
-- Configure minimum distance between updates
-- Reduces battery usage by filtering unnecessary updates
-- Works with both FusedLocationProvider and AndroidLocationProvider
-
-**⏱️ Callback Throttling:**
-
-- `onUpdateInterval` sets minimum interval between callback executions (e.g., 30000ms = every ~30 seconds)
-- Locations are still collected and stored at `updateInterval` rate
-- Callback fires on the first location that arrives after the interval has elapsed
-- Ideal for periodic server sync without overwhelming network requests
-
-**🔄 Cleaner API:**
-
-- New startTracking overload for options-only calls
-- No more passing undefined for tripId
-
-**Key Improvements:**
-
-- ✅ **Battery Efficient**: Distance filter reduces unnecessary updates
-- ✅ **Network Friendly**: Callback throttling prevents server overload
-- ✅ **Cleaner Code**: Options-only API reduces boilerplate
-- ✅ **Backward Compatible**: All existing code works unchanged
-
----
-
-### v0.9.0 - Configurable Notification Appearance
-
-**Major Additions:**
-
-This release introduces full notification customization for the background location foreground service, delivered in four phases: visual core, dynamic updates, action buttons, and extended customization.
-
-**🎨 Notification Visual Customization (Phase 1):**
-
-- Custom small icon, accent color, and timestamp toggle
-- Drawable resource name resolution with system default fallback
-- Hex color support for brand-consistent notifications
-
-**🔄 Dynamic Notification Updates (Phase 2):**
-
-- New `updateNotification(title, text)` API method
-- In-place content updates while tracking is active
-- Transient updates for performance (not persisted to DB)
-
-**🔘 Notification Action Buttons (Phase 3):**
-
-- Up to 3 interactive buttons on the tracking notification
-- Full event flow from PendingIntent through to JS callbacks
-- New `onNotificationAction` callback in `useLocationUpdates` hook
-- JSON serialization workaround for Codegen compatibility
-
-**🖼️ Extended Customization (Phase 4):**
-
-- Large icon support with BitmapFactory drawable decoding
-- Subtext below notification content
-- Custom notification channel ID
-
-**🗄️ Database Migrations:**
-
-- Room Database v1→v4 with three incremental migrations
-- All new fields persisted for crash recovery
-
-**Key Improvements:**
-
-- ✅ **Brand Customizable**: Full control over notification appearance
-- ✅ **Interactive**: Action buttons for quick user actions without opening the app
-- ✅ **Dynamic**: Update notification content in real-time during tracking
-- ✅ **Crash Recovery Safe**: All settings persisted and restored after crashes
-- ✅ **Backward Compatible**: All new options are optional with sensible defaults
-
----
-
-### v0.7.0 - Android 14/15 Compliance & Architecture
-
-**Major Additions:**
-
-This release ensures full compatibility with Android 14 and 15, plus major architectural improvements.
-
-**🤖 Android 14/15 Compliance:**
-
-- Foreground service type declaration for Android 14+
-- Timeout handling for Android 15's 6-hour limit
-- Task removal handling for app swipe
-- Proper service lifecycle management
-
-**🏗️ Provider Abstraction:**
-
-- Extensible location provider system
-- Automatic fallback for devices without Play Services
-- Location processor interface for filtering
-
-**⚠️ Warning Events:**
-
-- New warning event system
-- SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE types
-- Hook support for warning callbacks
-
-**Key Improvements:**
-
-- ✅ **Future Proof**: Compatible with latest Android versions
-- ✅ **More Reliable**: Better service lifecycle management
-- ✅ **Extensible**: Provider abstraction for customization
-- ✅ **Informative**: Warning events for debugging
-
----
-
-### v0.6.0 - Crash Recovery & Room Database
-
-**Major Additions:**
-
-This release introduces automatic crash recovery and a new persistence layer with Room Database for better performance and scalability.
-
-**🔄 Crash Recovery:**
-
-- Automatic tracking session recovery after app crash or restart
-- Persistent storage of TrackingOptions for complete state restoration
-- Service auto-recovery using START_STICKY
-- Graceful handling of permission revocations
-- Best-effort recovery with automatic cleanup of corrupted state
-
-**🗄️ Room Database:**
-
-- Room Database 2.6.1 with KSP for all data persistence
-- SQLite backend for locations and tracking state
-- Better performance with large datasets
-- Thread-safe coroutine-based operations
-- Indexed queries for fast data retrieval
-- Zero JSON parsing overhead
-
-**📚 Documentation:**
-
-- Complete crash recovery architecture guide
-- Manual testing guide with 8 detailed scenarios
-- Technical implementation documentation
-- Performance metrics and best practices
-
-**Key Improvements:**
-
-- ✅ **More Reliable**: Automatic recovery ensures tracking continues after crashes
-- ✅ **Better Performance**: Room Database scales better with large datasets
-- ✅ **Thread-Safe**: Coroutines ensure safe concurrent operations
-- ✅ **Data Persistence**: Locations and state survive app restarts
-- ✅ **Production Ready**: Comprehensive testing and documentation
-
----
-
-### v0.5.0 - Extended Location Properties
-
-**Major Additions:**
-
-This release adds comprehensive support for all location data available from Google Play Services Location API.
-
-**📍 Extended Properties:**
-
-- Full support for 10+ location properties (accuracy, altitude, speed, bearing, etc.)
-- API-level specific properties (Android 18+, 26+)
-- Type-safe access with TypeScript
-- Backward compatible - all new fields are optional
-
-**Key Improvements:**
-
-- ✅ **More Data**: Access to comprehensive location information
-- ✅ **Type-Safe**: Full TypeScript definitions for all properties
-- ✅ **Future-Proof**: Generic property extraction for extensibility
-- ✅ **Backward Compatible**: Existing code continues to work
-
----
-
-### v0.4.0 - Configurable Tracking & Battery Optimization
-
-**Major Additions:**
-
-This release introduces comprehensive tracking configuration options and built-in battery optimization features.
-
-**⚙️ Configurable Tracking:**
-
-- TrackingOptions interface for full customization
-- Location accuracy levels (HIGH_ACCURACY, BALANCED_POWER_ACCURACY, LOW_POWER)
-- Adjustable update intervals
-- Notification customization
-- Configuration presets (High Accuracy, Balanced, Low Power)
-
-**🔋 Battery Optimization:**
-
-- Configurable accuracy levels for reduced battery consumption
-- Adjustable update intervals to minimize location requests
-- Smart location updates and efficient foreground service
-- Best practices documentation
-
-**Key Improvements:**
-
-- ✅ **Flexible**: Full control over tracking behavior
-- ✅ **Battery Efficient**: Built-in optimization options
-- ✅ **User-Friendly**: Predefined configuration presets
-- ✅ **Type-Safe**: Enums for accuracy and priority levels
-
----
-
-### v0.3.0 - Real-Time Location Updates
-
-**Major Additions:**
-
-This release introduces real-time location updates with event-driven architecture.
-
-**🎯 Real-Time Updates:**
-
-- New useLocationUpdates hook for automatic location watching
-- Event-driven location updates via native events
-- Automatic subscription/unsubscription management
-- Live location visualization
-
-**Key Improvements:**
-
-- ✅ **Real-Time**: Automatic updates without polling
-- ✅ **Efficient**: Event-driven architecture with minimal overhead
-- ✅ **Easy to Use**: Hook-based API with automatic cleanup
-- ✅ **Flexible**: Manual or automatic update modes
-
----
-
-### v0.2.0 - React Hooks & CI/CD Automation
-
-**Major Additions:**
-
-This release introduces React Hooks for easier integration and a complete CI/CD pipeline for automated releases.
-
-**🎣 React Hooks API:**
-
-- `useBackgroundLocation`: Complete hook for location tracking
-- `useLocationTracking`: Lightweight hook for monitoring tracking status
-- `useLocationPermissions`: Full permission management for Android
-
-**🤖 Automated CI/CD:**
-
-- Automated testing on every PR (lint, tests, builds)
-- Automatic beta releases from `develop` branch
-- Automatic production releases from `main` branch
-- Semantic versioning with automatic version detection
-
-**🧪 Test Coverage:**
-
-- 98.91% overall code coverage
-- 96 comprehensive tests covering all hooks and core functionality
-
-**Key Improvements:**
-
-- ✅ **Easier to Use**: Hooks provide cleaner, more intuitive API
-- ✅ **More Reliable**: High test coverage ensures stability
-- ✅ **Faster Releases**: Automated CI/CD reduces release time
-- ✅ **Better DX**: Enhanced documentation and TypeScript support
-
----
-
-### v0.1.0 - Initial Release
-
-This is the first public release of `@gabriel-sisjr/react-native-background-location`. The library provides robust background location tracking for React Native apps using the new TurboModule architecture.
-
-**What's Working:**
-
-- ✅ Full Android implementation
-- ✅ Background and foreground tracking
-- ✅ Persistent storage
-- ✅ Complete TypeScript support
-- ✅ Production-ready
-
-**What's Next:**
-
-- 🚧 iOS implementation
-- 🚧 Event emitters
-- 🚧 Advanced configuration options
-
----
-
+[0.12.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.12.0
+[0.11.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.11.0
+[0.10.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.10.0
 [0.9.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.9.0
 [0.8.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.8.0
 [0.7.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.7.0

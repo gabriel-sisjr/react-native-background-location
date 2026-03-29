@@ -1,5 +1,6 @@
 #import "BackgroundLocation.h"
 #import <CoreLocation/CoreLocation.h>
+#import <UserNotifications/UserNotifications.h>
 #import <React/RCTBridge.h>
 
 #if __has_include("BackgroundLocation-Swift.h")
@@ -37,6 +38,9 @@
   if (isActive) {
     [self registerLifecycleObservers];
   }
+
+  // Restore geofences after crash/restart
+  [[GeofenceManager shared] restoreGeofences];
 }
 
 - (void)dealloc
@@ -142,61 +146,11 @@
     dict[@"waitForAccurateLocation"] = @(waitForAccurateLocation.value());
   }
 
-  // Notification fields — no-op on iOS (no foreground service notification)
-  // Parsed and stored to avoid crashes when consumers pass Android notification options
-  NSString *notificationTitle = options.notificationTitle();
-  if (notificationTitle) {
-    dict[@"notificationTitle"] = notificationTitle;
-  }
-
-  NSString *notificationText = options.notificationText();
-  if (notificationText) {
-    dict[@"notificationText"] = notificationText;
-  }
-
-  NSString *notificationSmallIcon = options.notificationSmallIcon();
-  if (notificationSmallIcon) {
-    dict[@"notificationSmallIcon"] = notificationSmallIcon;
-  }
-
-  NSString *notificationColor = options.notificationColor();
-  if (notificationColor) {
-    dict[@"notificationColor"] = notificationColor;
-  }
-
-  auto notificationShowTimestamp = options.notificationShowTimestamp();
-  if (notificationShowTimestamp.has_value()) {
-    dict[@"notificationShowTimestamp"] = @(notificationShowTimestamp.value());
-  }
-
-  NSString *notificationLargeIcon = options.notificationLargeIcon();
-  if (notificationLargeIcon) {
-    dict[@"notificationLargeIcon"] = notificationLargeIcon;
-  }
-
-  NSString *notificationSubtext = options.notificationSubtext();
-  if (notificationSubtext) {
-    dict[@"notificationSubtext"] = notificationSubtext;
-  }
-
-  NSString *notificationChannelId = options.notificationChannelId();
-  if (notificationChannelId) {
-    dict[@"notificationChannelId"] = notificationChannelId;
-  }
-
-  NSString *notificationChannelName = options.notificationChannelName();
-  if (notificationChannelName) {
-    dict[@"notificationChannelName"] = notificationChannelName;
-  }
-
-  NSString *notificationPriority = options.notificationPriority();
-  if (notificationPriority) {
-    dict[@"notificationPriority"] = notificationPriority;
-  }
-
-  NSString *notificationActions = options.notificationActions();
-  if (notificationActions) {
-    dict[@"notificationActions"] = notificationActions;
+  // Notification options — no-op on iOS (no foreground service notification concept)
+  // Passed through as JSON string to avoid crashes when consumers pass Android notification options
+  NSString *notificationOptions = options.notificationOptions();
+  if (notificationOptions) {
+    dict[@"notificationOptions"] = notificationOptions;
   }
 
   return dict;
@@ -222,6 +176,10 @@
 
   [LocationManagerWrapper shared].onLocationWarning = ^(NSDictionary *eventData) {
     [weakSelf emitEventWithName:@"onLocationWarning" body:eventData];
+  };
+
+  [GeofenceEventBroadcaster shared].onGeofenceTransition = ^(NSDictionary *eventData) {
+    [weakSelf emitEventWithName:@"onGeofenceTransition" body:eventData];
   };
 }
 
@@ -364,6 +322,141 @@
   } @catch (NSException *exception) {
     reject(@"REQUEST_PERMISSION_ERROR", [NSString stringWithFormat:@"Failed to request permission: %@", exception.reason], nil);
   }
+}
+
+// MARK: - Notification Permission Methods
+
+- (void)checkNotificationPermission:(RCTPromiseResolveBlock)resolve
+                              reject:(RCTPromiseRejectBlock)reject
+{
+  [[UNUserNotificationCenter currentNotificationCenter] getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings * _Nonnull settings) {
+    NSString *status;
+    switch (settings.authorizationStatus) {
+      case UNAuthorizationStatusAuthorized:
+      case UNAuthorizationStatusProvisional:
+      case UNAuthorizationStatusEphemeral:
+        status = @"granted";
+        break;
+      case UNAuthorizationStatusDenied:
+        status = @"denied";
+        break;
+      case UNAuthorizationStatusNotDetermined:
+      default:
+        status = @"undetermined";
+        break;
+    }
+    resolve(status);
+  }];
+}
+
+- (void)requestNotificationPermission:(RCTPromiseResolveBlock)resolve
+                                reject:(RCTPromiseRejectBlock)reject
+{
+  [[UNUserNotificationCenter currentNotificationCenter] requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge)
+                                                                     completionHandler:^(BOOL granted, NSError * _Nullable error) {
+    if (granted) {
+      resolve(@"granted");
+    } else {
+      resolve(@"denied");
+    }
+  }];
+}
+
+// MARK: - Geofencing Methods
+
+- (void)addGeofence:(NSString *)regionJson
+            resolve:(RCTPromiseResolveBlock)resolve
+             reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] addGeofenceWithRegionJson:regionJson
+                                              resolve:^(id result) { resolve(result); }
+                                               reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)addGeofences:(NSString *)regionsJson
+             resolve:(RCTPromiseResolveBlock)resolve
+              reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] addGeofencesWithRegionsJson:regionsJson
+                                                resolve:^(id result) { resolve(result); }
+                                                 reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)removeGeofence:(NSString *)identifier
+               resolve:(RCTPromiseResolveBlock)resolve
+                reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] removeGeofenceWithIdentifier:identifier
+                                                 resolve:^(id result) { resolve(result); }
+                                                  reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)removeGeofences:(NSString *)identifiersJson
+                resolve:(RCTPromiseResolveBlock)resolve
+                 reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] removeGeofencesWithIdentifiersJson:identifiersJson
+                                                       resolve:^(id result) { resolve(result); }
+                                                        reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)removeAllGeofences:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] removeAllGeofencesWithResolve:^(id result) { resolve(result); }
+                                                   reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)getActiveGeofences:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] getActiveGeofencesWithResolve:^(id result) { resolve(result); }
+                                                   reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)getMaxGeofences:(RCTPromiseResolveBlock)resolve
+                 reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] getMaxGeofencesWithResolve:^(id result) { resolve(result); }
+                                                reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)getGeofenceTransitions:(NSString *)identifier
+                       resolve:(RCTPromiseResolveBlock)resolve
+                        reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] getGeofenceTransitionsWithIdentifier:identifier
+                                                         resolve:^(id result) { resolve(result); }
+                                                          reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)clearGeofenceTransitions:(NSString *)identifier
+                         resolve:(RCTPromiseResolveBlock)resolve
+                          reject:(RCTPromiseRejectBlock)reject
+{
+  [[GeofenceManager shared] clearGeofenceTransitionsWithIdentifier:identifier
+                                                           resolve:^(id result) { resolve(result); }
+                                                            reject:^(NSString *code, NSString *message, NSError *error) { reject(code, message, error); }];
+}
+
+- (void)configureGeofenceNotifications:(NSString *)configJson
+                               resolve:(RCTPromiseResolveBlock)resolve
+                                reject:(RCTPromiseRejectBlock)reject
+{
+  GeofenceNotificationConfig *config = [GeofenceNotificationConfig fromJsonString:configJson];
+  if (config) {
+    [[GeofenceNotificationConfigStore shared] save:config];
+    resolve(nil);
+  } else {
+    reject(@"CONFIG_ERROR", @"Failed to parse notification config", nil);
+  }
+}
+
+- (void)getGeofenceNotificationConfig:(RCTPromiseResolveBlock)resolve
+                               reject:(RCTPromiseRejectBlock)reject
+{
+  GeofenceNotificationConfig *config = [[GeofenceNotificationConfigStore shared] load];
+  resolve([config toJsonString]);
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:

@@ -1,7 +1,11 @@
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StatusBar, StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  centeredContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -9,6 +13,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+    alignSelf: 'stretch',
   },
   content: {
     padding: 20,
@@ -344,6 +349,31 @@ const styles = StyleSheet.create({
     color: '#BF360C',
     marginBottom: 4,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    alignSelf: 'stretch',
+    paddingTop: Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight ?? 0),
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  activeTab: {
+    borderBottomWidth: 3,
+    borderBottomColor: '#2196F3',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#999',
+  },
+  activeTabText: {
+    color: '#2196F3',
   },
 });
 

@@ -24,6 +24,7 @@ import BackgroundLocation, {
 
 import styles from './styles';
 import { RouteMap } from './components';
+import { GeofencingScreen } from './screens/GeofencingScreen';
 import type { Coords } from '@gabriel-sisjr/react-native-background-location';
 
 /**
@@ -75,6 +76,9 @@ function formatLocationProperties(location: Coords) {
 }
 
 export default function App() {
+  const [currentScreen, setCurrentScreen] = React.useState<
+    'tracking' | 'geofencing'
+  >('tracking');
   const [useAutoUpdates, setUseAutoUpdates] = React.useState(true);
   const [showConfig, setShowConfig] = React.useState(false);
   const [showMap, setShowMap] = React.useState(false);
@@ -92,19 +96,21 @@ export default function App() {
       maxWaitTime: 10000,
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       waitForAccurateLocation: false,
-      notificationTitle: 'Location Tracking',
-      notificationText: 'Tracking your location in background',
-      notificationChannelName: 'Background Location',
-      notificationPriority: NotificationPriority.LOW,
-      notificationSmallIcon: 'ic_notification',
-      notificationColor: '#4CAF50',
-      notificationShowTimestamp: true,
-      notificationLargeIcon: 'ic_notification_large',
-      notificationSubtext: 'Background Location Example',
-      notificationActions: [
-        { id: 'pause', label: 'Pause' },
-        { id: 'stop', label: 'Stop' },
-      ],
+      notificationOptions: {
+        title: 'Location Tracking',
+        text: 'Tracking your location in background',
+        channelName: 'Background Location',
+        priority: NotificationPriority.LOW,
+        smallIcon: 'ic_notification',
+        color: '#4CAF50',
+        showTimestamp: true,
+        largeIcon: 'ic_notification_large',
+        subtext: 'Background Location Example',
+        actions: [
+          { id: 'pause', label: 'Pause' },
+          { id: 'stop', label: 'Stop' },
+        ],
+      },
     }
   );
 
@@ -116,19 +122,21 @@ export default function App() {
       maxWaitTime: 10000,
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       waitForAccurateLocation: false,
-      notificationTitle: 'Location Tracking',
-      notificationText: 'Tracking your location in background',
-      notificationChannelName: 'Background Location',
-      notificationPriority: NotificationPriority.LOW,
-      notificationSmallIcon: 'ic_notification',
-      notificationColor: '#4CAF50',
-      notificationShowTimestamp: true,
-      notificationLargeIcon: 'ic_notification_large',
-      notificationSubtext: 'Background Location Example',
-      notificationActions: [
-        { id: 'pause', label: 'Pause' },
-        { id: 'stop', label: 'Stop' },
-      ],
+      notificationOptions: {
+        title: 'Location Tracking',
+        text: 'Tracking your location in background',
+        channelName: 'Background Location',
+        priority: NotificationPriority.LOW,
+        smallIcon: 'ic_notification',
+        color: '#4CAF50',
+        showTimestamp: true,
+        largeIcon: 'ic_notification_large',
+        subtext: 'Background Location Example',
+        actions: [
+          { id: 'pause', label: 'Pause' },
+          { id: 'stop', label: 'Stop' },
+        ],
+      },
     } as TrackingOptions,
     'high-accuracy': {
       updateInterval: 2000,
@@ -136,14 +144,16 @@ export default function App() {
       maxWaitTime: 5000,
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       waitForAccurateLocation: true,
-      notificationTitle: 'High Accuracy Tracking',
-      notificationText: 'Using GPS for precise location tracking',
-      notificationChannelName: 'High Accuracy Tracking',
-      notificationPriority: NotificationPriority.DEFAULT,
-      notificationSmallIcon: 'ic_notification',
-      notificationColor: '#2196F3',
-      notificationShowTimestamp: true,
-      notificationActions: [{ id: 'stop', label: 'Stop Tracking' }],
+      notificationOptions: {
+        title: 'High Accuracy Tracking',
+        text: 'Using GPS for precise location tracking',
+        channelName: 'High Accuracy Tracking',
+        priority: NotificationPriority.DEFAULT,
+        smallIcon: 'ic_notification',
+        color: '#2196F3',
+        showTimestamp: true,
+        actions: [{ id: 'stop', label: 'Stop Tracking' }],
+      },
     } as TrackingOptions,
     'balanced': {
       updateInterval: 10000,
@@ -151,13 +161,15 @@ export default function App() {
       maxWaitTime: 15000,
       accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
       waitForAccurateLocation: false,
-      notificationTitle: 'Balanced Tracking',
-      notificationText: 'Balanced location tracking',
-      notificationChannelName: 'Balanced Location',
-      notificationPriority: NotificationPriority.LOW,
-      notificationSmallIcon: 'ic_notification',
-      notificationColor: '#FF9800',
-      notificationShowTimestamp: false,
+      notificationOptions: {
+        title: 'Balanced Tracking',
+        text: 'Balanced location tracking',
+        channelName: 'Balanced Location',
+        priority: NotificationPriority.LOW,
+        smallIcon: 'ic_notification',
+        color: '#FF9800',
+        showTimestamp: false,
+      },
     } as TrackingOptions,
     'low-power': {
       updateInterval: 30000,
@@ -165,12 +177,14 @@ export default function App() {
       maxWaitTime: 60000,
       accuracy: LocationAccuracy.LOW_POWER,
       waitForAccurateLocation: false,
-      notificationTitle: 'Low Power Tracking',
-      notificationText: 'Power-efficient location tracking',
-      notificationChannelName: 'Low Power Tracking',
-      notificationPriority: NotificationPriority.LOW,
-      notificationSmallIcon: 'ic_notification',
-      notificationColor: '#9C27B0',
+      notificationOptions: {
+        title: 'Low Power Tracking',
+        text: 'Power-efficient location tracking',
+        channelName: 'Low Power Tracking',
+        priority: NotificationPriority.LOW,
+        smallIcon: 'ic_notification',
+        color: '#9C27B0',
+      },
     } as TrackingOptions,
   };
 
@@ -239,9 +253,9 @@ export default function App() {
   const trackingActive = useAutoUpdates ? isAutoTracking : isTracking;
 
   // Handle permission-blocked state
-  if (permissionStatus.status === LocationPermissionStatus.BLOCKED) {
+  if (permissionStatus.location.status === LocationPermissionStatus.BLOCKED) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.centeredContainer}>
         <View style={styles.content}>
           <Text style={styles.title}>Permissions Blocked</Text>
           <Text style={styles.description}>
@@ -259,9 +273,9 @@ export default function App() {
   }
 
   // Handle permission request
-  if (!permissionStatus.hasPermission) {
+  if (!permissionStatus.location.hasPermission) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.centeredContainer}>
         <View style={styles.content}>
           <Text style={styles.title}>Location Permissions Required</Text>
           <Text style={styles.description}>
@@ -304,9 +318,52 @@ export default function App() {
     );
   };
 
+  // Tab buttons (shared across screens)
+  const tabBar = (
+    <View style={styles.tabContainer}>
+      <TouchableOpacity
+        style={[styles.tab, currentScreen === 'tracking' && styles.activeTab]}
+        onPress={() => setCurrentScreen('tracking')}
+      >
+        <Text
+          style={[
+            styles.tabText,
+            currentScreen === 'tracking' && styles.activeTabText,
+          ]}
+        >
+          Location Tracking
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.tab, currentScreen === 'geofencing' && styles.activeTab]}
+        onPress={() => setCurrentScreen('geofencing')}
+      >
+        <Text
+          style={[
+            styles.tabText,
+            currentScreen === 'geofencing' && styles.activeTabText,
+          ]}
+        >
+          Geofencing
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  // Geofencing screen
+  if (currentScreen === 'geofencing') {
+    return (
+      <View style={styles.container}>
+        {tabBar}
+        <GeofencingScreen />
+      </View>
+    );
+  }
+
   // Main tracking UI
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      {tabBar}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -430,31 +487,37 @@ export default function App() {
                   {trackingOptions.waitForAccurateLocation ? 'Yes' : 'No'}
                 </Text>
                 <Text style={styles.configDetailText}>
-                  Notification Priority: {trackingOptions.notificationPriority}
+                  Notification Priority:{' '}
+                  {trackingOptions.notificationOptions?.priority}
                 </Text>
                 <Text style={styles.configDetailText}>
-                  Notification Title: {trackingOptions.notificationTitle}
+                  Notification Title:{' '}
+                  {trackingOptions.notificationOptions?.title}
                 </Text>
                 <Text style={styles.configDetailText}>
                   Small Icon:{' '}
-                  {trackingOptions.notificationSmallIcon || 'default'}
+                  {trackingOptions.notificationOptions?.smallIcon || 'default'}
                 </Text>
                 <Text style={styles.configDetailText}>
-                  Color: {trackingOptions.notificationColor || 'none'}
+                  Color: {trackingOptions.notificationOptions?.color || 'none'}
                 </Text>
                 <Text style={styles.configDetailText}>
                   Timestamp:{' '}
-                  {trackingOptions.notificationShowTimestamp ? 'Yes' : 'No'}
+                  {trackingOptions.notificationOptions?.showTimestamp
+                    ? 'Yes'
+                    : 'No'}
                 </Text>
                 <Text style={styles.configDetailText}>
-                  Large Icon: {trackingOptions.notificationLargeIcon || 'none'}
+                  Large Icon:{' '}
+                  {trackingOptions.notificationOptions?.largeIcon || 'none'}
                 </Text>
                 <Text style={styles.configDetailText}>
-                  Subtext: {trackingOptions.notificationSubtext || 'none'}
+                  Subtext:{' '}
+                  {trackingOptions.notificationOptions?.subtext || 'none'}
                 </Text>
                 <Text style={styles.configDetailText}>
                   Actions:{' '}
-                  {trackingOptions.notificationActions
+                  {trackingOptions.notificationOptions?.actions
                     ?.map((a) => a.label)
                     .join(', ') || 'none'}
                 </Text>
@@ -674,6 +737,6 @@ export default function App() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

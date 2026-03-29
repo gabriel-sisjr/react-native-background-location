@@ -55,6 +55,9 @@ jest.mock('react-native', () => ({
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
   },
+  Alert: {
+    alert: jest.fn(),
+  },
 }));
 
 // Helper function for tests to simulate events
@@ -74,6 +77,13 @@ jest.mock('react-native', () => ({
 
 (global as any).simulateNotificationActionEvent = (data: any) => {
   const callback = mockEventCallbacks.onNotificationAction;
+  if (callback) {
+    callback(data);
+  }
+};
+
+(global as any).simulateGeofenceTransitionEvent = (data: any) => {
+  const callback = mockEventCallbacks.onGeofenceTransition;
   if (callback) {
     callback(data);
   }
@@ -114,11 +124,31 @@ jest.mock('../NativeBackgroundLocation', () => {
       return Promise.resolve();
     }),
     checkLocationPermission: jest.fn(() => {
-      return Promise.resolve({ status: 'undetermined', canRequestAgain: true });
+      return Promise.resolve({ status: 'granted', canRequestAgain: false });
     }),
     requestLocationPermission: jest.fn(() => {
       return Promise.resolve({ status: 'granted', canRequestAgain: false });
     }),
+    checkNotificationPermission: jest.fn(() => {
+      return Promise.resolve('granted');
+    }),
+    requestNotificationPermission: jest.fn(() => {
+      return Promise.resolve('granted');
+    }),
+    updateNotification: jest.fn(() => {
+      return Promise.resolve();
+    }),
+    addGeofence: jest.fn().mockResolvedValue(undefined),
+    addGeofences: jest.fn().mockResolvedValue(undefined),
+    removeGeofence: jest.fn().mockResolvedValue(undefined),
+    removeGeofences: jest.fn().mockResolvedValue(undefined),
+    removeAllGeofences: jest.fn().mockResolvedValue(undefined),
+    getActiveGeofences: jest.fn().mockResolvedValue(JSON.stringify([])),
+    getMaxGeofences: jest.fn().mockResolvedValue(100),
+    getGeofenceTransitions: jest.fn().mockResolvedValue(JSON.stringify([])),
+    clearGeofenceTransitions: jest.fn().mockResolvedValue(undefined),
+    configureGeofenceNotifications: jest.fn().mockResolvedValue(undefined),
+    getGeofenceNotificationConfig: jest.fn().mockResolvedValue('{}'),
   };
 
   return {

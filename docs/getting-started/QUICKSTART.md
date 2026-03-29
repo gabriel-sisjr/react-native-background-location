@@ -109,9 +109,11 @@ if (hasPermission) {
     updateInterval: 5000,
     fastestInterval: 3000,
     distanceFilter: 50, // Only update if moved 50+ meters
-    notificationPriority: NotificationPriority.LOW,
-    notificationTitle: 'Tracking Active',
-    notificationText: 'Your location is being tracked',
+    notificationOptions: {
+      priority: NotificationPriority.LOW,
+      title: 'Tracking Active',
+      text: 'Your location is being tracked',
+    },
   };
 
   // Simple start with auto-generated tripId (v0.8.0+)
