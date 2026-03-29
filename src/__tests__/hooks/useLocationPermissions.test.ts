@@ -702,6 +702,136 @@ describe('useLocationPermissions - Complete Tests', () => {
     });
   });
 
+  describe('toNotificationPermissionState default branch', () => {
+    it('should map unknown notification status to UNDETERMINED on Android checkPermissions', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 30,
+        configurable: true,
+      });
+      (PermissionsAndroid.check as jest.Mock)
+        .mockResolvedValueOnce(true) // ACCESS_FINE_LOCATION
+        .mockResolvedValueOnce(true) // ACCESS_COARSE_LOCATION
+        .mockResolvedValueOnce(true); // ACCESS_BACKGROUND_LOCATION
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('unknown_status');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const hasPermission = await result.current.checkPermissions();
+        expect(hasPermission).toBe(true);
+      });
+
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.UNDETERMINED
+      );
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        true
+      );
+      expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
+    });
+
+    it('should map unknown notification status to UNDETERMINED on Android requestPermissions', async () => {
+      Object.defineProperty(Platform, 'Version', {
+        get: () => 30,
+        configurable: true,
+      });
+      (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
+        'android.permission.ACCESS_FINE_LOCATION':
+          PermissionsAndroid.RESULTS.GRANTED,
+        'android.permission.ACCESS_COARSE_LOCATION':
+          PermissionsAndroid.RESULTS.GRANTED,
+      });
+      (PermissionsAndroid.request as jest.Mock).mockResolvedValue(
+        PermissionsAndroid.RESULTS.GRANTED
+      );
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('something_unexpected');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const granted = await result.current.requestPermissions();
+        expect(granted).toBe(true);
+      });
+
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.UNDETERMINED
+      );
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        true
+      );
+    });
+
+    it('should map unknown notification status to UNDETERMINED on iOS checkPermissions', async () => {
+      Platform.OS = 'ios';
+      (
+        BackgroundLocationModule.checkLocationPermission as jest.Mock
+      ).mockResolvedValueOnce({
+        status: 'granted',
+        canRequestAgain: false,
+      });
+      (
+        BackgroundLocationModule.checkNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('provisional');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const hasPermission = await result.current.checkPermissions();
+        expect(hasPermission).toBe(true);
+      });
+
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.UNDETERMINED
+      );
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        true
+      );
+    });
+
+    it('should map unknown notification status to UNDETERMINED on iOS requestPermissions', async () => {
+      Platform.OS = 'ios';
+      (
+        BackgroundLocationModule.requestLocationPermission as jest.Mock
+      ).mockResolvedValueOnce({
+        status: 'granted',
+        canRequestAgain: false,
+      });
+      (
+        BackgroundLocationModule.requestNotificationPermission as jest.Mock
+      ).mockResolvedValueOnce('not_determined');
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const granted = await result.current.requestPermissions();
+        expect(granted).toBe(true);
+      });
+
+      expect(result.current.permissionStatus.notification.status).toBe(
+        NotificationPermissionStatus.UNDETERMINED
+      );
+      expect(result.current.permissionStatus.notification.hasPermission).toBe(
+        false
+      );
+      expect(result.current.permissionStatus.notification.canRequestAgain).toBe(
+        true
+      );
+    });
+  });
+
   describe('Platform handling', () => {
     it('should handle Android platform correctly', async () => {
       Platform.OS = 'android';
