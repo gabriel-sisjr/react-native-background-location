@@ -1,18 +1,20 @@
 package com.backgroundlocation
 
 import android.Manifest
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Bundle
 import androidx.core.content.ContextCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.facebook.react.bridge.*
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 
 /**
@@ -25,8 +27,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   private val storage: LocationStorage = LocationStorage(reactContext)
   private val geofenceManager: GeofenceManager = GeofenceManager(reactContext)
-  private var broadcastReceiver: BroadcastReceiver? = null
-  private var geofenceBroadcastReceiver: BroadcastReceiver? = null
+  private var locationCollectionJob: Job? = null
+  private var geofenceCollectionJob: Job? = null
+  private var notificationActionCollectionJob: Job? = null
 
   // Coroutine scope for async operations
   private val moduleScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -39,14 +42,16 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   override fun initialize() {
     super.initialize()
-    registerBroadcastReceiver()
-    registerGeofenceBroadcastReceiver()
+    startLocationEventCollection()
+    startGeofenceEventCollection()
+    startNotificationActionCollection()
   }
 
   override fun invalidate() {
     super.invalidate()
-    unregisterBroadcastReceiver()
-    unregisterGeofenceBroadcastReceiver()
+    stopLocationEventCollection()
+    stopGeofenceEventCollection()
+    stopNotificationActionCollection()
     storage.cleanup()
     geofenceManager.cleanup()
     moduleScope.cancel()
@@ -55,8 +60,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   // LifecycleEventListener implementation
   override fun onHostResume() {
-    registerBroadcastReceiver()
-    registerGeofenceBroadcastReceiver()
+    startLocationEventCollection()
+    startGeofenceEventCollection()
+    startNotificationActionCollection()
 
     // Only schedule recovery if tracking is actually active
     // This prevents RecoveryWorker from starting SystemForegroundService when no tracking is active
@@ -95,93 +101,74 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
   }
 
   override fun onHostPause() {
-    // Keep receiver registered to not miss events
+    // Keep collection active to not miss events
   }
 
   override fun onHostDestroy() {
-    unregisterBroadcastReceiver()
-    unregisterGeofenceBroadcastReceiver()
+    stopLocationEventCollection()
+    stopGeofenceEventCollection()
+    stopNotificationActionCollection()
   }
 
-  private fun registerBroadcastReceiver() {
-    if (broadcastReceiver != null) return
+  // --- SharedFlow Collection (start/stop) ---
 
-    broadcastReceiver = object : BroadcastReceiver() {
-      override fun onReceive(context: Context?, intent: Intent?) {
-        intent ?: return
-
-        when (intent.action) {
-          LocationEventBroadcaster.ACTION_LOCATION_UPDATE -> {
-            handleLocationUpdate(intent)
-          }
-          LocationEventBroadcaster.ACTION_LOCATION_ERROR -> {
-            handleLocationError(intent)
-          }
-          LocationEventBroadcaster.ACTION_LOCATION_WARNING -> {
-            handleLocationWarning(intent)
-          }
-          LocationEventBroadcaster.ACTION_NOTIFICATION_ACTION -> {
-            handleNotificationAction(intent)
-          }
+  private fun startLocationEventCollection() {
+    if (locationCollectionJob?.isActive == true) return
+    locationCollectionJob = LocationEventFlow.events
+      .onEach { event ->
+        when (event) {
+          is LocationEvent.Update -> handleLocationUpdate(event)
+          is LocationEvent.Error -> handleLocationError(event)
+          is LocationEvent.Warning -> handleLocationWarning(event)
         }
       }
-    }
-
-    LocalBroadcastManager.getInstance(reactApplicationContext)
-      .registerReceiver(broadcastReceiver!!, LocationEventBroadcaster.createIntentFilter())
+      .launchIn(moduleScope)
   }
 
-  private fun unregisterBroadcastReceiver() {
-    broadcastReceiver?.let {
-      LocalBroadcastManager.getInstance(reactApplicationContext).unregisterReceiver(it)
-      broadcastReceiver = null
-    }
+  private fun stopLocationEventCollection() {
+    locationCollectionJob?.cancel()
+    locationCollectionJob = null
   }
 
-  private fun registerGeofenceBroadcastReceiver() {
-    if (geofenceBroadcastReceiver != null) return
-
-    geofenceBroadcastReceiver = object : BroadcastReceiver() {
-      override fun onReceive(context: Context?, intent: Intent?) {
-        intent ?: return
-        if (intent.action == GeofenceEventBroadcaster.ACTION_GEOFENCE_TRANSITION) {
-          handleGeofenceTransition(intent)
+  private fun startGeofenceEventCollection() {
+    if (geofenceCollectionJob?.isActive == true) return
+    geofenceCollectionJob = GeofenceEventFlow.events
+      .onEach { event ->
+        when (event) {
+          is GeofenceEvent.Transition -> handleGeofenceTransition(event)
         }
       }
-    }
-
-    LocalBroadcastManager.getInstance(reactApplicationContext)
-      .registerReceiver(geofenceBroadcastReceiver!!, GeofenceEventBroadcaster.createIntentFilter())
+      .launchIn(moduleScope)
   }
 
-  private fun unregisterGeofenceBroadcastReceiver() {
-    geofenceBroadcastReceiver?.let {
-      LocalBroadcastManager.getInstance(reactApplicationContext).unregisterReceiver(it)
-      geofenceBroadcastReceiver = null
-    }
+  private fun stopGeofenceEventCollection() {
+    geofenceCollectionJob?.cancel()
+    geofenceCollectionJob = null
   }
 
-  private fun handleGeofenceTransition(intent: Intent) {
+  private fun startNotificationActionCollection() {
+    if (notificationActionCollectionJob?.isActive == true) return
+    notificationActionCollectionJob = NotificationActionFlow.events
+      .onEach { event ->
+        when (event) {
+          is NotificationActionEvent.ActionClicked -> handleNotificationAction(event)
+        }
+      }
+      .launchIn(moduleScope)
+  }
+
+  private fun stopNotificationActionCollection() {
+    notificationActionCollectionJob?.cancel()
+    notificationActionCollectionJob = null
+  }
+
+  // --- Event Handlers ---
+
+  private fun handleLocationUpdate(event: LocationEvent.Update) {
     if (!reactApplicationContext.hasActiveReactInstance()) return
 
     try {
-      val eventData = GeofenceEventBroadcaster.intentToWritableMap(intent)
-      reactApplicationContext
-        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit("onGeofenceTransition", eventData)
-    } catch (e: Exception) {
-      android.util.Log.e("BackgroundLocationModule", "Failed to emit geofence transition", e)
-    }
-  }
-
-  private fun handleLocationUpdate(intent: Intent) {
-    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID) ?: return
-    val locationBundle = intent.getBundleExtra(LocationEventBroadcaster.EXTRA_LOCATION_DATA) ?: return
-
-    if (!reactApplicationContext.hasActiveReactInstance()) return
-
-    try {
-      val eventData = LocationEventBroadcaster.bundleToWritableMap(tripId, locationBundle)
+      val eventData = LocationEventBroadcaster.bundleToWritableMap(event.tripId, event.locationData)
       reactApplicationContext
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
         .emit("onLocationUpdate", eventData)
@@ -190,18 +177,14 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun handleLocationError(intent: Intent) {
-    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID)
-    val errorType = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_TYPE) ?: return
-    val message = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_MESSAGE) ?: return
-
+  private fun handleLocationError(event: LocationEvent.Error) {
     if (!reactApplicationContext.hasActiveReactInstance()) return
 
     try {
       val eventData = Arguments.createMap().apply {
-        tripId?.let { putString("tripId", it) }
-        putString("type", errorType)
-        putString("message", message)
+        event.tripId?.let { putString("tripId", it) }
+        putString("type", event.errorType)
+        putString("message", event.message)
       }
       reactApplicationContext
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -211,18 +194,14 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun handleLocationWarning(intent: Intent) {
-    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID)
-    val warningType = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_TYPE) ?: return
-    val message = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ERROR_MESSAGE) ?: return
-
+  private fun handleLocationWarning(event: LocationEvent.Warning) {
     if (!reactApplicationContext.hasActiveReactInstance()) return
 
     try {
       val eventData = Arguments.createMap().apply {
-        tripId?.let { putString("tripId", it) }
-        putString("type", warningType)
-        putString("message", message)
+        event.tripId?.let { putString("tripId", it) }
+        putString("type", event.warningType)
+        putString("message", event.message)
       }
       reactApplicationContext
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
@@ -232,22 +211,65 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  private fun handleNotificationAction(intent: Intent) {
-    val tripId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_TRIP_ID) ?: return
-    val actionId = intent.getStringExtra(LocationEventBroadcaster.EXTRA_ACTION_ID) ?: return
-
+  private fun handleNotificationAction(event: NotificationActionEvent.ActionClicked) {
     if (!reactApplicationContext.hasActiveReactInstance()) return
 
     try {
       val eventData = Arguments.createMap().apply {
-        putString("tripId", tripId)
-        putString("actionId", actionId)
+        putString("tripId", event.tripId)
+        putString("actionId", event.actionId)
       }
       reactApplicationContext
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
         .emit("onNotificationAction", eventData)
     } catch (e: Exception) {
       android.util.Log.e("BackgroundLocationModule", "Failed to emit notification action", e)
+    }
+  }
+
+  private fun handleGeofenceTransition(event: GeofenceEvent.Transition) {
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+      }
+
+      val eventData = Arguments.createMap().apply {
+        putString("geofenceId", event.geofenceId)
+        putString("transitionType", event.transitionType)
+        putDouble("latitude", event.latitude)
+        putDouble("longitude", event.longitude)
+        putString("timestamp", isoFormatter.format(Date(event.timestamp)))
+        putDouble("distanceFromCenter", event.distanceFromCenter)
+
+        event.metadata?.let { metadataJson ->
+          try {
+            val jsonObj = JSONObject(metadataJson)
+            val metadataMap = Arguments.createMap()
+            val keys = jsonObj.keys()
+            while (keys.hasNext()) {
+              val key = keys.next()
+              when (val value = jsonObj.get(key)) {
+                is String -> metadataMap.putString(key, value)
+                is Int -> metadataMap.putInt(key, value)
+                is Double -> metadataMap.putDouble(key, value)
+                is Boolean -> metadataMap.putBoolean(key, value)
+                else -> metadataMap.putString(key, value.toString())
+              }
+            }
+            putMap("metadata", metadataMap)
+          } catch (_: Exception) {
+            // If parsing fails, skip metadata
+          }
+        }
+      }
+
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onGeofenceTransition", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit geofence transition", e)
     }
   }
 
@@ -396,7 +418,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
         RecoveryWorker.cancelRecovery(context)
 
         // Step 3: Immediately stop location updates on active service instance
-        // This is CRITICAL - stops broadcasts immediately without waiting for service destruction
+        // This is CRITICAL - stops events immediately without waiting for service destruction
         LocationService.stopLocationUpdatesImmediately(context)
 
         // Step 4: Save tracking state SYNCHRONOUSLY
