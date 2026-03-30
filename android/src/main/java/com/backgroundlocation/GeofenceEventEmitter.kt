@@ -4,12 +4,12 @@ package com.backgroundlocation
  * Handles communication of geofence transition events between native and React Native module
  * Emits events via SharedFlow (GeofenceEventFlow) to decouple lifecycle dependencies
  */
-object GeofenceEventBroadcaster {
+object GeofenceEventEmitter {
 
     /**
      * Emits a geofence transition event via SharedFlow
      */
-    fun broadcastTransition(
+    fun emitTransition(
         geofenceId: String,
         transitionType: String,
         latitude: Double,

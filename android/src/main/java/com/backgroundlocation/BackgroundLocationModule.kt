@@ -168,7 +168,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     if (!reactApplicationContext.hasActiveReactInstance()) return
 
     try {
-      val eventData = LocationEventBroadcaster.bundleToWritableMap(event.tripId, event.locationData)
+      val eventData = LocationEventEmitter.bundleToWritableMap(event.tripId, event.locationData)
       reactApplicationContext
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
         .emit("onLocationUpdate", eventData)

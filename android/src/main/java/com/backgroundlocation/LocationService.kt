@@ -240,7 +240,7 @@ class LocationService : Service() {
    * Emits a warning event via SharedFlow
    */
   private fun emitServiceWarning(tripId: String, warningType: String, message: String) {
-    LocationEventBroadcaster.broadcastWarning(
+    LocationEventEmitter.emitWarning(
       tripId,
       warningType,
       message
@@ -311,7 +311,7 @@ class LocationService : Service() {
 
           override fun onError(error: Exception) {
             android.util.Log.e("LocationService", "Location provider error", error)
-            LocationEventBroadcaster.broadcastError(
+            LocationEventEmitter.emitError(
               currentTripId,
               "PROVIDER_ERROR",
               error.message ?: "Unknown location provider error"
@@ -372,7 +372,7 @@ class LocationService : Service() {
    * Emits error event when permissions are revoked during tracking
    */
   private fun emitPermissionRevokedError() {
-    LocationEventBroadcaster.broadcastError(
+    LocationEventEmitter.emitError(
       currentTripId,
       "PERMISSION_REVOKED",
       "Location permission was revoked. Tracking stopped."
@@ -460,8 +460,8 @@ class LocationService : Service() {
    * Sends a location update event via SharedFlow
    */
   private fun sendLocationUpdateEvent(tripId: String, location: Location) {
-    val locationBundle = LocationEventBroadcaster.locationToBundle(location)
-    LocationEventBroadcaster.broadcastLocationUpdate(tripId, locationBundle)
+    val locationBundle = LocationEventEmitter.locationToBundle(location)
+    LocationEventEmitter.emitLocationUpdate(tripId, locationBundle)
     android.util.Log.d("LocationService", "Location event emitted for tripId: $tripId")
   }
   

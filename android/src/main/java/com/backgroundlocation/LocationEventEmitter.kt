@@ -10,26 +10,26 @@ import com.facebook.react.bridge.WritableMap
  * Handles communication between LocationService and React Native module
  * Emits events via SharedFlow (LocationEventFlow) to decouple lifecycle dependencies
  */
-object LocationEventBroadcaster {
+object LocationEventEmitter {
 
     /**
      * Emits a location update event via SharedFlow
      */
-    fun broadcastLocationUpdate(tripId: String, locationData: Bundle) {
+    fun emitLocationUpdate(tripId: String, locationData: Bundle) {
         LocationEventFlow.emit(LocationEvent.Update(tripId = tripId, locationData = locationData))
     }
 
     /**
      * Emits an error event via SharedFlow
      */
-    fun broadcastError(tripId: String?, errorType: String, message: String) {
+    fun emitError(tripId: String?, errorType: String, message: String) {
         LocationEventFlow.emit(LocationEvent.Error(tripId = tripId, errorType = errorType, message = message))
     }
 
     /**
      * Emits a warning event via SharedFlow
      */
-    fun broadcastWarning(tripId: String?, warningType: String, message: String) {
+    fun emitWarning(tripId: String?, warningType: String, message: String) {
         LocationEventFlow.emit(LocationEvent.Warning(tripId = tripId, warningType = warningType, message = message))
     }
 

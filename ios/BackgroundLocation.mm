@@ -178,7 +178,7 @@
     [weakSelf emitEventWithName:@"onLocationWarning" body:eventData];
   };
 
-  [GeofenceEventBroadcaster shared].onGeofenceTransition = ^(NSDictionary *eventData) {
+  [GeofenceEventEmitter shared].onGeofenceTransition = ^(NSDictionary *eventData) {
     [weakSelf emitEventWithName:@"onGeofenceTransition" body:eventData];
   };
 }

@@ -31,7 +31,7 @@ LocationProvider  LocationStorage  CLLocationMgr  LocationStorage.swift
 (Fused/Android)  (Room DB)        Delegate        (Core Data)
   |              |                 |              |
   v              v                 v              v
-LocationEventBroadcaster        RCTEventEmitter (direct)
+LocationEventEmitter            RCTEventEmitter (direct)
   |                               |
   v                               v
 SharedFlow singletons           RCTDeviceEventEmitter
@@ -140,15 +140,15 @@ All Kotlin sources live under `android/src/main/java/com/backgroundlocation/`.
 - Coroutine scope: `SupervisorJob() + Dispatchers.IO`
 - `cleanup()` cancels batch timer, flushes pending writes, cancels scope
 
-### Event Broadcasting
+### Event Emission
 
-**`LocationEventBroadcaster.kt`** -- Singleton object decoupling `LocationService` from `BackgroundLocationModule` via `LocationEventFlow` (SharedFlow). Emits three event types via `LocationEvent` sealed interface variants:
+**`LocationEventEmitter.kt`** -- Singleton object decoupling `LocationService` from `BackgroundLocationModule` via `LocationEventFlow` (SharedFlow). Emits three event types via `LocationEvent` sealed interface variants:
 
 - `LocationEvent.Update` -- carries tripId + location data Bundle
 - `LocationEvent.Error` -- carries tripId + error type + message
 - `LocationEvent.Warning` -- carries tripId + warning type + message
 
-Provides `broadcastLocationUpdate()`, `broadcastError()`, `broadcastWarning()` emission methods and `locationToBundle()`, `bundleToWritableMap()` utility methods. Includes all extended location fields (accuracy, altitude, speed, bearing, vertical accuracy, speed accuracy, bearing accuracy, elapsed realtime nanos, provider, mock indicator).
+Provides `emitLocationUpdate()`, `emitError()`, `emitWarning()` emission methods and `locationToBundle()`, `bundleToWritableMap()` utility methods. Includes all extended location fields (accuracy, altitude, speed, bearing, vertical accuracy, speed accuracy, bearing accuracy, elapsed realtime nanos, provider, mock indicator).
 
 ### Crash Recovery
 
