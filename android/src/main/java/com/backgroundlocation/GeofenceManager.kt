@@ -449,9 +449,8 @@ class GeofenceManager(private val context: Context) {
                 )
                 storage.saveTransition(transitionEntity)
 
-                // Broadcast to JS via LocalBroadcastManager
+                // Emit to JS via GeofenceEventFlow (SharedFlow)
                 GeofenceEventBroadcaster.broadcastTransition(
-                    context = context,
                     geofenceId = geofenceId,
                     transitionType = transitionString,
                     latitude = lat,

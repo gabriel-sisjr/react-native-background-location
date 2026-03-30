@@ -34,7 +34,7 @@ class LocationService : Service() {
   private var currentTripId: String? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
 
-  // Flag to prevent location broadcasts after stop is requested
+  // Flag to prevent location events after stop is requested
   @Volatile
   private var isStopRequested: Boolean = false
 
@@ -236,16 +236,15 @@ class LocationService : Service() {
   }
 
   /**
-   * Emits a warning event using broadcaster
+   * Emits a warning event via SharedFlow
    */
   private fun emitServiceWarning(tripId: String, warningType: String, message: String) {
     LocationEventBroadcaster.broadcastWarning(
-      this,
       tripId,
       warningType,
       message
     )
-    android.util.Log.d("LocationService", "Warning event broadcast sent: $warningType")
+    android.util.Log.d("LocationService", "Warning event emitted: $warningType")
   }
 
   @SuppressLint("MissingPermission")
@@ -312,7 +311,6 @@ class LocationService : Service() {
           override fun onError(error: Exception) {
             android.util.Log.e("LocationService", "Location provider error", error)
             LocationEventBroadcaster.broadcastError(
-              this@LocationService,
               currentTripId,
               "PROVIDER_ERROR",
               error.message ?: "Unknown location provider error"
@@ -374,12 +372,11 @@ class LocationService : Service() {
    */
   private fun emitPermissionRevokedError() {
     LocationEventBroadcaster.broadcastError(
-      this,
       currentTripId,
       "PERMISSION_REVOKED",
       "Location permission was revoked. Tracking stopped."
     )
-    android.util.Log.d("LocationService", "Permission revoked error broadcast sent")
+    android.util.Log.d("LocationService", "Permission revoked error emitted")
   }
 
   /**
@@ -394,7 +391,7 @@ class LocationService : Service() {
   }
 
   private fun handleLocation(location: Location) {
-    // CRITICAL: Check if stop was requested - prevent location broadcasts after stopTracking()
+    // CRITICAL: Check if stop was requested - prevent location events after stopTracking()
     if (isStopRequested) {
       android.util.Log.d("LocationService", "Stop requested - ignoring location update")
       return
@@ -462,12 +459,12 @@ class LocationService : Service() {
   }
   
   /**
-   * Sends a location update event using broadcaster
+   * Sends a location update event via SharedFlow
    */
   private fun sendLocationUpdateEvent(tripId: String, location: Location) {
     val locationBundle = LocationEventBroadcaster.locationToBundle(location)
-    LocationEventBroadcaster.broadcastLocationUpdate(this, tripId, locationBundle)
-    android.util.Log.d("LocationService", "Location broadcast sent for tripId: $tripId")
+    LocationEventBroadcaster.broadcastLocationUpdate(tripId, locationBundle)
+    android.util.Log.d("LocationService", "Location event emitted for tripId: $tripId")
   }
   
 
