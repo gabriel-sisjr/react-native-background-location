@@ -4,7 +4,7 @@ import android.content.Context
 
 /**
  * Singleton holder for GeofenceManager
- * Provides access from BroadcastReceivers and other components
+ * Provides access from system BroadcastReceivers (e.g., GeofenceBroadcastReceiver, BootCompletedReceiver) and other components
  * that don't have access to the React Native module
  */
 object GeofenceManagerHolder {

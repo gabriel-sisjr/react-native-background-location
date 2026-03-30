@@ -36,7 +36,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
 
   init {
     reactContext.addLifecycleEventListener(this)
-    // Register the GeofenceManager in the holder for access from BroadcastReceivers
+    // Register the GeofenceManager in the holder for access from system BroadcastReceivers
     GeofenceManagerHolder.setInstance(geofenceManager)
   }
 
