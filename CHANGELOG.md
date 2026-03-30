@@ -34,6 +34,12 @@
 - `GeofenceEventBroadcaster` 9 orphaned imports (`IntentFilter`, `Intent`, `Bundle`, `WritableNativeMap`, `Arguments`, `SimpleDateFormat`, `Locale`, `TimeZone`, `Date`).
 - Stale "broadcast" terminology in `LocationService.kt` (7 locations), `BackgroundLocationModule.kt` (1 location), `GeofenceManager.kt` (1 location) -- updated to "emit"/"event".
 
+### Fixed
+
+- Kotlin compiler deprecation warning for `Location.isFromMockProvider` in `LocationService.kt` and `LocationEventBroadcaster.kt`. Both files now use a private `Location.isMockLocation()` extension function that calls `Location.isMock` on API 31+ and falls back to the deprecated property on API 24-30.
+- Kotlin compiler deprecation warning for synchronous `storage.getTrackingState()` in `LocationService.onStartCommand()`. Replaced with `runBlocking { storage.getTrackingStateAsync() }` -- safe because this code path only executes on system-initiated service restarts (rare recovery scenario).
+- Removed dead `JELLY_BEAN_MR2` API level guard in `LocationEventBroadcaster.locationToBundle()` (library minSdk is 24, making the guard always true).
+
 ## [0.12.0] - 2026-03-28
 
 ### BREAKING CHANGES

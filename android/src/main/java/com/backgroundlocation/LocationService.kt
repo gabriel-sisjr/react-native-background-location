@@ -21,6 +21,7 @@ import com.backgroundlocation.provider.LocationProviderFactory
 import com.backgroundlocation.provider.LocationUpdateCallback
 import com.backgroundlocation.processor.LocationProcessor
 import com.backgroundlocation.processor.DefaultLocationProcessor
+import kotlinx.coroutines.runBlocking
 
 /**
  * Foreground service that handles background location tracking
@@ -92,7 +93,7 @@ class LocationService : Service() {
     } else {
       // If intent is null (service restarted by system), try to recover from storage
       if (intent == null) {
-        val trackingState = storage.getTrackingState()
+        val trackingState = runBlocking { storage.getTrackingStateAsync() }
         if (trackingState.isActive && trackingState.tripId != null) {
           tripId = trackingState.tripId
           trackingState.options?.let { trackingOptions = it }
@@ -431,10 +432,7 @@ class LocationService : Service() {
       val elapsedRealtimeNanos = location.elapsedRealtimeNanos
       val provider = location.provider
       
-      // API 18+ field
-      val isFromMockProvider = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-        location.isFromMockProvider
-      } else null
+      val isFromMockProvider = location.isMockLocation()
       
       storage.saveLocation(
         tripId = tripId,
