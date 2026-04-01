@@ -285,17 +285,6 @@ class LocationStorage(context: Context) {
   }
 
   /**
-   * Gets tracking state synchronously - DEPRECATED, use getTrackingStateAsync
-   * Kept for backwards compatibility
-   */
-  @Deprecated("Use getTrackingStateAsync instead", ReplaceWith("getTrackingStateAsync()"))
-  fun getTrackingState(): TrackingState {
-    return runBlocking {
-      getTrackingStateAsync()
-    }
-  }
-
-  /**
    * Cleans up resources and flushes pending writes
    * Should be called when storage is no longer needed
    */

@@ -23,7 +23,7 @@ import CoreLocation
 
     private let locationManager: CLLocationManager
     private let storage: GeofenceStorage
-    private let broadcaster: GeofenceEventBroadcaster
+    private let emitter: GeofenceEventEmitter
     private let dwellTimer: DwellTimer
     private let queue = DispatchQueue(label: "com.backgroundlocation.geofencemanager", qos: .userInitiated)
 
@@ -37,7 +37,7 @@ import CoreLocation
             self.locationManager = DispatchQueue.main.sync { CLLocationManager() }
         }
         self.storage = GeofenceStorage.shared
-        self.broadcaster = GeofenceEventBroadcaster.shared
+        self.emitter = GeofenceEventEmitter.shared
         self.dwellTimer = DwellTimer()
         super.init()
 
@@ -591,8 +591,8 @@ import CoreLocation
             metadata: metadata
         )
 
-        // Broadcast to JS
-        broadcaster.broadcastTransition(
+        // Emit to JS
+        emitter.emitTransition(
             geofenceId: geofenceId,
             transitionType: transitionType,
             latitude: latitude,

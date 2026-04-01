@@ -7,11 +7,11 @@ import android.content.Intent
 /**
  * Manifest-registered BroadcastReceiver for notification action button clicks.
  * Receives PendingIntent broadcasts from notification actions and forwards
- * them via LocalBroadcastManager to BackgroundLocationModule.
+ * them via NotificationActionFlow to BackgroundLocationModule.
  *
  * Flow: Notification action click -> PendingIntent -> this receiver
- *       -> LocationEventBroadcaster.broadcastNotificationAction() (local)
- *       -> BackgroundLocationModule broadcast receiver -> JS event
+ *       -> NotificationActionFlow.emit() (SharedFlow)
+ *       -> BackgroundLocationModule collector -> JS event
  */
 class NotificationActionReceiver : BroadcastReceiver() {
 
@@ -23,7 +23,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
         android.util.Log.d("NotificationActionReceiver", "Action received: actionId=$actionId, tripId=$tripId")
 
-        LocationEventBroadcaster.broadcastNotificationAction(context, tripId, actionId)
+        NotificationActionFlow.emit(NotificationActionEvent.ActionClicked(tripId = tripId, actionId = actionId))
     }
 
     companion object {
