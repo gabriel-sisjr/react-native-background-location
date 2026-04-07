@@ -7,12 +7,29 @@ export {};
 // Track event listeners for testing
 const mockEventCallbacks: Record<string, (data: any) => void> = {};
 
+// Track AppState listeners for testing
+const mockAppStateListeners: Array<(state: string) => void> = [];
+const mockAppStateSubscriptions: Array<{ remove: jest.Mock }> = [];
+
 // Mock react-native modules
 jest.mock('react-native', () => ({
   Platform: {
     OS: 'android',
     Version: 30,
     select: jest.fn((obj) => obj.android || obj.default),
+  },
+  AppState: {
+    currentState: 'active',
+    addEventListener: jest.fn(
+      (event: string, handler: (state: string) => void) => {
+        if (event === 'change') {
+          mockAppStateListeners.push(handler);
+        }
+        const subscription = { remove: jest.fn() };
+        mockAppStateSubscriptions.push(subscription);
+        return subscription;
+      }
+    ),
   },
   PermissionsAndroid: {
     PERMISSIONS: {
@@ -88,6 +105,15 @@ jest.mock('react-native', () => ({
     callback(data);
   }
 };
+
+(global as any).simulateAppStateChange = (nextState: string) => {
+  for (const listener of mockAppStateListeners) {
+    listener(nextState);
+  }
+};
+
+(global as any).getAppStateSubscriptions = () => mockAppStateSubscriptions;
+(global as any).getAppStateListenerCount = () => mockAppStateListeners.length;
 
 // Store module availability state globally
 (global as any).__mockIsModuleAvailable = true;
@@ -171,6 +197,9 @@ beforeEach(() => {
   Object.keys(mockEventCallbacks).forEach((key) => {
     delete mockEventCallbacks[key];
   });
+  // Clear AppState listeners
+  mockAppStateListeners.length = 0;
+  mockAppStateSubscriptions.length = 0;
 });
 
 afterEach(() => {

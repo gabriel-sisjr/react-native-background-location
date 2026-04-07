@@ -194,4 +194,11 @@ export interface UseLocationUpdatesResult {
    * Clear all locations for current trip
    */
   clearLocations: () => Promise<void>;
+
+  /**
+   * Manually refresh locations from the database.
+   * Useful for on-demand sync after returning from background or pull-to-refresh scenarios.
+   * No-op if no tripId is currently set.
+   */
+  refreshLocations: () => Promise<void>;
 }
