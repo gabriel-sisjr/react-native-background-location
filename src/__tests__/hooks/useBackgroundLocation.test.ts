@@ -102,11 +102,13 @@ describe('useBackgroundLocation', () => {
       expect(result.current.isTracking).toBe(false);
     });
 
-    // NOTE: Simulator mode tests are skipped due to Jest module caching limitations
-    // The module availability detection works correctly in runtime, but cannot be
-    // reliably tested with Jest mocks due to require() caching
-    it.skip('should warn when module is not available on mount', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should warn when module is not available on mount', async () => {
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       renderHook(() => useBackgroundLocation());
 
@@ -115,6 +117,14 @@ describe('useBackgroundLocation', () => {
           expect.stringContaining('BackgroundLocation not available')
         );
       });
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.startTracking as jest.Mock) = jest.fn();
     });
   });
 
@@ -425,8 +435,13 @@ describe('useBackgroundLocation', () => {
       });
     });
 
-    it.skip('should use provided tripId in simulator mode', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should use provided tripId in simulator mode', async () => {
+      const originalStartTracking = BackgroundLocationModule.startTracking;
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const { result } = renderHook(() => useBackgroundLocation());
 
@@ -434,6 +449,14 @@ describe('useBackgroundLocation', () => {
         const returnedTripId = await result.current.startTracking(mockTripId);
         expect(returnedTripId).toBe(mockTripId);
       });
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'startTracking', {
+        value: originalStartTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.startTracking as jest.Mock) = jest.fn();
     });
 
     it('should handle errors during start tracking', async () => {

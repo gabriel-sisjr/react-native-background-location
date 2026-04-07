@@ -70,8 +70,13 @@ describe('useLocationUpdates', () => {
       expect(true).toBe(true);
     });
 
-    it.skip('should warn when module is not available', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should warn when module is not available', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       renderHook(() => useLocationUpdates());
 
@@ -80,6 +85,14 @@ describe('useLocationUpdates', () => {
           expect.stringContaining('BackgroundLocation not available')
         );
       });
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
 
     it('should check tracking status and load locations on mount when autoLoad=true', async () => {

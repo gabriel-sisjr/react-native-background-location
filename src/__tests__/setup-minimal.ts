@@ -115,12 +115,7 @@ jest.mock('react-native', () => ({
 (global as any).getAppStateSubscriptions = () => mockAppStateSubscriptions;
 (global as any).getAppStateListenerCount = () => mockAppStateListeners.length;
 
-// Store module availability state globally
-(global as any).__mockIsModuleAvailable = true;
-
 // Mock NativeBackgroundLocation with simplified static mocks
-// NOTE: Due to Jest's module caching, module availability tests are skipped.
-// The module is always available in tests, but behaves correctly in production.
 jest.mock('../NativeBackgroundLocation', () => {
   const mockFunctions = {
     startTracking: jest.fn((...args: any[]) => {
@@ -183,16 +178,9 @@ jest.mock('../NativeBackgroundLocation', () => {
   };
 });
 
-// Helper to simulate module not being available
-(global as any).setModuleAvailable = (available: boolean) => {
-  (global as any).__mockIsModuleAvailable = available;
-};
-
 beforeEach(() => {
   console.error = jest.fn();
   console.warn = jest.fn();
-  // Reset module to available state
-  (global as any).__mockIsModuleAvailable = true;
   // Clear event callbacks
   Object.keys(mockEventCallbacks).forEach((key) => {
     delete mockEventCallbacks[key];
