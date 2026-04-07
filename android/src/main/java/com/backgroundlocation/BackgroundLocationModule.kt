@@ -68,6 +68,14 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     // This prevents RecoveryWorker from starting SystemForegroundService when no tracking is active
     moduleScope.launch {
       try {
+        // Skip recovery entirely if the service is already running.
+        // This prevents duplicate onStartCommand() calls which would accumulate
+        // location callbacks in the provider.
+        if (LocationService.isRunning) {
+          android.util.Log.d("BackgroundLocationModule", "Service already running, skipping recovery")
+          return@launch
+        }
+
         // Check stop token first - if user explicitly stopped tracking, don't recover
         if (LocationService.isStopTokenSet(reactApplicationContext)) {
           android.util.Log.d("BackgroundLocationModule", "Stop token is set, skipping recovery")

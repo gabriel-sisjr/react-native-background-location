@@ -31,6 +31,14 @@ class FusedLocationProvider : LocationProvider {
         distanceFilter: Float,
         callback: LocationUpdateCallback
     ) {
+        // SAFETY NET: Remove any existing callback before registering a new one.
+        // Prevents duplicate callbacks if requestLocationUpdates() is called multiple times
+        // (e.g., when LocationService.onStartCommand() is re-invoked via recovery path).
+        if (locationCallback != null) {
+            android.util.Log.d("FusedLocationProvider", "Removing existing callback before re-registration")
+        }
+        removeLocationUpdates()
+
         this.updateCallback = callback
 
         val locationRequest = LocationRequest.Builder(priority, intervalMs)

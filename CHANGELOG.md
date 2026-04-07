@@ -2,43 +2,55 @@
 
 ## [0.13.0] - 2026-03-30
 
-> **Non-breaking change** -- the public TypeScript API is unchanged. This release is an internal Android refactor only.
+> **Non-breaking change** -- the public TypeScript API is unchanged. This release is an internal Android refactor and bug fix only.
 
 ### Changed
 
 - Migrated all Android event broadcasting from `LocalBroadcastManager` to Kotlin `SharedFlow` singletons. Location updates, geofence transitions, and notification actions now flow through type-safe `SharedFlow` channels instead of `Intent`-based broadcasts.
 - `BackgroundLocationModule.kt` collects events from SharedFlow singletons via coroutine Jobs scoped to `moduleScope` (Dispatchers.Main), replacing the former `BroadcastReceiver` registration/unregistration pattern.
-- `LocationEventBroadcaster.kt` emits location events (update, error, warning) via `LocationEventFlow` instead of `LocalBroadcastManager.sendBroadcast()`.
-- `GeofenceEventBroadcaster.kt` emits geofence transition events via `GeofenceEventFlow` instead of `LocalBroadcastManager.sendBroadcast()`.
-- `NotificationActionReceiver.kt` emits directly via `NotificationActionFlow` instead of routing through `LocationEventBroadcaster`.
+- Renamed "Broadcaster" to "Emitter" across the entire codebase (`LocationEventBroadcaster` -> `LocationEventEmitter`, `GeofenceEventBroadcaster` -> `GeofenceEventEmitter`) for consistency with the new SharedFlow-based architecture.
+- Clarified documentation references to system `BroadcastReceiver` (`NotificationActionReceiver`, `BootCompletedReceiver`) vs. the removed internal `LocalBroadcastManager` mechanism.
+- `LocationEventEmitter.kt` emits location events (update, error, warning) via `LocationEventFlow` instead of `LocalBroadcastManager.sendBroadcast()`.
+- `GeofenceEventEmitter.kt` emits geofence transition events via `GeofenceEventFlow` instead of `LocalBroadcastManager.sendBroadcast()`.
+- `NotificationActionReceiver.kt` emits directly via `NotificationActionFlow` instead of routing through `LocationEventEmitter`.
+- `useLocationUpdates` hook: replaced periodic `setInterval` DB polling with one-time mount hydration and automatic `AppState`-based re-hydration on foreground resume. Exposed `refreshLocations()` method for on-demand DB sync.
 
 ### Added
 
 - `LocationEventFlow.kt` -- `sealed interface LocationEvent` (Update, Error, Warning) + `LocationEventFlow` singleton with `MutableSharedFlow<LocationEvent>` (replay=0, buffer=64, DROP_OLDEST). Type-safe replacement for location broadcast intents.
 - `GeofenceEventFlow.kt` -- `sealed interface GeofenceEvent` (Transition) + `GeofenceEventFlow` singleton with `MutableSharedFlow<GeofenceEvent>`. Type-safe replacement for geofence broadcast intents.
-- `NotificationActionFlow.kt` -- `sealed interface NotificationActionEvent` (ActionClicked) + `NotificationActionFlow` singleton with `MutableSharedFlow<NotificationActionEvent>`. Decouples notification actions from `LocationEventBroadcaster` routing.
-- Test dependencies: `kotlinx-coroutines-test` and `turbine` for SharedFlow testing.
+- `NotificationActionFlow.kt` -- `sealed interface NotificationActionEvent` (ActionClicked) + `NotificationActionFlow` singleton with `MutableSharedFlow<NotificationActionEvent>`. Decouples notification actions from `LocationEventEmitter` routing.
+- `LocationExtensions.kt` shared utility extracting `isMockLocation()` extension function, replacing duplicated implementations across provider files.
+- Unit tests for all three SharedFlow singletons (`LocationEventFlow`, `GeofenceEventFlow`, `NotificationActionFlow`) with Turbine.
+- Unit tests for `RecoveryWorker` verifying the `isRunning` guard behavior.
+- Unit tests for `FusedLocationProvider` and `AndroidLocationProvider` verifying duplicate-callback prevention.
+- Test dependencies: `kotlinx-coroutines-test`, `turbine`, and `mockk` for SharedFlow and provider testing.
 
 ### Removed
 
 - `androidx.localbroadcastmanager:localbroadcastmanager:1.1.0` dependency from `android/build.gradle`.
-- `LocationEventBroadcaster.createIntentFilter()` method and `@Deprecated` annotation.
-- `LocationEventBroadcaster` `ACTION_*` constants: `ACTION_LOCATION_UPDATE`, `ACTION_LOCATION_ERROR`, `ACTION_LOCATION_WARNING`, `ACTION_NOTIFICATION_ACTION`.
-- `LocationEventBroadcaster` `EXTRA_*` constants: `EXTRA_TRIP_ID`, `EXTRA_LOCATION_DATA`, `EXTRA_ERROR_TYPE`, `EXTRA_ERROR_MESSAGE`, `EXTRA_ACTION_ID`.
-- `LocationEventBroadcaster` `import android.content.IntentFilter`.
-- `GeofenceEventBroadcaster.createIntentFilter()` method and `@Deprecated` annotation.
-- `GeofenceEventBroadcaster.intentToWritableMap()` method (dead code, zero callers after SharedFlow migration).
-- `GeofenceEventBroadcaster` `ACTION_GEOFENCE_TRANSITION` constant.
-- `GeofenceEventBroadcaster` all `EXTRA_*` constants (7 total).
-- `GeofenceEventBroadcaster` `isoFormatter` property.
-- `GeofenceEventBroadcaster` 9 orphaned imports (`IntentFilter`, `Intent`, `Bundle`, `WritableNativeMap`, `Arguments`, `SimpleDateFormat`, `Locale`, `TimeZone`, `Date`).
+- `LocationEventEmitter.createIntentFilter()` method and `@Deprecated` annotation.
+- `LocationEventEmitter` `ACTION_*` constants: `ACTION_LOCATION_UPDATE`, `ACTION_LOCATION_ERROR`, `ACTION_LOCATION_WARNING`, `ACTION_NOTIFICATION_ACTION`.
+- `LocationEventEmitter` `EXTRA_*` constants: `EXTRA_TRIP_ID`, `EXTRA_LOCATION_DATA`, `EXTRA_ERROR_TYPE`, `EXTRA_ERROR_MESSAGE`, `EXTRA_ACTION_ID`.
+- `LocationEventEmitter` `import android.content.IntentFilter`.
+- `GeofenceEventEmitter.createIntentFilter()` method and `@Deprecated` annotation.
+- `GeofenceEventEmitter.intentToWritableMap()` method (dead code, zero callers after SharedFlow migration).
+- `GeofenceEventEmitter` `ACTION_GEOFENCE_TRANSITION` constant.
+- `GeofenceEventEmitter` all `EXTRA_*` constants (7 total).
+- `GeofenceEventEmitter` `isoFormatter` property.
+- `GeofenceEventEmitter` 9 orphaned imports (`IntentFilter`, `Intent`, `Bundle`, `WritableNativeMap`, `Arguments`, `SimpleDateFormat`, `Locale`, `TimeZone`, `Date`).
+- Deprecated synchronous `getTrackingState()` dead code.
 - Stale "broadcast" terminology in `LocationService.kt` (7 locations), `BackgroundLocationModule.kt` (1 location), `GeofenceManager.kt` (1 location) -- updated to "emit"/"event".
+- Interval-based DB polling logic and its associated timer cleanup from `useLocationUpdates`.
 
 ### Fixed
 
-- Kotlin compiler deprecation warning for `Location.isFromMockProvider` in `LocationService.kt` and `LocationEventBroadcaster.kt`. Both files now use a private `Location.isMockLocation()` extension function that calls `Location.isMock` on API 31+ and falls back to the deprecated property on API 24-30.
+- **(Android)** Duplicate location events delivered to JavaScript when `LocationService.onStartCommand()` was called multiple times via recovery paths. Each location update now produces exactly one event. This was a pre-existing bug masked by the old polling mechanism, not a regression. iOS is not affected.
+- **(Android)** `FusedLocationProvider` and `AndroidLocationProvider` now call `removeLocationUpdates()` before registering new callbacks/listeners in `requestLocationUpdates()`, preventing callback accumulation (provider-level deduplication).
+- **(Android)** `BackgroundLocationModule.onHostResume()` and `RecoveryWorker.doWork()` now check `LocationService.isRunning` before triggering recovery, preventing redundant `onStartCommand()` calls (caller-level guards).
+- Kotlin compiler deprecation warning for `Location.isFromMockProvider` in `LocationService.kt` and `LocationEventEmitter.kt`. Both files now use `LocationExtensions.isMockLocation()` which calls `Location.isMock` on API 31+ and falls back to the deprecated property on API 24-30.
 - Kotlin compiler deprecation warning for synchronous `storage.getTrackingState()` in `LocationService.onStartCommand()`. Replaced with `runBlocking { storage.getTrackingStateAsync() }` -- safe because this code path only executes on system-initiated service restarts (rare recovery scenario).
-- Removed dead `JELLY_BEAN_MR2` API level guard in `LocationEventBroadcaster.locationToBundle()` (library minSdk is 24, making the guard always true).
+- Removed dead `JELLY_BEAN_MR2` API level guard in `LocationEventEmitter.locationToBundle()` (library minSdk is 24, making the guard always true).
 
 ## [0.12.0] - 2026-03-28
 
@@ -1008,6 +1020,7 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - No event emitters for real-time location updates
 - Storage limited to SharedPreferences (consider SQLite for large datasets)
 
+[0.13.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.13.0
 [0.12.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.12.0
 [0.11.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.11.0
 [0.10.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.10.0
