@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { NativeEventEmitter } from 'react-native';
+import { NativeEventEmitter, AppState } from 'react-native';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type {
   UseLocationUpdatesOptions,
@@ -86,6 +86,8 @@ export function useLocationUpdates(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const wasClearedRef = useRef(false);
+  const hasHydratedRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
   const lastCallbackTimeRef = useRef<number>(0);
 
   const onLocationUpdateRef = useRef(onLocationUpdate);
@@ -174,6 +176,19 @@ export function useLocationUpdates(
   );
 
   /**
+   * Manually refresh locations from the database.
+   * Resets the wasClearedRef flag to allow future re-hydrations.
+   * No-op if no tripId is currently set.
+   */
+  const refreshLocations = useCallback(async (): Promise<void> => {
+    if (!tripId) {
+      return;
+    }
+    wasClearedRef.current = false;
+    await loadExistingLocations(tripId);
+  }, [tripId, loadExistingLocations]);
+
+  /**
    * Check tracking status and setup initial state
    */
   useEffect(() => {
@@ -199,14 +214,12 @@ export function useLocationUpdates(
             prev === effectiveTripId ? prev : effectiveTripId
           );
 
-          // Load existing locations if autoLoad is enabled and wasn't recently cleared
-          if (autoLoad && !wasClearedRef.current) {
+          // Load existing locations only on initial hydration (mount)
+          // Subsequent status checks (interval) skip DB reads to avoid overwriting
+          // real-time NativeEventEmitter data with stale batched-write DB content
+          if (!hasHydratedRef.current && autoLoad && !wasClearedRef.current) {
             await loadExistingLocations(effectiveTripId);
-          } else if (wasClearedRef.current) {
-            // Reset the cleared flag after a delay to allow reloading on next check
-            setTimeout(() => {
-              wasClearedRef.current = false;
-            }, 2000);
+            hasHydratedRef.current = true;
           }
         }
       } catch (err) {
@@ -358,6 +371,32 @@ export function useLocationUpdates(
     }
   }, [providedTripId, tripId, autoLoad, loadExistingLocations]);
 
+  /**
+   * Re-hydrate locations from DB when app returns to foreground.
+   * Covers the rare scenario where the JS thread was destroyed (Activity/process killed)
+   * and state was lost. This is a one-shot operation, not periodic polling.
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextAppState;
+
+      if (
+        nextAppState === 'active' &&
+        (previousState === 'background' || previousState === 'inactive') &&
+        tripId &&
+        autoLoad &&
+        !wasClearedRef.current
+      ) {
+        loadExistingLocations(tripId);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [tripId, autoLoad, loadExistingLocations]);
+
   return useMemo(
     () => ({
       tripId,
@@ -369,6 +408,7 @@ export function useLocationUpdates(
       error,
       clearError,
       clearLocations,
+      refreshLocations,
     }),
     [
       tripId,
@@ -380,6 +420,7 @@ export function useLocationUpdates(
       error,
       clearError,
       clearLocations,
+      refreshLocations,
     ]
   );
 }

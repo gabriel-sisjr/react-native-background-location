@@ -14,7 +14,7 @@ Side-by-side comparison of how `@gabriel-sisjr/react-native-background-location`
 | User-visible indicator       | Persistent notification (fully customizable)  | Blue status bar / Dynamic Island pill (not customizable) |
 | Distance filter              | Supported                                     | Supported                                                |
 | Foreground-only mode         | Supported                                     | Supported                                                |
-| Real-time JS events          | NativeEventEmitter via LocalBroadcastManager  | NativeEventEmitter via closure callbacks                 |
+| Real-time JS events          | NativeEventEmitter via SharedFlow singletons  | NativeEventEmitter via closure callbacks                 |
 
 ## Location Tracking
 

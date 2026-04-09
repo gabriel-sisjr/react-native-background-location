@@ -21,6 +21,7 @@ import com.backgroundlocation.provider.LocationProviderFactory
 import com.backgroundlocation.provider.LocationUpdateCallback
 import com.backgroundlocation.processor.LocationProcessor
 import com.backgroundlocation.processor.DefaultLocationProcessor
+import kotlinx.coroutines.runBlocking
 
 /**
  * Foreground service that handles background location tracking
@@ -34,7 +35,7 @@ class LocationService : Service() {
   private var currentTripId: String? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
 
-  // Flag to prevent location broadcasts after stop is requested
+  // Flag to prevent location events after stop is requested
   @Volatile
   private var isStopRequested: Boolean = false
 
@@ -92,7 +93,7 @@ class LocationService : Service() {
     } else {
       // If intent is null (service restarted by system), try to recover from storage
       if (intent == null) {
-        val trackingState = storage.getTrackingState()
+        val trackingState = runBlocking { storage.getTrackingStateAsync() }
         if (trackingState.isActive && trackingState.tripId != null) {
           tripId = trackingState.tripId
           trackingState.options?.let { trackingOptions = it }
@@ -236,16 +237,15 @@ class LocationService : Service() {
   }
 
   /**
-   * Emits a warning event using broadcaster
+   * Emits a warning event via SharedFlow
    */
   private fun emitServiceWarning(tripId: String, warningType: String, message: String) {
-    LocationEventBroadcaster.broadcastWarning(
-      this,
+    LocationEventEmitter.emitWarning(
       tripId,
       warningType,
       message
     )
-    android.util.Log.d("LocationService", "Warning event broadcast sent: $warningType")
+    android.util.Log.d("LocationService", "Warning event emitted: $warningType")
   }
 
   @SuppressLint("MissingPermission")
@@ -311,8 +311,7 @@ class LocationService : Service() {
 
           override fun onError(error: Exception) {
             android.util.Log.e("LocationService", "Location provider error", error)
-            LocationEventBroadcaster.broadcastError(
-              this@LocationService,
+            LocationEventEmitter.emitError(
               currentTripId,
               "PROVIDER_ERROR",
               error.message ?: "Unknown location provider error"
@@ -373,13 +372,12 @@ class LocationService : Service() {
    * Emits error event when permissions are revoked during tracking
    */
   private fun emitPermissionRevokedError() {
-    LocationEventBroadcaster.broadcastError(
-      this,
+    LocationEventEmitter.emitError(
       currentTripId,
       "PERMISSION_REVOKED",
       "Location permission was revoked. Tracking stopped."
     )
-    android.util.Log.d("LocationService", "Permission revoked error broadcast sent")
+    android.util.Log.d("LocationService", "Permission revoked error emitted")
   }
 
   /**
@@ -394,7 +392,7 @@ class LocationService : Service() {
   }
 
   private fun handleLocation(location: Location) {
-    // CRITICAL: Check if stop was requested - prevent location broadcasts after stopTracking()
+    // CRITICAL: Check if stop was requested - prevent location events after stopTracking()
     if (isStopRequested) {
       android.util.Log.d("LocationService", "Stop requested - ignoring location update")
       return
@@ -434,10 +432,7 @@ class LocationService : Service() {
       val elapsedRealtimeNanos = location.elapsedRealtimeNanos
       val provider = location.provider
       
-      // API 18+ field
-      val isFromMockProvider = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-        location.isFromMockProvider
-      } else null
+      val isFromMockProvider = location.isMockLocation()
       
       storage.saveLocation(
         tripId = tripId,
@@ -462,12 +457,12 @@ class LocationService : Service() {
   }
   
   /**
-   * Sends a location update event using broadcaster
+   * Sends a location update event via SharedFlow
    */
   private fun sendLocationUpdateEvent(tripId: String, location: Location) {
-    val locationBundle = LocationEventBroadcaster.locationToBundle(location)
-    LocationEventBroadcaster.broadcastLocationUpdate(this, tripId, locationBundle)
-    android.util.Log.d("LocationService", "Location broadcast sent for tripId: $tripId")
+    val locationBundle = LocationEventEmitter.locationToBundle(location)
+    LocationEventEmitter.emitLocationUpdate(tripId, locationBundle)
+    android.util.Log.d("LocationService", "Location event emitted for tripId: $tripId")
   }
   
 

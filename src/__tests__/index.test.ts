@@ -76,8 +76,13 @@ describe('BackgroundLocation API', () => {
       );
     });
 
-    it.skip('should handle simulator mode gracefully', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should handle simulator mode gracefully', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const result = await BackgroundLocation.startTracking();
 
@@ -85,15 +90,36 @@ describe('BackgroundLocation API', () => {
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining('BackgroundLocation not available')
       );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
 
-    it.skip('should use provided trip ID in simulator mode', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should use provided trip ID in simulator mode', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const result = await BackgroundLocation.startTracking(mockTripId);
 
       expect(result).toBe(mockTripId);
       expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
 
     it('should handle empty string trip ID', async () => {
@@ -869,15 +895,27 @@ describe('BackgroundLocation API', () => {
       expect(result).toBe(mockTripId);
     });
 
-    // NOTE: Module availability tests are skipped due to Jest module caching limitations
-    it.skip('should handle iOS platform (not available)', async () => {
+    it('should handle iOS platform (not available)', async () => {
       Platform.OS = 'ios';
-      (global as any).setModuleAvailable(false);
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const result = await BackgroundLocation.startTracking();
 
       expect(result).toMatch(/^simulator-trip-\d+$/);
       expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
   });
 

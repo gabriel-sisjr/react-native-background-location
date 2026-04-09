@@ -31,12 +31,15 @@ LocationProvider  LocationStorage  CLLocationMgr  LocationStorage.swift
 (Fused/Android)  (Room DB)        Delegate        (Core Data)
   |              |                 |              |
   v              v                 v              v
-LocationEventBroadcaster        RCTEventEmitter (direct)
+LocationEventEmitter            RCTEventEmitter (direct)
   |                               |
   v                               v
-LocalBroadcastManager           RCTDeviceEventEmitter
-  |                               |
-  v                               v
+SharedFlow singletons           RCTDeviceEventEmitter
+(LocationEventFlow,               |
+ GeofenceEventFlow,               v
+ NotificationActionFlow)        NativeEventEmitter -- JS subscription
+  |
+  v
 BackgroundLocationModule.kt     NativeEventEmitter -- JS subscription
   |
   v
@@ -106,7 +109,7 @@ All Kotlin sources live under `android/src/main/java/com/backgroundlocation/`.
 
 - Parses `ReadableMap` options into native `TrackingOptions` data class
 - Manages `LifecycleEventListener` for host resume/pause/destroy
-- Registers `LocalBroadcastManager` receiver for four event actions
+- Collects events from `SharedFlow` singletons (`LocationEventFlow`, `GeofenceEventFlow`, `NotificationActionFlow`) via coroutine Jobs scoped to `moduleScope`
 - Forwards native events to JS via `RCTDeviceEventEmitter`
 - On resume: checks stop token and tracking state, then schedules `RecoveryWorker` (API 31+) or recovers directly (older APIs)
 - Stop sequence: set stop token, cancel recovery work, stop location updates on active instance, save state synchronously, stop service
@@ -137,16 +140,15 @@ All Kotlin sources live under `android/src/main/java/com/backgroundlocation/`.
 - Coroutine scope: `SupervisorJob() + Dispatchers.IO`
 - `cleanup()` cancels batch timer, flushes pending writes, cancels scope
 
-### Event Broadcasting
+### Event Emission
 
-**`LocationEventBroadcaster.kt`** -- Singleton object decoupling `LocationService` from `BackgroundLocationModule` via `LocalBroadcastManager`. Handles four broadcast actions:
+**`LocationEventEmitter.kt`** -- Singleton object decoupling `LocationService` from `BackgroundLocationModule` via `LocationEventFlow` (SharedFlow). Emits three event types via `LocationEvent` sealed interface variants:
 
-- `LOCATION_UPDATE` -- carries tripId + location data Bundle
-- `LOCATION_ERROR` -- carries tripId + error type + message
-- `LOCATION_WARNING` -- carries tripId + warning type + message
-- `NOTIFICATION_ACTION` -- carries tripId + actionId
+- `LocationEvent.Update` -- carries tripId + location data Bundle
+- `LocationEvent.Error` -- carries tripId + error type + message
+- `LocationEvent.Warning` -- carries tripId + warning type + message
 
-Provides `locationToBundle()` and `bundleToWritableMap()` converters. Includes all extended location fields (accuracy, altitude, speed, bearing, vertical accuracy, speed accuracy, bearing accuracy, elapsed realtime nanos, provider, mock indicator).
+Provides `emitLocationUpdate()`, `emitError()`, `emitWarning()` emission methods and `locationToBundle()`, `bundleToWritableMap()` utility methods. Includes all extended location fields (accuracy, altitude, speed, bearing, vertical accuracy, speed accuracy, bearing accuracy, elapsed realtime nanos, provider, mock indicator).
 
 ### Crash Recovery
 
@@ -170,7 +172,7 @@ Values are cached after first resolution.
 
 ### Notification Actions
 
-**`NotificationActionReceiver.kt`** -- Manifest-registered `BroadcastReceiver` for notification button clicks. Receives `PendingIntent` broadcasts and forwards them to `LocationEventBroadcaster.broadcastNotificationAction()`, which delivers to `BackgroundLocationModule` via `LocalBroadcastManager`, which emits to JS.
+**`NotificationActionReceiver.kt`** -- Manifest-registered `BroadcastReceiver` for notification button clicks. Receives `PendingIntent` broadcasts and emits directly via `NotificationActionFlow` (SharedFlow), which `BackgroundLocationModule` collects and forwards to JS.
 
 ### Provider Pattern (`provider/`)
 

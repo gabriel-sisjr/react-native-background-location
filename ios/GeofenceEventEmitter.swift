@@ -2,9 +2,9 @@ import Foundation
 
 /// Handles emission of geofence transition events to React Native JS layer
 /// Uses a closure-based pattern consistent with LocationManagerWrapper.onLocationUpdate
-@objc public class GeofenceEventBroadcaster: NSObject {
+@objc public class GeofenceEventEmitter: NSObject {
 
-    @objc public static let shared = GeofenceEventBroadcaster()
+    @objc public static let shared = GeofenceEventEmitter()
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
@@ -19,7 +19,7 @@ import Foundation
         super.init()
     }
 
-    /// Broadcasts a geofence transition event to the JS layer
+    /// Emits a geofence transition event to the JS layer
     /// - Parameters:
     ///   - geofenceId: Identifier of the geofence that triggered the event
     ///   - transitionType: Type of transition ("ENTER", "EXIT", "DWELL")
@@ -28,7 +28,7 @@ import Foundation
     ///   - timestamp: Timestamp of the transition
     ///   - distanceFromCenter: Distance from the center of the geofence in meters
     ///   - metadata: Optional JSON string with geofence metadata
-    @objc public func broadcastTransition(
+    @objc public func emitTransition(
         geofenceId: String,
         transitionType: String,
         latitude: Double,
@@ -42,7 +42,7 @@ import Foundation
             "transitionType": transitionType,
             "latitude": latitude,
             "longitude": longitude,
-            "timestamp": GeofenceEventBroadcaster.isoFormatter.string(from: timestamp),
+            "timestamp": GeofenceEventEmitter.isoFormatter.string(from: timestamp),
             "distanceFromCenter": distanceFromCenter,
         ]
 
@@ -55,6 +55,6 @@ import Foundation
 
         onGeofenceTransition?(eventData)
 
-        NSLog("[BackgroundLocation] Geofence transition broadcast: \(transitionType) for '\(geofenceId)'")
+        NSLog("[BackgroundLocation] Geofence transition emitted: \(transitionType) for '\(geofenceId)'")
     }
 }

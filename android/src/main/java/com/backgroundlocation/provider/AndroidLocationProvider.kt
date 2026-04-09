@@ -33,6 +33,13 @@ class AndroidLocationProvider : LocationProvider {
         distanceFilter: Float,
         callback: LocationUpdateCallback
     ) {
+        // SAFETY NET: Remove any existing listener before registering a new one.
+        // Mirrors FusedLocationProvider safety net for provider-level deduplication.
+        if (locationListener != null) {
+            android.util.Log.d("AndroidLocationProvider", "Removing existing listener before re-registration")
+        }
+        removeLocationUpdates()
+
         this.updateCallback = callback
 
         val provider = when (priority) {

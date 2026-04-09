@@ -20,6 +20,13 @@ class RecoveryWorker(
 ) : CoroutineWorker(context, workerParams) {
 
   override suspend fun doWork(): Result {
+    // Skip recovery if the service is already running.
+    // Avoids duplicate onStartCommand() which would accumulate location callbacks.
+    if (LocationService.isRunning) {
+      android.util.Log.d(TAG, "Service already running, skipping recovery")
+      return Result.success()
+    }
+
     val storage = LocationStorage(applicationContext)
 
     return try {

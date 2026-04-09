@@ -1,95 +1,40 @@
 package com.backgroundlocation
 
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.location.Location
 import android.os.Build
 import android.os.Bundle
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
-import com.facebook.react.modules.core.DeviceEventManagerModule
 
 /**
  * Handles communication between LocationService and React Native module
- * Uses LocalBroadcastManager to decouple lifecycle dependencies
+ * Emits events via SharedFlow (LocationEventFlow) to decouple lifecycle dependencies
  */
-object LocationEventBroadcaster {
-
-    const val ACTION_LOCATION_UPDATE = "com.backgroundlocation.LOCATION_UPDATE"
-    const val ACTION_LOCATION_ERROR = "com.backgroundlocation.LOCATION_ERROR"
-    const val ACTION_LOCATION_WARNING = "com.backgroundlocation.LOCATION_WARNING"
-    const val ACTION_NOTIFICATION_ACTION = "com.backgroundlocation.NOTIFICATION_ACTION"
-
-    const val EXTRA_TRIP_ID = "tripId"
-    const val EXTRA_LOCATION_DATA = "locationData"
-    const val EXTRA_ERROR_TYPE = "errorType"
-    const val EXTRA_ERROR_MESSAGE = "errorMessage"
-    const val EXTRA_ACTION_ID = "actionId"
+object LocationEventEmitter {
 
     /**
-     * Broadcasts a location update from the service
+     * Emits a location update event via SharedFlow
      */
-    fun broadcastLocationUpdate(context: Context, tripId: String, locationData: Bundle) {
-        val intent = Intent(ACTION_LOCATION_UPDATE).apply {
-            putExtra(EXTRA_TRIP_ID, tripId)
-            putExtra(EXTRA_LOCATION_DATA, locationData)
-        }
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+    fun emitLocationUpdate(tripId: String, locationData: Bundle) {
+        LocationEventFlow.emit(LocationEvent.Update(tripId = tripId, locationData = locationData))
     }
 
     /**
-     * Broadcasts an error from the service
+     * Emits an error event via SharedFlow
      */
-    fun broadcastError(context: Context, tripId: String?, errorType: String, message: String) {
-        val intent = Intent(ACTION_LOCATION_ERROR).apply {
-            putExtra(EXTRA_TRIP_ID, tripId)
-            putExtra(EXTRA_ERROR_TYPE, errorType)
-            putExtra(EXTRA_ERROR_MESSAGE, message)
-        }
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+    fun emitError(tripId: String?, errorType: String, message: String) {
+        LocationEventFlow.emit(LocationEvent.Error(tripId = tripId, errorType = errorType, message = message))
     }
 
     /**
-     * Broadcasts a warning from the service
+     * Emits a warning event via SharedFlow
      */
-    fun broadcastWarning(context: Context, tripId: String?, warningType: String, message: String) {
-        val intent = Intent(ACTION_LOCATION_WARNING).apply {
-            putExtra(EXTRA_TRIP_ID, tripId)
-            putExtra(EXTRA_ERROR_TYPE, warningType)
-            putExtra(EXTRA_ERROR_MESSAGE, message)
-        }
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+    fun emitWarning(tripId: String?, warningType: String, message: String) {
+        LocationEventFlow.emit(LocationEvent.Warning(tripId = tripId, warningType = warningType, message = message))
     }
 
     /**
-     * Broadcasts a notification action event from the service
-     */
-    fun broadcastNotificationAction(context: Context, tripId: String, actionId: String) {
-        val intent = Intent(ACTION_NOTIFICATION_ACTION).apply {
-            putExtra(EXTRA_TRIP_ID, tripId)
-            putExtra(EXTRA_ACTION_ID, actionId)
-        }
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
-    }
-
-    /**
-     * Creates an IntentFilter for all location events
-     */
-    fun createIntentFilter(): IntentFilter {
-        return IntentFilter().apply {
-            addAction(ACTION_LOCATION_UPDATE)
-            addAction(ACTION_LOCATION_ERROR)
-            addAction(ACTION_LOCATION_WARNING)
-            addAction(ACTION_NOTIFICATION_ACTION)
-        }
-    }
-
-    /**
-     * Converts Location to Bundle for broadcasting
+     * Converts Location to Bundle for event emission
      */
     fun locationToBundle(location: Location): Bundle {
         return Bundle().apply {
@@ -112,10 +57,7 @@ object LocationEventBroadcaster {
                 if (!bearingAccuracy.isNaN()) putFloat("bearingAccuracyDegrees", bearingAccuracy)
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                @Suppress("DEPRECATION")
-                putBoolean("isFromMockProvider", location.isFromMockProvider)
-            }
+            putBoolean("isFromMockProvider", location.isMockLocation())
         }
     }
 
