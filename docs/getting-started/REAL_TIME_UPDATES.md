@@ -504,6 +504,11 @@ The `locations` array grows unbounded. For long tracking sessions, implement cle
 ### Strategy: Periodic Upload and Clear
 
 ```typescript
+import {
+  getLocations,
+  useLocationUpdates,
+} from '@gabriel-sisjr/react-native-background-location';
+
 const BATCH_SIZE = 100;
 
 function TrackingWithUpload() {
@@ -511,7 +516,7 @@ function TrackingWithUpload() {
     onLocationUpdate: async () => {
       if (!tripId) return;
 
-      const locations = await BackgroundLocation.getLocations(tripId);
+      const locations = await getLocations(tripId);
 
       if (locations.length >= BATCH_SIZE) {
         try {

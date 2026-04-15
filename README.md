@@ -145,6 +145,31 @@ See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation,
 
 ## API Reference
 
+> ⚠️ **Breaking change (v0.14.0):** The default export `BackgroundLocation` has been removed. All tracking and geofencing methods are now top-level **named exports**. See [Migration from default export](#migration-from-default-export) below.
+
+### Migration from default export
+
+The legacy default-import pattern no longer works. Replace every `BackgroundLocation.<method>` call with a direct named import.
+
+```typescript
+// Before
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+
+await BackgroundLocation.startTracking('trip-123');
+await BackgroundLocation.updateNotification('Delivery #1234', 'Arriving soon');
+
+// After
+import {
+  startTracking,
+  updateNotification,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking('trip-123');
+await updateNotification('Delivery #1234', 'Arriving soon');
+```
+
+Affected symbols: `startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`, plus all geofencing functions (`addGeofence`, `addGeofences`, `removeGeofence`, `removeGeofences`, `removeAllGeofences`, `getActiveGeofences`, `getMaxGeofences`, `getGeofenceTransitions`, `clearGeofenceTransitions`, `configureGeofenceNotifications`, `getGeofenceNotificationConfig`). All were previously accessed via the default export.
+
 ### Methods
 
 | Method               | Signature                                                         | Description                                          |
@@ -451,10 +476,9 @@ Alternatively, place a drawable named `bg_location_notification_icon` in `res/dr
 **Dynamic updates** allow changing notification text while tracking is active:
 
 ```typescript
-await BackgroundLocation.updateNotification(
-  'Delivery #1234',
-  'Arriving in 5 minutes'
-);
+import { updateNotification } from '@gabriel-sisjr/react-native-background-location';
+
+await updateNotification('Delivery #1234', 'Arriving in 5 minutes');
 ```
 
 **Action buttons** (max 3) can be added via `notificationOptions.actions` and handled through the `onNotificationAction` callback in `useLocationUpdates`.

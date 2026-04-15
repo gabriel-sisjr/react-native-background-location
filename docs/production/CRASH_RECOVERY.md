@@ -157,7 +157,7 @@ To prevent excessive recovery attempts (which would drain battery), the iOS `Rec
 
 ```typescript
 import { useEffect, useState } from 'react';
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+import { isTracking } from '@gabriel-sisjr/react-native-background-location';
 
 function App() {
   const [sessionState, setSessionState] = useState<{
@@ -169,7 +169,7 @@ function App() {
   useEffect(() => {
     const recoverSession = async () => {
       try {
-        const status = await BackgroundLocation.isTracking();
+        const status = await isTracking();
 
         setSessionState({
           isRecovered: true,
@@ -204,18 +204,23 @@ function App() {
 ```typescript
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+import {
+  isTracking,
+  startTracking,
+  getLocations,
+  clearTrip,
+} from '@gabriel-sisjr/react-native-background-location';
 
 function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const handleRecovery = async () => {
-      const status = await BackgroundLocation.isTracking();
+      const status = await isTracking();
 
       if (status.tripId && !status.active) {
         // Orphaned trip found - ask user what to do
-        const locations = await BackgroundLocation.getLocations(status.tripId);
+        const locations = await getLocations(status.tripId);
 
         Alert.alert(
           'Previous Trip Found',
@@ -224,7 +229,7 @@ function App() {
             {
               text: 'Resume Tracking',
               onPress: async () => {
-                await BackgroundLocation.startTracking(status.tripId);
+                await startTracking(status.tripId);
                 setReady(true);
               },
             },
@@ -232,7 +237,7 @@ function App() {
               text: 'Upload & Clear',
               onPress: async () => {
                 await uploadLocations(status.tripId!, locations);
-                await BackgroundLocation.clearTrip(status.tripId!);
+                await clearTrip(status.tripId!);
                 setReady(true);
               },
             },
@@ -240,7 +245,7 @@ function App() {
               text: 'Discard',
               style: 'destructive',
               onPress: async () => {
-                await BackgroundLocation.clearTrip(status.tripId!);
+                await clearTrip(status.tripId!);
                 setReady(true);
               },
             },
@@ -297,12 +302,18 @@ For robust recovery, persist the tripId in your app's storage:
 
 ```typescript
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  startTracking,
+  stopTracking,
+  isTracking,
+  getLocations,
+} from '@gabriel-sisjr/react-native-background-location';
 
 const TRIP_ID_KEY = '@current_trip_id';
 
 // When starting a trip
 const startTrip = async () => {
-  const tripId = await BackgroundLocation.startTracking();
+  const tripId = await startTracking();
   await AsyncStorage.setItem(TRIP_ID_KEY, tripId);
   return tripId;
 };
@@ -310,11 +321,11 @@ const startTrip = async () => {
 // On app startup
 const recoverTrip = async () => {
   const savedTripId = await AsyncStorage.getItem(TRIP_ID_KEY);
-  const status = await BackgroundLocation.isTracking();
+  const status = await isTracking();
 
   if (savedTripId && !status.active) {
     // We have a saved tripId but tracking stopped
-    const locations = await BackgroundLocation.getLocations(savedTripId);
+    const locations = await getLocations(savedTripId);
     return { tripId: savedTripId, locations, needsRecovery: true };
   }
 
@@ -323,7 +334,7 @@ const recoverTrip = async () => {
 
 // When ending a trip
 const endTrip = async () => {
-  await BackgroundLocation.stopTracking();
+  await stopTracking();
   await AsyncStorage.removeItem(TRIP_ID_KEY);
 };
 ```
@@ -369,9 +380,11 @@ function TrackingWithRecovery() {
 ### 1. Always Check on Startup
 
 ```typescript
+import { isTracking } from '@gabriel-sisjr/react-native-background-location';
+
 // In your App.tsx or root component
 useEffect(() => {
-  BackgroundLocation.isTracking().then((status) => {
+  isTracking().then((status) => {
     if (status.active) {
       // Sync your UI state
     }
@@ -382,32 +395,43 @@ useEffect(() => {
 ### 2. Don't Generate New TripIds Unnecessarily
 
 ```typescript
+import {
+  isTracking,
+  startTracking,
+} from '@gabriel-sisjr/react-native-background-location';
+
 // ❌ Bad: Always generates new tripId
-const tripId = await BackgroundLocation.startTracking();
+const tripId = await startTracking();
 
 // ✅ Good: Resume existing or start new
-const status = await BackgroundLocation.isTracking();
+const status = await isTracking();
 const tripId = status.tripId
-  ? await BackgroundLocation.startTracking(status.tripId)
-  : await BackgroundLocation.startTracking();
+  ? await startTracking(status.tripId)
+  : await startTracking();
 ```
 
 ### 3. Handle Orphaned Data
 
 ```typescript
+import {
+  isTracking,
+  getLocations,
+  clearTrip,
+} from '@gabriel-sisjr/react-native-background-location';
+
 // On app startup, before showing main UI
 const cleanupOrphanedData = async () => {
-  const status = await BackgroundLocation.isTracking();
+  const status = await isTracking();
 
   if (status.tripId && !status.active) {
-    const locations = await BackgroundLocation.getLocations(status.tripId);
+    const locations = await getLocations(status.tripId);
 
     if (locations.length > 0) {
       // Upload before clearing
       await uploadToServer(status.tripId, locations);
     }
 
-    await BackgroundLocation.clearTrip(status.tripId);
+    await clearTrip(status.tripId);
   }
 };
 ```

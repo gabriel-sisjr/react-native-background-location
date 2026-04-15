@@ -127,23 +127,9 @@ iOS uses a three-step permission flow:
 
 The library handles this flow automatically. The `requestPermissions()` hook executes all three steps in sequence. Notification permission denial is **non-blocking** -- it does not prevent location tracking or geofence detection. Only visual notifications (geofence alerts) are affected.
 
-### Using the Low-Level API
-
-```typescript
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
-
-// Request full background location permission (WhenInUse -> Always)
-const result = await BackgroundLocation.requestLocationPermission(false);
-// result.status: 'granted' | 'whenInUse' | 'denied' | 'blocked' | 'undetermined'
-
-// Request only foreground (When In Use) permission
-const foregroundResult =
-  await BackgroundLocation.requestLocationPermission(true);
-```
-
 ### Using the Hook (Recommended)
 
-The `useLocationPermissions` hook handles the full three-step flow including WhenInUse-to-Always escalation and notification permission on iOS. Permission state is granular, separating location and notification into independent sub-objects:
+The library does not expose a direct `requestLocationPermission` function from the public API -- all iOS permission flows go through the `useLocationPermissions` hook, which internally calls the TurboModule method. The hook handles the full three-step flow including WhenInUse-to-Always escalation and notification permission on iOS. Permission state is granular, separating location and notification into independent sub-objects:
 
 ```typescript
 import { useLocationPermissions } from '@gabriel-sisjr/react-native-background-location';
@@ -245,11 +231,12 @@ NotificationPermissionStatus.UNDETERMINED; // 'undetermined'
 ## Step 7: Start Tracking
 
 ```typescript
-import BackgroundLocation, {
+import {
+  startTracking,
   LocationAccuracy,
 } from '@gabriel-sisjr/react-native-background-location';
 
-const tripId = await BackgroundLocation.startTracking({
+const tripId = await startTracking({
   accuracy: LocationAccuracy.HIGH_ACCURACY,
   distanceFilter: 50,
   // Notification options are ignored on iOS (no foreground service)

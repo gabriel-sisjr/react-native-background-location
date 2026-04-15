@@ -93,10 +93,12 @@ async function handleEnableTracking() {
 
   if (granted) {
     // Step 3: Start tracking
-    await BackgroundLocation.startTracking();
+    await startTracking();
   }
 }
 ```
+
+> Ensure you have `import { startTracking } from '@gabriel-sisjr/react-native-background-location';` at the top of the file.
 
 ### Custom Disclosure Screen (Recommended for Better UX)
 
@@ -340,8 +342,10 @@ Record a video showing:
 If background location isn't essential, use foreground-only mode:
 
 ```typescript
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+
 // No background permission required
-const tripId = await BackgroundLocation.startTracking(undefined, {
+const tripId = await startTracking(undefined, {
   foregroundOnly: true,
 });
 ```

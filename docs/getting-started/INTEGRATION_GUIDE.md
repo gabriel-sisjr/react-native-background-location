@@ -220,7 +220,12 @@ export const openAppSettings = () => {
 
 ```typescript
 // services/LocationService.ts
-import BackgroundLocation, {
+import {
+  startTracking as nativeStartTracking,
+  stopTracking as nativeStopTracking,
+  isTracking as nativeIsTracking,
+  getLocations as nativeGetLocations,
+  clearTrip as nativeClearTrip,
   type Coords,
 } from '@gabriel-sisjr/react-native-background-location';
 import { requestLocationPermissions } from '../utils/permissions';
@@ -237,7 +242,7 @@ class LocationTrackingService {
     }
 
     try {
-      const tripId = await BackgroundLocation.startTracking(customTripId);
+      const tripId = await nativeStartTracking(customTripId);
       this.currentTripId = tripId;
       return tripId;
     } catch (error) {
@@ -248,7 +253,7 @@ class LocationTrackingService {
 
   async stopTracking(): Promise<void> {
     try {
-      await BackgroundLocation.stopTracking();
+      await nativeStopTracking();
       this.currentTripId = null;
     } catch (error) {
       console.error('Failed to stop tracking:', error);
@@ -257,7 +262,7 @@ class LocationTrackingService {
   }
 
   async isTracking(): Promise<{ active: boolean; tripId?: string }> {
-    return BackgroundLocation.isTracking();
+    return nativeIsTracking();
   }
 
   async getLocations(tripId?: string): Promise<Coords[]> {
@@ -267,7 +272,7 @@ class LocationTrackingService {
       throw new Error('No trip ID available');
     }
 
-    return BackgroundLocation.getLocations(id);
+    return nativeGetLocations(id);
   }
 
   async clearTrip(tripId?: string): Promise<void> {
@@ -277,7 +282,7 @@ class LocationTrackingService {
       throw new Error('No trip ID available');
     }
 
-    return BackgroundLocation.clearTrip(id);
+    return nativeClearTrip(id);
   }
 
   getCurrentTripId(): string | null {
@@ -524,7 +529,12 @@ The library persists tracking state across app restarts. Always check for active
 ```typescript
 // App.tsx or your root component
 import { useEffect, useState } from 'react';
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+import {
+  isTracking,
+  startTracking,
+  // getLocations,
+  // clearTrip,
+} from '@gabriel-sisjr/react-native-background-location';
 
 export default function App() {
   const [recoveredTripId, setRecoveredTripId] = useState<string | null>(null);
@@ -532,7 +542,7 @@ export default function App() {
   useEffect(() => {
     const recoverSession = async () => {
       try {
-        const status = await BackgroundLocation.isTracking();
+        const status = await isTracking();
 
         if (status.active && status.tripId) {
           // Active session - service is still running
@@ -543,13 +553,13 @@ export default function App() {
           console.log('Orphaned trip found:', status.tripId);
 
           // Option A: Resume tracking
-          await BackgroundLocation.startTracking(status.tripId);
+          await startTracking(status.tripId);
           setRecoveredTripId(status.tripId);
 
           // Option B: Just recover data without resuming
-          // const locations = await BackgroundLocation.getLocations(status.tripId);
+          // const locations = await getLocations(status.tripId);
           // await uploadLocations(status.tripId, locations);
-          // await BackgroundLocation.clearTrip(status.tripId);
+          // await clearTrip(status.tripId);
         }
       } catch (error) {
         console.error('Session recovery failed:', error);
@@ -592,6 +602,8 @@ async function showLocationDisclosure(): Promise<boolean> {
 }
 
 // Use BEFORE requesting permissions
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+
 const handleStartTracking = async () => {
   const accepted = await showLocationDisclosure();
   if (!accepted) return;
@@ -599,7 +611,7 @@ const handleStartTracking = async () => {
   const hasPermission = await requestLocationPermissions();
   if (!hasPermission) return;
 
-  await BackgroundLocation.startTracking();
+  await startTracking();
 };
 ```
 

@@ -89,7 +89,8 @@ const requestPermissions = async (): Promise<boolean> => {
 ### 3. Start Tracking
 
 ```typescript
-import BackgroundLocation, {
+import {
+  startTracking,
   LocationAccuracy,
   NotificationPriority,
   type TrackingOptions,
@@ -100,7 +101,7 @@ const hasPermission = await requestPermissions();
 
 if (hasPermission) {
   // Start tracking with default options
-  const tripId = await BackgroundLocation.startTracking();
+  const tripId = await startTracking();
   console.log('Tracking started:', tripId);
 
   // Or with custom options
@@ -117,13 +118,10 @@ if (hasPermission) {
   };
 
   // Simple start with auto-generated tripId (v0.8.0+)
-  const autoTripId = await BackgroundLocation.startTracking(options);
+  const autoTripId = await startTracking(options);
 
   // Or with custom tripId
-  const customTripId = await BackgroundLocation.startTracking(
-    'my-custom-trip-id',
-    options
-  );
+  const customTripId = await startTracking('my-custom-trip-id', options);
 }
 ```
 
@@ -167,8 +165,10 @@ yarn example ios
 ### 4. Get Locations
 
 ```typescript
+import { getLocations } from '@gabriel-sisjr/react-native-background-location';
+
 // Get all locations for the trip
-const locations = await BackgroundLocation.getLocations(tripId);
+const locations = await getLocations(tripId);
 
 locations.forEach((location) => {
   console.log('Lat:', location.latitude);
@@ -180,8 +180,10 @@ locations.forEach((location) => {
 ### 5. Stop Tracking
 
 ```typescript
+import { stopTracking } from '@gabriel-sisjr/react-native-background-location';
+
 // Stop tracking when done
-await BackgroundLocation.stopTracking();
+await stopTracking();
 ```
 
 ## Complete Example
@@ -189,7 +191,11 @@ await BackgroundLocation.stopTracking();
 ```typescript
 import React, { useState, useEffect } from 'react';
 import { View, Button, Text, Alert, Platform, PermissionsAndroid } from 'react-native';
-import BackgroundLocation, {
+import {
+  startTracking as startBackgroundTracking,
+  stopTracking as stopBackgroundTracking,
+  isTracking as checkIsTracking,
+  getLocations as fetchLocations,
   LocationAccuracy,
 } from '@gabriel-sisjr/react-native-background-location';
 
@@ -201,11 +207,11 @@ export default function App() {
   // Check for active session on app start (crash recovery)
   useEffect(() => {
     const checkExistingSession = async () => {
-      const status = await BackgroundLocation.isTracking();
+      const status = await checkIsTracking();
       if (status.active && status.tripId) {
         setTracking(true);
         setTripId(status.tripId);
-        const locations = await BackgroundLocation.getLocations(status.tripId);
+        const locations = await fetchLocations(status.tripId);
         setLocationCount(locations.length);
       }
     };
@@ -257,7 +263,7 @@ export default function App() {
       }
 
       // Start tracking with custom options (v0.8.0+)
-      const id = await BackgroundLocation.startTracking({
+      const id = await startBackgroundTracking({
         distanceFilter: 50,  // Only update if moved 50+ meters
         updateInterval: 5000,
         accuracy: LocationAccuracy.HIGH_ACCURACY,
@@ -272,7 +278,7 @@ export default function App() {
 
   const stopTracking = async () => {
     try {
-      await BackgroundLocation.stopTracking();
+      await stopBackgroundTracking();
       setTracking(false);
       Alert.alert('Success', 'Tracking stopped');
     } catch (error: any) {
@@ -284,7 +290,7 @@ export default function App() {
     if (!tripId) return;
 
     try {
-      const locations = await BackgroundLocation.getLocations(tripId);
+      const locations = await fetchLocations(tripId);
       setLocationCount(locations.length);
       Alert.alert('Locations', `Found ${locations.length} location(s)`);
       // Note: latitude/longitude are strings, parse for maps
@@ -373,12 +379,14 @@ const { locations } = useBackgroundLocation({
 The v0.8.0 API is cleaner with auto-generated tripIds:
 
 ```typescript
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+
 // Before (v0.7.x)
 const tripId = uuid.v4();
-await BackgroundLocation.startTracking(tripId, options);
+await startTracking(tripId, options);
 
 // After (v0.8.0+)
-const tripId = await BackgroundLocation.startTracking(options);
+const tripId = await startTracking(options);
 ```
 
 ## Important Notes
@@ -403,7 +411,9 @@ Coordinates are returned as strings for precision. Always parse for map librarie
 If background permission is denied or not needed:
 
 ```typescript
-const tripId = await BackgroundLocation.startTracking(undefined, {
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+
+const tripId = await startTracking(undefined, {
   foregroundOnly: true, // No background permission required
 });
 ```

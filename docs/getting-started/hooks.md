@@ -764,7 +764,9 @@ function TrackingWithWarnings() {
 Add interactive buttons to the tracking notification and listen for presses:
 
 ```typescript
-import BackgroundLocation, {
+import {
+  startTracking,
+  stopTracking,
   useLocationUpdates,
   type NotificationActionEvent,
 } from '@gabriel-sisjr/react-native-background-location';
@@ -774,7 +776,7 @@ function TrackingWithActions() {
     onNotificationAction: (event: NotificationActionEvent) => {
       switch (event.actionId) {
         case 'stop':
-          BackgroundLocation.stopTracking();
+          stopTracking();
           break;
         case 'emergency':
           callEmergencyService();
@@ -784,7 +786,7 @@ function TrackingWithActions() {
   });
 
   const startWithActions = async () => {
-    await BackgroundLocation.startTracking('trip-123', {
+    await startTracking('trip-123', {
       notificationOptions: {
         title: 'Delivery in Progress',
         text: 'En route to destination',
@@ -1669,16 +1671,22 @@ The `locations` array grows with each collected point. For long tracking session
 ### Strategies
 
 ```typescript
+import {
+  getLocations,
+  clearTrip,
+  useLocationUpdates,
+} from '@gabriel-sisjr/react-native-background-location';
+
 // Strategy 1: Upload and clear periodically
 const BATCH_SIZE = 100;
 
 useLocationUpdates({
   onLocationUpdate: async (location) => {
-    const allLocations = await BackgroundLocation.getLocations(tripId);
+    const allLocations = await getLocations(tripId);
 
     if (allLocations.length >= BATCH_SIZE) {
       await uploadToServer(tripId, allLocations);
-      await BackgroundLocation.clearTrip(tripId);
+      await clearTrip(tripId);
       // Tracking continues with fresh storage
     }
   },

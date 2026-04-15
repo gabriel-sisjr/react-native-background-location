@@ -384,7 +384,9 @@ Data handling:
 If your app does not need background location, use foreground-only mode to simplify compliance:
 
 ```typescript
-const tripId = await BackgroundLocation.startTracking({
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+
+const tripId = await startTracking({
   foregroundOnly: true,
 });
 ```

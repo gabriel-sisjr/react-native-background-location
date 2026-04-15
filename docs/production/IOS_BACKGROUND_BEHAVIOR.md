@@ -137,8 +137,13 @@ When `foregroundOnly: true` is set in tracking options:
 The library handles this via `pauseTrackingForBackground()` and `resumeTrackingFromBackground()` which are called from the native module's app lifecycle observers.
 
 ```typescript
+import {
+  startTracking,
+  LocationAccuracy,
+} from '@gabriel-sisjr/react-native-background-location';
+
 // Foreground-only tracking
-const tripId = await BackgroundLocation.startTracking({
+const tripId = await startTracking({
   foregroundOnly: true,
   accuracy: LocationAccuracy.HIGH_ACCURACY,
 });
@@ -350,8 +355,10 @@ useLocationUpdates({
 ### 2. Check Tracking State on App Launch
 
 ```typescript
+import { isTracking } from '@gabriel-sisjr/react-native-background-location';
+
 useEffect(() => {
-  BackgroundLocation.isTracking().then((status) => {
+  isTracking().then((status) => {
     if (status.active) {
       // Recovered from background or crash recovery
       // Sync your UI state with the native state

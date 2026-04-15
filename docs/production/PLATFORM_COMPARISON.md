@@ -291,7 +291,7 @@ Both platforms emit the same events through `NativeEventEmitter` with the same d
 The library is designed so you can use the same code on both platforms:
 
 ```typescript
-import BackgroundLocation, {
+import {
   LocationAccuracy,
   useLocationPermissions,
   useBackgroundLocation,

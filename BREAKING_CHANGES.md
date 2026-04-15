@@ -1,10 +1,79 @@
+# Breaking Changes
+
+## 0.14.0 (2026-04-15) - Public API Surface Cleanup
+
+> **Upgrade path:** v0.13.x --> v0.14.0
+>
+> **Affected consumers:** All consumers of `@gabriel-sisjr/react-native-background-location`. Within the GereFrota ecosystem this includes **GereFrotaApp-Motoristas**, which must be updated in lockstep with the library version bump. Any other app importing the library directly will fail to compile until imports are migrated.
+
+This release contains 1 breaking change to the public TypeScript API surface. It is a compile-time error -- existing code will fail to build until migrated, but there are no silent behavioral regressions. No native (Android/iOS) behavior changed.
+
+### 1. Default export removed
+
+The library's legacy `BackgroundLocation` default export has been removed. All 6 tracking methods are now published as top-level **named exports** from `src/index.tsx`. Geofencing methods and `GeofenceError` were already named exports and are unaffected.
+
+#### Before
+
+```typescript
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+
+await BackgroundLocation.startTracking('trip-123');
+await BackgroundLocation.updateNotification('Title', 'Text');
+const status = await BackgroundLocation.isTracking();
+```
+
+#### After
+
+```typescript
+import {
+  startTracking,
+  updateNotification,
+  isTracking,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking('trip-123');
+await updateNotification('Title', 'Text');
+const status = await isTracking();
+```
+
+#### Affected symbols
+
+| Symbol               | Before                                  | After                           |
+| -------------------- | --------------------------------------- | ------------------------------- |
+| `startTracking`      | `BackgroundLocation.startTracking`      | `import { startTracking }`      |
+| `stopTracking`       | `BackgroundLocation.stopTracking`       | `import { stopTracking }`       |
+| `isTracking`         | `BackgroundLocation.isTracking`         | `import { isTracking }`         |
+| `getLocations`       | `BackgroundLocation.getLocations`       | `import { getLocations }`       |
+| `clearTrip`          | `BackgroundLocation.clearTrip`          | `import { clearTrip }`          |
+| `updateNotification` | `BackgroundLocation.updateNotification` | `import { updateNotification }` |
+
+#### Migration (one-line codemod)
+
+For most projects, a simple regex find-and-replace is sufficient:
+
+```bash
+# 1. Remove default imports
+# Find:    import BackgroundLocation[ ,]
+# Review each match and convert to a named import list.
+
+# 2. Strip the object prefix from call sites
+# Find:    BackgroundLocation\.(startTracking|stopTracking|isTracking|getLocations|clearTrip|updateNotification)
+# Replace: $1
+```
+
+After running the replacement, verify TypeScript compiles (`yarn typecheck`) -- any missed named-import entries will surface as `Cannot find name` errors.
+
+#### Rationale
+
+- **Tree-shaking:** Named exports allow bundlers to eliminate unused methods. The default export forced every consumer to pull the entire tracking API even if they only called `isTracking()`.
+- **Consistency:** Geofencing methods (added in v0.11.0) were already named exports. Mixing a default export with named exports was inconsistent and confused IDE auto-import.
+- **Public API hygiene:** `src/index.tsx` is now a lean facade. All `@internal` helpers (`isNativeModuleAvailable`, `toTrackingOptionsSpec`, `validateGeofenceRegion`, `prepareGeofenceRegion`, `serializeGeofenceRegion`) have been extracted into `src/utils/`, and `GeofenceError` moved to `src/errors/`. See the [changelog](./CHANGELOG.md) for the full refactor list.
+
 # Breaking Changes - v0.12.0
 
 > **Upgrade path:** v0.10.x --> v0.12.0 (v0.11 was internal only, never published to npm)
 
 This release contains 3 breaking changes to the TypeScript types layer. All are compile-time errors -- your existing code will fail to build until migrated, but there are no silent behavioral regressions.
-
----
 
 ## 1. `PermissionState` -- Granular Structure
 
@@ -75,8 +144,6 @@ import type {
   NotificationPermissionState,
 } from '@gabriel-sisjr/react-native-background-location';
 ```
-
----
 
 ## 2. `NotificationOptions` -- Unified Object
 
@@ -157,8 +224,6 @@ startTracking({
 import type { NotificationOptions } from '@gabriel-sisjr/react-native-background-location';
 ```
 
----
-
 ## 3. `NotificationPermissionStatus` Enum & iOS Notification Permission
 
 A new enum for notification permission states, paired with native iOS notification permission support in `useLocationPermissions`.
@@ -193,8 +258,6 @@ import { NotificationPermissionStatus } from '@gabriel-sisjr/react-native-backgr
 3. **Request notification permission on iOS** via `UNUserNotificationCenter` (new in v0.12.0)
 
 Notification permission is optional -- `requestPermissions()` will return `true` when location is granted, even if notification permission is denied. The notification status is exposed reactively through `permissionStatus.notification` so consumers can build their own UI to guide users.
-
----
 
 ## Quick Migration Checklist
 
