@@ -6,7 +6,7 @@ const config: Config = {
   title: 'React Native Background Location',
   tagline:
     'Cross-platform background location tracking with TurboModules, geofencing, and real-time updates for React Native',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.svg',
 
   url: 'https://gabriel-sisjr.github.io',
   baseUrl: '/react-native-background-location/',
