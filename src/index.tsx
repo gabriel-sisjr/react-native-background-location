@@ -56,12 +56,16 @@ export { GeofenceTransitionType, GeofenceErrorCode } from './types';
 export type { NotificationOptions } from './types';
 export { GEOFENCE_TEMPLATE_VARS } from './types';
 
-// Export enums (as values)
+// Export enums (as values + companion types for type annotations)
 // Import and re-export as named exports to ensure they're available at runtime
 export const LocationPermissionStatus = LocationPermissionStatusEnum;
+export type LocationPermissionStatus = LocationPermissionStatusEnum;
 export const LocationAccuracy = LocationAccuracyEnum;
+export type LocationAccuracy = LocationAccuracyEnum;
 export const NotificationPriority = NotificationPriorityEnum;
+export type NotificationPriority = NotificationPriorityEnum;
 export const NotificationPermissionStatus = NotificationPermissionStatusEnum;
+export type NotificationPermissionStatus = NotificationPermissionStatusEnum;
 
 // Export errors
 export { GeofenceError } from './errors';
