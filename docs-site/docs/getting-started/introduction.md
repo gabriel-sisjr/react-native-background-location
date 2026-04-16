@@ -84,7 +84,7 @@ Both platforms persist location data to local databases (Room / Core Data) so lo
 
 ## Architecture Overview
 
-```
+```text
 React Hooks / Functions
         |
         v

@@ -148,7 +148,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright ${new Date().getFullYear()} Gabriel Santana. Built with Docusaurus.`,
+      copyright: `Copyright ${new Date().getFullYear()} Gabriel Santana.`,
     },
     prism: {
       theme: prismThemes.github,
@@ -156,7 +156,7 @@ const config: Config = {
       additionalLanguages: ['kotlin', 'swift', 'bash', 'json', 'markup'],
     },
     colorMode: {
-      defaultMode: 'light',
+      defaultMode: 'dark',
       disableSwitch: false,
       respectPrefersColorScheme: true,
     },

@@ -110,19 +110,19 @@ Required for backwards compatibility:
 
 **Fleet management:**
 
-```
+```text
 We track your location continuously to record your driving routes, calculate mileage, and provide real-time fleet management updates to your organization. Location tracking continues in the background to ensure complete route records.
 ```
 
 **Delivery app:**
 
-```
+```text
 We use your location in the background to track your delivery route, provide customers with live delivery updates, and calculate accurate trip distances. Background tracking ensures no delivery stops are missed.
 ```
 
 **Fitness app:**
 
-```
+```text
 We track your location in the background to record your running or cycling routes, calculate distance and pace, and generate route maps. Background access ensures your entire workout is captured even when your phone is locked.
 ```
 
@@ -268,7 +268,7 @@ When submitting your app, Apple may ask you to justify background location usage
 
 ### Template
 
-```
+```text
 BACKGROUND LOCATION JUSTIFICATION
 
 Feature: [Your feature name]
@@ -301,7 +301,7 @@ Data handling:
 
 ### Review Notes Template
 
-```
+```text
 Our app is a fleet management tool for commercial drivers. Background
 location is used to record complete driving routes for mileage tracking
 and compliance. Without background location, routes would have gaps

@@ -119,7 +119,7 @@ This combined flag is `true` only when both `location.hasPermission` and `notifi
 
 On Android, `requestPermissions()` follows a multi-step sequential flow:
 
-```
+```text
 Step 1: Request foreground location
   ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION
     |
@@ -146,7 +146,7 @@ Each step only proceeds if the previous step succeeded.
 
 On iOS, `requestPermissions()` follows a three-step flow using native CLLocationManager:
 
-```
+```text
 Step 1: Request WhenInUse authorization
   CLLocationManager.requestWhenInUseAuthorization()
     |

@@ -83,7 +83,7 @@ The hook listens for three types of native events via `NativeEventEmitter`:
 
 ### 1. Location Updates (`onLocationUpdate`)
 
-```
+```text
 Native LocationService → SharedFlow → NativeEventEmitter → useLocationUpdates
 ```
 
@@ -95,7 +95,7 @@ Each location update:
 
 ### 2. Warning Events (`onLocationWarning`)
 
-```
+```text
 Native LocationService → SharedFlow → NativeEventEmitter → useLocationUpdates
 ```
 
@@ -109,7 +109,7 @@ Warning events are non-critical notifications about service state changes. They 
 
 ### 3. Notification Actions (`onNotificationAction`)
 
-```
+```text
 User taps notification button → BroadcastReceiver → SharedFlow → NativeEventEmitter → useLocationUpdates
 ```
 

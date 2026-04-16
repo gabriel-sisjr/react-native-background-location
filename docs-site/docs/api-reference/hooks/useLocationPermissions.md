@@ -243,7 +243,7 @@ function GeofenceSetup() {
 
 In `__DEV__` mode, the hook emits a one-time `console.warn` when notification permission is denied:
 
-```
+```text
 [BackgroundLocation] Notification permission was denied. Geofence visual notifications
 will not appear. Background tracking is unaffected.
 ```

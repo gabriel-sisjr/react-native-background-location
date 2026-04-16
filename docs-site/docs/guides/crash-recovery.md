@@ -63,7 +63,7 @@ The library prevents infinite restart loops that drain battery:
 
 **Example scenario:**
 
-```
+```text
 12:00 - Service starts (count: 1)
 12:05 - App crashes, service restarts (count: 2)
 12:10 - Crash again (count: 3)

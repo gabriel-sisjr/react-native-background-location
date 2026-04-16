@@ -290,7 +290,7 @@ For `ACCESS_BACKGROUND_LOCATION`, you must submit a declaration form.
 
 Explain why background location is essential:
 
-```
+```text
 Trip tracking is the core functionality of our app. Users start a trip and
 expect their route to be recorded continuously, even when:
 - The phone screen is off
@@ -303,7 +303,7 @@ making the tracking feature unusable and defeating the primary purpose of the ap
 
 #### User-Facing Feature Description
 
-```
+```text
 Users can:
 1. Start a trip from the app
 2. Put their phone away (screen off, app minimized)

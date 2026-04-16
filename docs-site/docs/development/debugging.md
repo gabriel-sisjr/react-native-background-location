@@ -45,7 +45,7 @@ adb logcat | grep -E "(LocationService|BackgroundLocation)"
 4. Tap "Start Tracking"
 5. Observe the logs:
 
-```
+```text
 D/LocationService: Setting React context: true
 D/LocationService: Starting location tracking for tripId: <ID>
 D/LocationService: Received X location(s)
@@ -71,7 +71,7 @@ To simulate location movement in the Android emulator:
 
 ### Expected Logs (Working Correctly)
 
-```
+```text
 D/LocationService: Setting React context: true
 D/LocationService: Starting location tracking for tripId: abc-123
 D/LocationService: Received 1 location(s)
@@ -83,7 +83,7 @@ D/LocationService: Location update event emitted for tripId: abc-123
 
 **"React context not available"**
 
-```
+```text
 W/LocationService: React context not available - cannot emit location update event
 ```
 
@@ -91,7 +91,7 @@ Solution: Reload the app (Cmd+M or Shake > Reload).
 
 **"React instance not active"**
 
-```
+```text
 W/LocationService: React instance not active - skipping location update event
 ```
 
@@ -99,7 +99,7 @@ Solution: Wait a few seconds after opening the app before starting tracking.
 
 **"Received 0 location(s)"**
 
-```
+```text
 D/LocationService: Received 0 location(s)
 ```
 
@@ -120,7 +120,7 @@ To view native iOS logs for the location module:
 
 Expected logs when tracking is working:
 
-```
+```text
 BackgroundLocation: Starting location updates for tripId: abc-123
 BackgroundLocation: CLLocationManager authorized: authorizedAlways
 BackgroundLocation: Received location update: lat=37.422, lng=-122.084

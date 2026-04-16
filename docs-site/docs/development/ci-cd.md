@@ -32,7 +32,7 @@ Three automated workflows handle the full lifecycle:
 
 ### Workflow Architecture
 
-```
+```text
 feature/branch --> PR --> develop --> CI (no auto-deploy)
                            |
                       PR --> main --> CI + Publish (production)
@@ -121,7 +121,7 @@ Beta releases: Manual trigger via GitHub Actions UI
 
 ### Beta Version Format
 
-```
+```text
 0.2.0-beta.20251026143022.a1b2c3d
        |--- timestamp ---|-- SHA --|
 

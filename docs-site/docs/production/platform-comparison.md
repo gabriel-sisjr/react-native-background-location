@@ -73,7 +73,7 @@ The `LocationAccuracy` enum maps to different native values on each platform:
 
 **Android (3-step for Android 13+):**
 
-```
+```text
 Step 1: ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION
     |
     v
@@ -85,7 +85,7 @@ Step 3: POST_NOTIFICATIONS (Android 13+, for foreground service notification)
 
 **iOS (3-step):**
 
-```
+```text
 Step 1: requestWhenInUseAuthorization()
     |
     v  (if foregroundOnly = false)

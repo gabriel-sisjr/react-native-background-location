@@ -130,7 +130,7 @@ These must be declared in `AndroidManifest.xml` (see [Installation](./installati
 
 The correct order for requesting permissions on Android is critical. Requesting background and foreground permissions together will **silently fail** on Android 11+.
 
-```
+```text
 Step 1: Foreground Location
   ACCESS_FINE_LOCATION + ACCESS_COARSE_LOCATION
     |
@@ -281,7 +281,7 @@ iOS uses a two-tier location permission model and a separate notification permis
 
 ### Permission Flow
 
-```
+```text
 Step 1: WhenInUse Authorization
   CLLocationManager.requestWhenInUseAuthorization()
   User sees: "Allow While Using App" / "Don't Allow"

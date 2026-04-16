@@ -47,7 +47,7 @@ Used for `HIGH_ACCURACY`, `BALANCED_POWER_ACCURACY`, and `LOW_POWER` accuracy le
 - Works in background when `allowsBackgroundLocationUpdates = true`
 - Activity type set to `.automotiveNavigation` for optimal battery/accuracy balance
 
-```
+```text
 App starts tracking
     |
     v
@@ -69,7 +69,7 @@ Used for `PASSIVE` and `NO_POWER` accuracy levels, and as a crash recovery mecha
 - Can re-launch a terminated app
 - Used as the crash recovery wake-up mechanism
 
-```
+```text
 App is terminated by iOS
     |
     v
@@ -117,7 +117,7 @@ Standard location tracking resumes
 
 ### Lifecycle Summary
 
-```
+```text
                     allowsBackgroundLocationUpdates = true
                     + Always permission
                     |
