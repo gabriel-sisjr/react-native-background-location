@@ -55,6 +55,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Production',
       items: [
+        'production/production-checklist',
         'production/google-play-compliance',
         'production/app-store-compliance',
         'production/platform-comparison',
