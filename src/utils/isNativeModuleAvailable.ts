@@ -10,22 +10,13 @@ import NativeModule from '../NativeBackgroundLocation';
  * the native module is not linked and we want to `console.warn` instead
  * of crashing).
  *
- * The probe intentionally checks `typeof NativeModule?.isTracking` first so
- * that Proxy-based mocks used in the example app and tests still resolve
- * correctly, then verifies the module itself is not null.
+ * The probe uses optional chaining so that `null` / `undefined` modules
+ * short-circuit safely, and Proxy-based mocks used in the example app
+ * and tests still resolve correctly.
  */
 export function isNativeModuleAvailable(): boolean {
   try {
-    // Check if methods are available (works with Proxy mocks)
-    // This must be checked first before checking if module exists
-    if (typeof NativeModule?.isTracking !== 'function') {
-      return false;
-    }
-    // Check if module exists and is not null
-    if (!NativeModule || NativeModule === null) {
-      return false;
-    }
-    return true;
+    return typeof NativeModule?.isTracking === 'function';
   } catch {
     return false;
   }
