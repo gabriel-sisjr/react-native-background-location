@@ -67,21 +67,29 @@ The server response is a standard `GeofenceRegion[]` array. Each region can incl
       "orderNumber": "ORD-2024-1587",
       "client": {
         "name": "ACME Corp",
-        "address": "Av. Paulista, 1000"
+        "address": "Av. Paulista, 1000",
+        "phone": "+5511999999999"
       },
+      "estimatedArrival": "2026-03-26T14:30:00Z",
       "priority": "high"
     },
     "notificationOptions": {
       "title": "Delivery: {{metadata.client.name}}",
       "text": "Order #{{metadata.orderNumber}} -- {{metadata.client.address}}",
+      "priority": "HIGH",
+      "channelName": "Priority Deliveries",
       "transitionOverrides": {
         "ENTER": {
           "title": "Arriving: {{metadata.client.name}}",
-          "text": "Near delivery point for #{{metadata.orderNumber}}"
+          "text": "You are near the delivery point for order #{{metadata.orderNumber}}"
         },
         "EXIT": {
           "title": "Departed: {{metadata.client.name}}",
-          "text": "Left zone for #{{metadata.orderNumber}}"
+          "text": "Left delivery zone for order #{{metadata.orderNumber}}"
+        },
+        "DWELL": {
+          "title": "At destination: {{metadata.client.name}}",
+          "text": "Confirm delivery of order #{{metadata.orderNumber}}"
         }
       }
     }
@@ -96,8 +104,11 @@ The server response is a standard `GeofenceRegion[]` array. Each region can incl
       "orderNumber": "ORD-2024-1588",
       "client": {
         "name": "TechParts Ltd",
-        "address": "R. Augusta, 500"
-      }
+        "address": "R. Augusta, 500",
+        "phone": "+5511988888888"
+      },
+      "estimatedArrival": "2026-03-26T15:45:00Z",
+      "priority": "normal"
     }
   }
 ]
@@ -105,9 +116,9 @@ The server response is a standard `GeofenceRegion[]` array. Each region can incl
 
 Key observations:
 
-- **First geofence** includes custom `notificationOptions` with metadata templates and per-transition overrides.
-- **Second geofence** omits `notificationOptions` entirely, falling back to the global notification configuration.
-- Both carry nested `metadata` available in both JS callbacks and notification templates.
+- **First geofence** (`delivery-1587`) includes custom `notificationOptions` with metadata templates and per-transition overrides. When the driver enters this geofence, the notification reads "Arriving: ACME Corp" with the order number and address.
+- **Second geofence** (`delivery-1588`) omits `notificationOptions` entirely. It falls back to whatever global notification configuration the app has set via `configureGeofenceNotifications()` or the `useGeofencing` hook's `notificationOptions` option.
+- Both geofences carry nested `metadata` that the app can use in callbacks (e.g., displaying the client phone number for a tap-to-call action) and in notification templates (e.g., `{{metadata.client.name}}`).
 
 ## Notification Template Variables
 
@@ -383,6 +394,7 @@ useGeofenceEvents({
   onTransition: async (event) => {
     switch (event.transitionType) {
       case 'ENTER':
+        // POST arrival to the server
         await fetch('https://api.example.com/events', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -390,17 +402,33 @@ useGeofenceEvents({
             geofenceId: event.geofenceId,
             type: 'arrival',
             timestamp: event.timestamp,
+            coordinates: {
+              latitude: event.latitude,
+              longitude: event.longitude,
+            },
           }),
         });
+        // Navigate to the delivery screen
         navigation.navigate('DeliveryDetails', {
           orderId: event.metadata?.orderNumber,
         });
         break;
 
       case 'EXIT':
+        // POST departure to the server
+        await fetch('https://api.example.com/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geofenceId: event.geofenceId,
+            type: 'departure',
+            timestamp: event.timestamp,
+          }),
+        });
+        // Prompt the driver for delivery confirmation
         Alert.alert(
           'Delivery Confirmation',
-          `Did you complete delivery at ${event.metadata?.client?.name ?? event.geofenceId}?`,
+          `Did you complete the delivery at ${event.metadata?.client?.name ?? event.geofenceId}?`,
           [
             { text: 'Yes', onPress: () => confirmDelivery(event.geofenceId) },
             { text: 'No', style: 'cancel' },
@@ -409,7 +437,17 @@ useGeofenceEvents({
         break;
 
       case 'DWELL':
-        await logDwellEvent(event.geofenceId, event.timestamp);
+        // Log dwell time for analytics
+        await fetch('https://api.example.com/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geofenceId: event.geofenceId,
+            type: 'dwell',
+            timestamp: event.timestamp,
+            distanceFromCenter: event.distanceFromCenter,
+          }),
+        });
         break;
     }
   },
@@ -421,15 +459,23 @@ useGeofenceEvents({
 | Aspect | Notifications | Callbacks (`onTransition`) |
 |--------|--------------|---------------------------|
 | Execution layer | Native (Android/iOS) | JavaScript runtime |
-| App state | Fire even when app is killed | Fire only when JS runtime is active |
-| Purpose | User-facing alerts | Application logic (API calls, navigation) |
-| Reliability | High (OS notification system) | Depends on JS runtime availability |
+| App state | Fire even when app is killed or in the background | Fire only when the JS runtime is active (app in foreground or background with JS bridge alive) |
+| Purpose | User-facing alerts (visual banners, sounds) | Application logic (API calls, navigation, state updates) |
+| Configuration | `notificationOptions` on `GeofenceRegion` or global config | `onTransition` callback in `useGeofenceEvents` |
+| Reliability | High -- handled entirely by the OS notification system | Depends on JS runtime availability |
 
-Both mechanisms coexist. A single transition can trigger a native notification and a JS callback simultaneously.
+Both mechanisms can coexist. A single geofence transition can trigger a native notification (visible to the user even if the app is killed) and a JS callback (executing application logic when the runtime is active). They are independent pipelines.
 
-> **Tip:** If your app needs to guarantee that events reach the server, do not rely solely on JS callbacks. Use stored transitions (`getGeofenceTransitions()`) as a fallback and sync them when the app next opens.
+> **Tip:** Design for offline-first. If your app needs to guarantee that arrival/departure events reach the server, do not rely solely on JS callbacks. Use the native notification + stored transitions (`getGeofenceTransitions()`) as a fallback, and sync stored transitions when the app next opens.
 
 ## Full Combined Example
+
+The following `DriverDeliveryScreen` component demonstrates a complete server-driven geofencing flow. It combines:
+
+- `useGeofencing` with a global notification config using metadata templates
+- A `syncFromServer()` function that fetches, clears, and registers geofences
+- `useGeofenceEvents` with per-transition-type logic (API calls, navigation, alerts)
+- A simple UI rendering the delivery route from geofence metadata
 
 ```typescript
 import React, { useEffect, useState } from 'react';
@@ -439,6 +485,11 @@ import {
   useGeofenceEvents,
 } from '@gabriel-sisjr/react-native-background-location';
 import type { GeofenceRegion } from '@gabriel-sisjr/react-native-background-location';
+
+interface Props {
+  driverId: string;
+  navigation: any;
+}
 
 export function DriverDeliveryScreen({ driverId, navigation }: Props) {
   const [syncing, setSyncing] = useState(false);
@@ -458,9 +509,15 @@ export function DriverDeliveryScreen({ driverId, navigation }: Props) {
             title: 'Departed: {{metadata.client.name}}',
             text: 'Left zone for #{{metadata.orderNumber}}',
           },
+          DWELL: {
+            title: 'At destination: {{metadata.client.name}}',
+            text: 'Confirm delivery of #{{metadata.orderNumber}}',
+          },
         },
       },
     });
+
+  //  Server sync
 
   const syncFromServer = async () => {
     setSyncing(true);
@@ -482,7 +539,10 @@ export function DriverDeliveryScreen({ driverId, navigation }: Props) {
 
   useEffect(() => {
     syncFromServer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverId]);
+
+  //  Transition callbacks
 
   useGeofenceEvents({
     onTransition: async (event) => {
@@ -495,6 +555,14 @@ export function DriverDeliveryScreen({ driverId, navigation }: Props) {
           break;
         case 'EXIT':
           await postEvent(event.geofenceId, 'departure', event.timestamp);
+          Alert.alert(
+            'Delivery Complete?',
+            `Confirm delivery for ${event.metadata?.client?.name ?? event.geofenceId}`,
+            [
+              { text: 'Yes', onPress: () => confirmDelivery(event.geofenceId) },
+              { text: 'No', style: 'cancel' },
+            ]
+          );
           break;
         case 'DWELL':
           await postEvent(event.geofenceId, 'dwell', event.timestamp);
@@ -503,13 +571,17 @@ export function DriverDeliveryScreen({ driverId, navigation }: Props) {
     },
   });
 
+  //  UI
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>
         Delivery Route ({geofences.length} stops)
       </Text>
-      {(syncing || isLoading) && <Text>Loading...</Text>}
+
+      {(syncing || isLoading) && <Text style={styles.status}>Loading...</Text>}
       {error && <Text style={styles.error}>Error: {error.message}</Text>}
+
       <FlatList
         data={geofences}
         keyExtractor={(item) => item.identifier}
@@ -518,8 +590,11 @@ export function DriverDeliveryScreen({ driverId, navigation }: Props) {
             <Text style={styles.cardTitle}>
               {index + 1}. {(item.metadata?.client as any)?.name ?? item.identifier}
             </Text>
-            <Text>
+            <Text style={styles.cardText}>
               Order: {(item.metadata?.orderNumber as string) ?? '--'}
+            </Text>
+            <Text style={styles.cardText}>
+              ETA: {formatTime((item.metadata?.estimatedArrival as string) ?? '')}
             </Text>
           </View>
         )}
@@ -528,9 +603,36 @@ export function DriverDeliveryScreen({ driverId, navigation }: Props) {
   );
 }
 
+//  Helpers
+
+async function postEvent(
+  geofenceId: string,
+  type: string,
+  timestamp: string
+): Promise<void> {
+  await fetch('https://api.example.com/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ geofenceId, type, timestamp }),
+  });
+}
+
+async function confirmDelivery(geofenceId: string): Promise<void> {
+  await fetch(`https://api.example.com/deliveries/${geofenceId}/confirm`, {
+    method: 'POST',
+  });
+}
+
+function formatTime(iso: string): string {
+  if (!iso) return '--';
+  const date = new Date(iso);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   header: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
+  status: { color: '#666', marginBottom: 8 },
   error: { color: '#d32f2f', marginBottom: 8 },
   card: {
     padding: 12,
@@ -539,20 +641,54 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   cardTitle: { fontSize: 16, fontWeight: '600' },
+  cardText: { fontSize: 14, color: '#555', marginTop: 2 },
 });
 ```
 
+### What This Example Demonstrates
+
+| Concern | How it is handled |
+| | |
+| **Geofence source** | Fetched from the server via `syncFromServer()`. The server owns all coordinates, metadata, and notification templates. |
+| **Notification config** | Global config set via `useGeofencing({ notificationOptions })` with metadata templates (`{{metadata.client.name}}`, `{{metadata.orderNumber}}`). Per-geofence overrides from the server response take precedence when present. |
+| **Transition callbacks** | `useGeofenceEvents` reacts to ENTER (navigate + API call), EXIT (confirmation alert + API call), and DWELL (analytics API call). |
+| **Route display** | `FlatList` renders the geofence list with client name, order number, and ETA extracted from `metadata`. |
+| **Error handling** | Sync errors are shown via `Alert`. Hook errors are rendered inline. |
+
 ## Hook Stability
 
-Both `useGeofencing` and `useGeofenceEvents` are designed so that consumers do not need to wrap options in `useMemo` or callbacks in `useCallback`. Passing inline objects and arrow functions directly is safe.
+Both `useGeofencing` and `useGeofenceEvents` are designed so that consumers do not need to wrap options in `useMemo` or callbacks in `useCallback`. Passing inline objects and arrow functions directly to these hooks is safe and will not cause unnecessary re-subscriptions or native calls.
 
-**Why this works:**
+### Why This Works
 
-- `useGeofencing` uses `JSON.stringify` for deep comparison of `notificationOptions`. Same content = no native reconfiguration.
-- `useGeofenceEvents` stores `onTransition`, `filter`, and `geofenceId` in `useRef` values. The subscription is created once on mount and reads current values from refs.
+- **`useGeofencing`** uses `JSON.stringify` for deep comparison of `notificationOptions`. A new object reference with the same content does not trigger a native reconfiguration. All returned functions (`addGeofence`, `removeGeofence`, etc.) are wrapped in `useCallback`, and the entire return value is wrapped in `useMemo`.
+- **`useGeofenceEvents`** stores `onTransition`, `filter`, and `geofenceId` in `useRef` values. The native event subscription is created once on mount and reads current values from refs on every event. New callback instances or new filter arrays do not cause re-subscription.
+
+### Before (unnecessary memoization)
 
 ```typescript
-// Recommended: inline objects and callbacks work correctly
+// This works but the memoization is redundant
+const options = useMemo(
+  () => ({
+    notificationOptions: {
+      title: 'Delivery: {{metadata.client.name}}',
+      text: 'Order #{{metadata.orderNumber}}',
+    },
+  }),
+  []
+);
+useGeofencing(options);
+
+const handleTransition = useCallback((event) => {
+  console.log(event.transitionType, event.geofenceId);
+}, []);
+useGeofenceEvents({ onTransition: handleTransition });
+```
+
+### After (recommended)
+
+```typescript
+// Inline objects and callbacks work correctly without memoization
 useGeofencing({
   notificationOptions: {
     title: 'Delivery: {{metadata.client.name}}',
@@ -567,7 +703,7 @@ useGeofenceEvents({
 });
 ```
 
-No `useMemo` or `useCallback` wrappers needed.
+Both snippets produce identical behavior. The second form is simpler and recommended.
 
 ## Next Steps
 

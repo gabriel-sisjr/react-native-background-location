@@ -425,6 +425,21 @@ const { locations } = useLocationUpdates({
 
 Locations are still collected at the native `updateInterval` rate and stored locally.
 
+### Simplified API (v0.8.0+)
+
+The v0.8.0 API is cleaner with auto-generated trip IDs -- no need to generate UUIDs yourself:
+
+```tsx
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+
+// Before (v0.7.x) -- manual trip ID required
+const tripId = uuid.v4();
+await startTracking(tripId, options);
+
+// After (v0.8.0+) -- auto-generated trip ID
+const tripId = await startTracking(options);
+```
+
 ### Foreground-Only Mode
 
 If your app does not need background tracking, skip the background location permission entirely:
@@ -451,20 +466,39 @@ Coordinates are returned as strings to preserve full decimal precision across th
 
 ## Testing
 
-### On a Physical Device (Recommended)
+### On Android Device
 
-1. Install and run on a real device
+1. Run on a real Android device (recommended)
 2. Grant all location permissions when prompted
 3. Start tracking and minimize the app
-4. Walk or drive with the device
-5. Return to the app and check collected locations
+4. Move around with your device
+5. Open the app and check collected locations
+
+### On iOS Device
+
+1. Run on a real iOS device (recommended) or use the Simulator with location simulation
+2. Grant "While Using" location permission, then grant "Always" when prompted
+3. Start tracking and minimize the app
+4. Move around with your device
+5. Open the app and check collected locations
 
 ### On Emulator / Simulator
 
 - **Android Emulator:** Use the extended controls (three dots) to set GPS coordinates or simulate routes
 - **iOS Simulator:** Use Debug > Location > Custom Location or set a GPX file in your Xcode scheme
 
-> **Note:** Background tracking behavior is difficult to test accurately on emulators. Always validate on a physical device before release.
+:::warning
+Background tracking behavior is difficult to test accurately on emulators. Always validate on a physical device before release.
+:::
+
+### Testing Notes
+
+- **Always test on a real device** -- emulator/simulator GPS is unreliable
+- **Android:** Background permission is critical for Android 10+
+- **Android:** A foreground notification will appear when tracking is active
+- **iOS:** A blue status bar indicator will appear when tracking in the background
+- **iOS:** Use Xcode's location simulation (GPX files) for consistent test data
+- **Battery usage** can be significant with high-frequency updates on both platforms
 
 ## Common Issues
 
@@ -472,8 +506,27 @@ Coordinates are returned as strings to preserve full decimal precision across th
 |---|---|---|
 | Not tracking in background (Android) | Missing `ACCESS_BACKGROUND_LOCATION` | Grant "Allow all the time" in settings |
 | Not tracking in background (iOS) | Only "While Using" permission | Request "Always" via `requestPermissions()` |
-| No locations captured | GPS disabled or poor signal | Enable GPS, test outdoors |
-| Build error after install | Stale caches | Clean build: `cd android && ./gradlew clean` or `cd ios && pod install` |
+| No locations captured | GPS disabled or poor signal | Enable GPS, test outdoors, wait a few seconds after starting |
+| Build error after install (Android) | Stale caches | See Android clean build steps below |
+| Build error after install (iOS) | Stale caches or pods | See iOS clean build steps below |
+
+### Build Error Recovery
+
+**Android:**
+
+```bash
+cd android && ./gradlew clean && cd ..
+yarn start --reset-cache
+yarn android
+```
+
+**iOS:**
+
+```bash
+cd ios && pod install && cd ..
+yarn start --reset-cache
+yarn example ios
+```
 
 ## Next Steps
 

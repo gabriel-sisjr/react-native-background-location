@@ -489,6 +489,146 @@ function RecentLocations({ locations }: { locations: Coords[] }) {
 }
 ```
 
+## Service Wrapper Pattern
+
+For apps that prefer an imperative, class-based architecture over hooks, you can wrap the library's functions in a service class. This centralizes tracking logic, manages the current trip ID, and provides a single import point for the rest of your app.
+
+```typescript
+// services/LocationService.ts
+import {
+  startTracking as nativeStartTracking,
+  stopTracking as nativeStopTracking,
+  isTracking as nativeIsTracking,
+  getLocations as nativeGetLocations,
+  clearTrip as nativeClearTrip,
+  type Coords,
+} from '@gabriel-sisjr/react-native-background-location';
+
+class LocationTrackingService {
+  private currentTripId: string | null = null;
+
+  async startTracking(customTripId?: string): Promise<string | null> {
+    try {
+      const tripId = await nativeStartTracking(customTripId);
+      this.currentTripId = tripId;
+      return tripId;
+    } catch (error) {
+      console.error('Failed to start tracking:', error);
+      throw error;
+    }
+  }
+
+  async stopTracking(): Promise<void> {
+    try {
+      await nativeStopTracking();
+      this.currentTripId = null;
+    } catch (error) {
+      console.error('Failed to stop tracking:', error);
+      throw error;
+    }
+  }
+
+  async isTracking(): Promise<{ active: boolean; tripId?: string }> {
+    return nativeIsTracking();
+  }
+
+  async getLocations(tripId?: string): Promise<Coords[]> {
+    const id = tripId || this.currentTripId;
+    if (!id) {
+      throw new Error('No trip ID available');
+    }
+    return nativeGetLocations(id);
+  }
+
+  async clearTrip(tripId?: string): Promise<void> {
+    const id = tripId || this.currentTripId;
+    if (!id) {
+      throw new Error('No trip ID available');
+    }
+    return nativeClearTrip(id);
+  }
+
+  getCurrentTripId(): string | null {
+    return this.currentTripId;
+  }
+}
+
+export default new LocationTrackingService();
+```
+
+Use the service from any component or non-React code:
+
+```typescript
+import LocationService from '../services/LocationService';
+
+// Start tracking
+const tripId = await LocationService.startTracking();
+
+// Check status
+const status = await LocationService.isTracking();
+
+// Stop tracking
+await LocationService.stopTracking();
+```
+
+> **When to use this pattern:** The service wrapper is useful when tracking logic is called from outside React components (background tasks, notification handlers, deep link processors) or when you want a single stateful entry point. For typical React screens, the hooks-based approach is simpler and recommended.
+
+## Uploading Locations to a Server
+
+After a trip ends, upload the collected locations to your backend and clear the local data to free storage. This pattern handles the full fetch-upload-cleanup flow with error handling.
+
+```typescript
+// services/LocationUploadService.ts
+import {
+  getLocations,
+  clearTrip,
+} from '@gabriel-sisjr/react-native-background-location';
+
+export const uploadTripData = async (tripId: string): Promise<void> => {
+  try {
+    const locations = await getLocations(tripId);
+
+    const response = await fetch('https://your-api.com/trips', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tripId,
+        locations: locations.map((loc) => ({
+          latitude: parseFloat(loc.latitude),
+          longitude: parseFloat(loc.longitude),
+          timestamp: loc.timestamp,
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload trip data');
+    }
+
+    // Clear local data only after successful upload
+    await clearTrip(tripId);
+  } catch (error) {
+    console.error('Upload error:', error);
+    throw error;
+  }
+};
+```
+
+Call the upload service after stopping a trip:
+
+```typescript
+import { uploadTripData } from '../services/LocationUploadService';
+
+const handleEndTrip = async (tripId: string) => {
+  await stopTracking();
+  await uploadTripData(tripId);
+};
+```
+
+> **Important:** Always `await stopTracking()` before calling `getLocations()`. The stop sequence flushes any buffered writes to the database, ensuring all collected points are available for upload.
+
 ## Best Practices
 
 1. **Always check permissions first.** Use `useLocationPermissions` to request permissions before starting tracking. See the [Permission Handling](./permission-handling) guide.
