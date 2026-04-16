@@ -53,7 +53,7 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/gabriel-sisjr/react-native-background-location/tree/develop/docs-site/',
+            'https://github.com/gabriel-sisjr/react-native-background-location/tree/develop/website/',
         },
         blog: false,
         theme: {

@@ -10884,25 +10884,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"docs-site@workspace:docs-site":
-  version: 0.0.0-use.local
-  resolution: "docs-site@workspace:docs-site"
-  dependencies:
-    "@docusaurus/core": ^3.7.0
-    "@docusaurus/module-type-aliases": ^3.7.0
-    "@docusaurus/preset-classic": ^3.7.0
-    "@docusaurus/tsconfig": ^3.7.0
-    "@docusaurus/types": ^3.7.0
-    "@easyops-cn/docusaurus-search-local": ^0.46.0
-    "@mdx-js/react": ^3.0.1
-    clsx: ^2.1.1
-    prism-react-renderer: ^2.4.1
-    react: ^18.3.1
-    react-dom: ^18.3.1
-    typescript: ~5.7.0
-  languageName: unknown
-  linkType: soft
-
 "doctrine@npm:^2.1.0":
   version: 2.1.0
   resolution: "doctrine@npm:2.1.0"
@@ -22970,6 +22951,25 @@ __metadata:
   checksum: e9ba314452486230668ab34aea7c3494866dbe29e327e9201551a839000ee7e878d8a47b8977acb76ec9443b4257dfcdb05bae9bbc27ffb21793d2bed7907687
   languageName: node
   linkType: hard
+
+"website@workspace:website":
+  version: 0.0.0-use.local
+  resolution: "website@workspace:website"
+  dependencies:
+    "@docusaurus/core": ^3.7.0
+    "@docusaurus/module-type-aliases": ^3.7.0
+    "@docusaurus/preset-classic": ^3.7.0
+    "@docusaurus/tsconfig": ^3.7.0
+    "@docusaurus/types": ^3.7.0
+    "@easyops-cn/docusaurus-search-local": ^0.46.0
+    "@mdx-js/react": ^3.0.1
+    clsx: ^2.1.1
+    prism-react-renderer: ^2.4.1
+    react: ^18.3.1
+    react-dom: ^18.3.1
+    typescript: ~5.7.0
+  languageName: unknown
+  linkType: soft
 
 "websocket-driver@npm:>=0.5.1, websocket-driver@npm:^0.7.4":
   version: 0.7.4

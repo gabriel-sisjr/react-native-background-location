@@ -19,7 +19,7 @@ A cross-platform React Native library for background location tracking built on 
 
 **[Read the full documentation](https://gabriel-sisjr.github.io/react-native-background-location/)**
 
-![Tracking demo](docs-site/static/img/tracking.gif)
+![Tracking demo](website/static/img/tracking.gif)
 
 ## Table of Contents
 

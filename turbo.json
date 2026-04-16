@@ -38,22 +38,22 @@
       ],
       "outputs": []
     },
-    "docs-site#build": {
+    "website#build": {
       "inputs": [
-        "docs-site/docs/**",
-        "docs-site/src/**",
-        "docs-site/static/**",
-        "docs-site/docusaurus.config.ts",
-        "docs-site/sidebars.ts",
-        "docs-site/package.json"
+        "website/docs/**",
+        "website/src/**",
+        "website/static/**",
+        "website/docusaurus.config.ts",
+        "website/sidebars.ts",
+        "website/package.json"
       ],
-      "outputs": ["docs-site/build/**"]
+      "outputs": ["website/build/**"]
     },
-    "docs-site#start": {
+    "website#start": {
       "cache": false,
       "persistent": true
     },
-    "docs-site#clear": {
+    "website#clear": {
       "cache": false
     }
   }

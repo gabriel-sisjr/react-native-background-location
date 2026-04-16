@@ -20,9 +20,9 @@ exclude_path = [
   ".yarn",
   ".turbo",
   "coverage",
-  "docs-site/node_modules",
-  "docs-site/build",
-  "docs-site/.docusaurus",
+  "website/node_modules",
+  "website/build",
+  "website/.docusaurus",
 ]
 
 # --- Network behavior (only applies to the online pass) -----------------------

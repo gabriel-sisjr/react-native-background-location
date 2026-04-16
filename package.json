@@ -39,10 +39,10 @@
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
     "release": "release-it --only-version",
-    "docs:dev": "yarn workspace docs-site start",
-    "docs:build": "yarn workspace docs-site build",
-    "docs:serve": "yarn workspace docs-site serve",
-    "docs:clear": "yarn workspace docs-site clear"
+    "docs:dev": "yarn workspace website start",
+    "docs:build": "yarn workspace website build",
+    "docs:serve": "yarn workspace website serve",
+    "docs:clear": "yarn workspace website clear"
   },
   "keywords": [
     "react-native",
@@ -123,7 +123,7 @@
   },
   "workspaces": [
     "example",
-    "docs-site"
+    "website"
   ],
   "packageManager": "yarn@3.6.1",
   "jest": {
@@ -133,7 +133,7 @@
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
-      "<rootDir>/docs-site/",
+      "<rootDir>/website/",
       "<rootDir>/lib/"
     ],
     "testMatch": [
