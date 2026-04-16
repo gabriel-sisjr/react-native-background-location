@@ -1,0 +1,350 @@
+# React Native Background Location — Full API Reference
+
+> Cross-platform React Native TurboModule library for background location tracking on Android and iOS.
+> npm: @gabriel-sisjr/react-native-background-location
+> Documentation: https://gabriel-sisjr.github.io/react-native-background-location/
+
+## Installation
+
+```bash
+yarn add @gabriel-sisjr/react-native-background-location
+# or
+npm install @gabriel-sisjr/react-native-background-location
+```
+
+Requirements: React Native >= 0.73.0, React >= 18.2.0, TurboModules enabled.
+
+## Quick Start
+
+```typescript
+import {
+  useBackgroundLocation,
+  useLocationPermissions,
+  LocationAccuracy,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function TrackingScreen() {
+  const { permissionStatus, requestPermissions } = useLocationPermissions();
+  const { isTracking, startTracking, stopTracking, locations } = useBackgroundLocation();
+
+  const handleStart = async () => {
+    await requestPermissions();
+    await startTracking({
+      accuracy: LocationAccuracy.HIGH_ACCURACY,
+      distanceFilter: 50,
+      updateInterval: 5000,
+    });
+  };
+
+  return (
+    <View>
+      <Text>Tracking: {isTracking ? 'Active' : 'Idle'}</Text>
+      <Text>Locations: {locations.length}</Text>
+      <Button
+        title={isTracking ? 'Stop' : 'Start'}
+        onPress={isTracking ? stopTracking : handleStart}
+      />
+    </View>
+  );
+}
+```
+
+## Tracking Functions
+
+### startTracking
+
+```typescript
+function startTracking(options?: TrackingOptions): Promise<string>;
+function startTracking(tripId: string, options?: TrackingOptions): Promise<string>;
+```
+
+Starts background location tracking. Returns the trip ID (auto-generated UUID if not provided).
+
+Parameters:
+- `tripId` (optional string) — Custom trip identifier. If omitted, a UUID is auto-generated.
+- `options` (optional TrackingOptions) — Tracking configuration.
+
+### stopTracking
+
+```typescript
+function stopTracking(): Promise<void>;
+```
+
+Stops tracking and terminates the background service.
+
+### isTracking
+
+```typescript
+function isTracking(): Promise<TrackingStatus>;
+```
+
+Returns `{ active: boolean; tripId?: string }`. Use to detect recovered sessions after crash.
+
+### getLocations
+
+```typescript
+function getLocations(tripId: string): Promise<Coords[]>;
+```
+
+Retrieves all stored locations for the given trip ID from persistent storage (Room DB on Android, Core Data on iOS).
+
+### clearTrip
+
+```typescript
+function clearTrip(tripId: string): Promise<void>;
+```
+
+Deletes all stored location data for the given trip ID.
+
+### updateNotification
+
+```typescript
+function updateNotification(title: string, text: string): Promise<void>;
+```
+
+Updates the Android foreground service notification while tracking is active. No-op on iOS.
+
+## Geofencing Functions
+
+### addGeofence
+
+```typescript
+function addGeofence(region: GeofenceRegion): Promise<void>;
+```
+
+Registers a single geofence region for monitoring.
+
+### addGeofences
+
+```typescript
+function addGeofences(regions: GeofenceRegion[]): Promise<void>;
+```
+
+Registers multiple geofences atomically.
+
+### removeGeofence
+
+```typescript
+function removeGeofence(identifier: string): Promise<void>;
+```
+
+### removeGeofences
+
+```typescript
+function removeGeofences(identifiers: string[]): Promise<void>;
+```
+
+### removeAllGeofences
+
+```typescript
+function removeAllGeofences(): Promise<void>;
+```
+
+### getActiveGeofences
+
+```typescript
+function getActiveGeofences(): Promise<GeofenceRegion[]>;
+```
+
+### getMaxGeofences
+
+```typescript
+function getMaxGeofences(): Promise<number>;
+```
+
+Returns platform limit: 100 on Android, 20 on iOS.
+
+### getGeofenceTransitions
+
+```typescript
+function getGeofenceTransitions(identifier?: string): Promise<GeofenceTransitionEvent[]>;
+```
+
+### clearGeofenceTransitions
+
+```typescript
+function clearGeofenceTransitions(identifier?: string): Promise<void>;
+```
+
+### configureGeofenceNotifications
+
+```typescript
+function configureGeofenceNotifications(options: NotificationOptions): Promise<void>;
+```
+
+### getGeofenceNotificationConfig
+
+```typescript
+function getGeofenceNotificationConfig(): Promise<NotificationOptions | null>;
+```
+
+## React Hooks
+
+### useBackgroundLocation
+
+```typescript
+function useBackgroundLocation(options?: UseLocationTrackingOptions): UseBackgroundLocationResult;
+```
+
+Full tracking control with trip and location management.
+
+Options: `{ autoStart?, tripId?, options?, onTrackingStart?, onTrackingStop?, onError? }`
+
+Returns: `{ tripId, isTracking, locations, isLoading, error, startTracking(), stopTracking(), refreshLocations(), clearCurrentTrip(), clearError() }`
+
+### useLocationTracking
+
+```typescript
+function useLocationTracking(options?: UseLocationTrackingOptions): UseLocationTrackingResult;
+```
+
+Lightweight read-only tracking status. Returns: `{ isTracking, tripId, refresh(), isLoading }`
+
+### useLocationUpdates
+
+```typescript
+function useLocationUpdates(options?: UseLocationUpdatesOptions): UseLocationUpdatesResult;
+```
+
+Real-time location event stream via NativeEventEmitter.
+
+Options: `{ tripId?, onLocationUpdate?, onUpdateInterval?, onLocationWarning?, onNotificationAction?, autoLoad? }`
+
+Returns: `{ tripId, isTracking, locations, lastLocation, lastWarning, isLoading, error, clearError(), clearLocations(), refreshLocations() }`
+
+### useLocationPermissions
+
+```typescript
+function useLocationPermissions(): UseLocationPermissionsResult;
+```
+
+Cross-platform permission flow. Handles Android foreground → background → notification sequence and iOS WhenInUse → Always escalation.
+
+Returns: `{ permissionStatus: PermissionState, requestPermissions(), checkPermissions(), isRequesting }`
+
+### useGeofencing
+
+```typescript
+function useGeofencing(options?: UseGeofencingOptions): UseGeofencingReturn;
+```
+
+Geofence CRUD operations. Returns: `{ geofences, isLoading, error, addGeofence(), addGeofences(), removeGeofence(), removeGeofences(), removeAllGeofences(), maxGeofences, refresh() }`
+
+### useGeofenceEvents
+
+```typescript
+function useGeofenceEvents(options?: UseGeofenceEventsOptions): void;
+```
+
+Real-time geofence transition listener. Options: `{ onTransition, transitionTypes?, geofenceId? }`
+
+## Types
+
+### TrackingOptions
+```typescript
+interface TrackingOptions {
+  updateInterval?: number;       // ms between updates (default: 10000)
+  fastestInterval?: number;      // min ms between updates
+  maxWaitTime?: number;          // max ms to batch updates
+  accuracy?: LocationAccuracy;   // default: HIGH_ACCURACY
+  waitForAccurateLocation?: boolean;
+  distanceFilter?: number;       // meters, 0 = disabled
+  foregroundOnly?: boolean;      // no background permission needed
+  onUpdateInterval?: number;     // ms throttle for hook callbacks
+  notificationOptions?: NotificationOptions;
+}
+```
+
+### Coords
+```typescript
+interface Coords {
+  latitude: string;
+  longitude: string;
+  timestamp: number;
+  accuracy?: number;
+  altitude?: number;
+  altitudeAccuracy?: number;
+  speed?: number;
+  speedAccuracy?: number;
+  bearing?: number;
+  bearingAccuracy?: number;
+  elapsedRealtimeNanos?: number;
+  provider?: string;
+  isMocked?: boolean;
+}
+```
+
+### GeofenceRegion
+```typescript
+interface GeofenceRegion {
+  identifier: string;
+  latitude: number;
+  longitude: number;
+  radius: number;                    // meters
+  transitionTypes?: GeofenceTransitionType[];
+  loiteringDelay?: number;           // ms for DWELL
+  expirationDuration?: number;       // ms, -1 = no expiration
+  metadata?: string;                 // JSON string
+  notificationOptions?: NotificationOptions;
+}
+```
+
+### NotificationOptions
+```typescript
+interface NotificationOptions {
+  enabled?: boolean;
+  title?: string;
+  text?: string;
+  channelId?: string;
+  channelName?: string;
+  channelDescription?: string;
+  priority?: NotificationPriority;
+  smallIconName?: string;
+  largeIconName?: string;
+  color?: string;
+  showTimestamp?: boolean;
+  subText?: string;
+  actions?: NotificationAction[];
+  transitionOverrides?: Record<string, { title?: string; text?: string }>;
+}
+```
+
+## Enums
+
+### LocationAccuracy
+- `HIGH_ACCURACY` — GPS, ~10m accuracy
+- `BALANCED_POWER_ACCURACY` — WiFi/Cell, ~100m
+- `LOW_POWER` — Cell tower, ~1km
+- `NO_POWER` — Passive, no extra power
+- `PASSIVE` — Uses other apps' requests
+
+### NotificationPriority
+- `LOW`, `DEFAULT`, `HIGH`, `MAX`
+
+### LocationPermissionStatus
+- `GRANTED` — Full (Always) permission
+- `WHEN_IN_USE` — Foreground only
+- `DENIED` — User denied
+- `BLOCKED` — Permanently denied
+- `UNDETERMINED` — Not yet requested
+
+### NotificationPermissionStatus
+- `GRANTED`, `DENIED`, `UNDETERMINED`
+
+### GeofenceTransitionType
+- `ENTER`, `EXIT`, `DWELL`
+
+### GeofenceErrorCode
+- `INVALID_REGION`, `DUPLICATE_IDENTIFIER`, `LIMIT_EXCEEDED`, `MONITORING_FAILED`, `NOT_AVAILABLE`, `PERMISSION_DENIED`, `PLAY_SERVICES_UNAVAILABLE`
+
+## Platform Support
+
+| Feature | Android | iOS |
+|---------|---------|-----|
+| Background tracking | Foreground service | CLLocationManager |
+| Persistence | Room DB | Core Data |
+| Geofencing | GeofencingClient (100 max) | CLLocationManager (20 max) |
+| Notifications | Full customization | System blue bar |
+| Crash recovery | WorkManager | Significant location monitoring |
+| Permission model | Foreground → Background → Notification | WhenInUse → Always |
+| Min SDK | 24 | iOS 13 |

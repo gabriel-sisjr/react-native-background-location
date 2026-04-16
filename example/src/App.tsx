@@ -10,8 +10,10 @@ import {
   Linking,
   Switch,
   TouchableOpacity,
+  LogBox,
 } from 'react-native';
-import BackgroundLocation, {
+import {
+  updateNotification,
   useLocationPermissions,
   useBackgroundLocation,
   useLocationUpdates,
@@ -26,6 +28,16 @@ import styles from './styles';
 import { RouteMap } from './components';
 import { GeofencingScreen } from './screens/GeofencingScreen';
 import type { Coords } from '@gabriel-sisjr/react-native-background-location';
+import MapLibreGL from '@maplibre/maplibre-react-native';
+
+// Suppress MapLibre noisy logs (canceled requests, etc.)
+MapLibreGL.Logger.setLogLevel('error');
+
+// Filter out remaining MapLibre warnings from LogBox
+LogBox.ignoreLogs([
+  /Request failed due to a permanent error/,
+  /Mbgl-HttpRequest/,
+]);
 
 /**
  * Formats location properties for display
@@ -229,6 +241,7 @@ export default function App() {
     lastLocation,
     isTracking: isAutoTracking,
     clearLocations: clearAutoLocations,
+    refreshLocations: refreshAutoLocations,
   } = useLocationUpdates({
     onLocationUpdate: (location) => {
       console.log('New location received:', location);
@@ -669,12 +682,20 @@ export default function App() {
                 />
               )}
 
+              {isTracking && useAutoUpdates && (
+                <Button
+                  title="Sync from Database"
+                  onPress={refreshAutoLocations}
+                  color="#607D8B"
+                />
+              )}
+
               {isTracking && (
                 <Button
                   title="Update Notification Text"
                   onPress={() => {
                     const now = new Date().toLocaleTimeString();
-                    BackgroundLocation.updateNotification(
+                    updateNotification(
                       'Updated at ' + now,
                       `${locations.length} locations collected`
                     );

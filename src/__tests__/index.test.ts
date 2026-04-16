@@ -1,10 +1,29 @@
 import { NativeModules, Platform } from 'react-native';
-import BackgroundLocation, {
+import {
+  startTracking,
+  stopTracking,
+  isTracking,
+  getLocations,
+  clearTrip,
+  updateNotification,
   LocationAccuracy,
   NotificationPriority,
 } from '../index';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type { TrackingOptions } from '../types';
+
+// Aggregate bag used throughout the tests to keep the surface small while
+// still exercising every exported tracking method. The default-export
+// `BackgroundLocation` was removed in favor of named exports — this bag
+// is purely a test-local convenience.
+const BackgroundLocation = {
+  startTracking,
+  stopTracking,
+  isTracking,
+  getLocations,
+  clearTrip,
+  updateNotification,
+};
 
 describe('BackgroundLocation API', () => {
   const mockTripId = 'test-trip-123';
@@ -76,8 +95,13 @@ describe('BackgroundLocation API', () => {
       );
     });
 
-    it.skip('should handle simulator mode gracefully', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should handle simulator mode gracefully', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const result = await BackgroundLocation.startTracking();
 
@@ -85,15 +109,36 @@ describe('BackgroundLocation API', () => {
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining('BackgroundLocation not available')
       );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
 
-    it.skip('should use provided trip ID in simulator mode', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should use provided trip ID in simulator mode', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const result = await BackgroundLocation.startTracking(mockTripId);
 
       expect(result).toBe(mockTripId);
       expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
 
     it('should handle empty string trip ID', async () => {
@@ -489,62 +534,41 @@ describe('BackgroundLocation API', () => {
     });
 
     it('should handle when module is null', async () => {
-      const originalModule = BackgroundLocationModule;
-      // Mock module to be null
-      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
-        value: null,
-        configurable: true,
-      });
+      jest.resetModules();
+      jest.doMock('../NativeBackgroundLocation', () => ({
+        __esModule: true,
+        default: null,
+      }));
 
-      // Need to re-import to get the null module
-      const BackgroundLocationWithNullModule = require('../index').default;
-      const result = await BackgroundLocationWithNullModule.startTracking();
+      // Re-import via isolated registry so the helpers see the null module
+      const isolated = require('../index');
+      const result = await isolated.startTracking();
 
       expect(result).toMatch(/^simulator-trip-\d+$/);
       expect(console.warn).toHaveBeenCalled();
 
-      // Restore
-      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
-        value: originalModule,
-        configurable: true,
-      });
+      jest.dontMock('../NativeBackgroundLocation');
+      jest.resetModules();
     });
 
     it('should handle when module is null in isNativeModuleAvailable check', async () => {
-      // Test the specific line 50: when BackgroundLocationModule === null
-      const originalModule = BackgroundLocationModule;
-      const originalIsTracking = BackgroundLocationModule.isTracking;
+      // Exercises the branch where `isTracking` is a function but the
+      // underlying module is null — the probe should still short-circuit
+      // and the public API should fall back gracefully.
+      jest.resetModules();
+      jest.doMock('../NativeBackgroundLocation', () => ({
+        __esModule: true,
+        default: null,
+      }));
 
-      // First set isTracking to be a function (to pass first check)
-      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
-        value: jest.fn(),
-        configurable: true,
-        writable: true,
-      });
-
-      // Then set module to null to trigger line 50
-      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
-        value: null,
-        configurable: true,
-      });
-
-      // Re-import to get the null module
-      const BackgroundLocationWithNullModule = require('../index').default;
-      const result = await BackgroundLocationWithNullModule.isTracking();
+      const isolated = require('../index');
+      const result = await isolated.isTracking();
 
       expect(result).toEqual({ active: false });
       expect(console.warn).toHaveBeenCalled();
 
-      // Restore
-      Object.defineProperty(require('../NativeBackgroundLocation'), 'default', {
-        value: originalModule,
-        configurable: true,
-      });
-      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
-        value: originalIsTracking,
-        configurable: true,
-        writable: true,
-      });
+      jest.dontMock('../NativeBackgroundLocation');
+      jest.resetModules();
     });
   });
 
@@ -869,15 +893,27 @@ describe('BackgroundLocation API', () => {
       expect(result).toBe(mockTripId);
     });
 
-    // NOTE: Module availability tests are skipped due to Jest module caching limitations
-    it.skip('should handle iOS platform (not available)', async () => {
+    it('should handle iOS platform (not available)', async () => {
       Platform.OS = 'ios';
-      (global as any).setModuleAvailable(false);
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const result = await BackgroundLocation.startTracking();
 
       expect(result).toMatch(/^simulator-trip-\d+$/);
       expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
   });
 

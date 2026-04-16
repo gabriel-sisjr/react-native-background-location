@@ -1,5 +1,125 @@
 # Changelog
 
+## [0.14.0] - 2026-04-15
+
+> **Breaking change** -- the public TypeScript API surface was cleaned up. The `BackgroundLocation` default export has been removed. No native (Android/iOS) behavior changed. Consumers must update their imports (see migration guide below and `BREAKING_CHANGES.md`).
+>
+> **Cross-project notice:** This library is consumed by **GereFrotaApp-Motoristas**. Bumping the library version there requires migrating all `import BackgroundLocation from ...` statements to named imports before the build will pass.
+
+### BREAKING CHANGES
+
+- **Removed default export** from `src/index.tsx`. The 6 tracking methods (`startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`) are now published exclusively as top-level named exports. Consumers using `import BackgroundLocation from '@gabriel-sisjr/react-native-background-location'` followed by `BackgroundLocation.<method>()` must migrate to `import { <method> } from '@gabriel-sisjr/react-native-background-location'`.
+
+### Changed
+
+- `src/index.tsx` is now a lean public-API facade that composes helpers from `src/utils/` and `src/errors/`. All `@internal` helpers have been extracted (see Added section).
+- `example/src/App.tsx`, `src/__tests__/index.test.ts`, and `src/__tests__/integration/ios-tracking.test.ts` updated to use named imports.
+
+### Added
+
+- `src/utils/isNativeModuleAvailable.ts` -- `@internal` non-throwing probe for the TurboModule (returns `false` when running in a simulator without the module linked).
+- `src/utils/trackingOptionsMapper.ts` -- `@internal` `toTrackingOptionsSpec()` helper that converts TypeScript enums to Codegen-compatible string values before crossing the TurboModule bridge. Previously inlined in `src/index.tsx`.
+- `src/utils/geofenceValidation.ts` -- `@internal` `validateGeofenceRegion()` runtime validation (identifier, radius, coordinates, metadata shape).
+- `src/utils/geofenceSerialization.ts` -- `@internal` `prepareGeofenceRegion()` and `serializeGeofenceRegion()` JSON serialization helpers (the TurboModule spec accepts strings because Codegen does not support typed object arrays).
+- `src/utils/index.ts` -- barrel re-exporting all utils.
+- `src/errors/GeofenceError.ts` -- `GeofenceError` class (moved from `src/index.tsx`). Still re-exported via `src/index.tsx` so `import { GeofenceError } from '@gabriel-sisjr/react-native-background-location'` continues to work.
+- `src/errors/index.ts` -- barrel.
+
+### Refactor
+
+- Extracted all `@internal` helpers from `src/index.tsx` into `src/utils/`. `src/index.tsx` no longer contains inline enum-to-string conversion, module probing, geofence validation, or geofence serialization logic.
+- Moved `GeofenceError` from `src/index.tsx` into a dedicated `src/errors/` folder. Public re-export preserved to avoid breaking type imports.
+- Existing `src/utils/moduleCheck.ts` (`assertNativeModuleAvailable`) and `src/utils/objectUtils.ts` (`extractDefinedProperties`) are unchanged.
+
+### Migration Guide
+
+If upgrading from `0.13.x`:
+
+```typescript
+// Before (0.13.x and earlier)
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+
+await BackgroundLocation.startTracking('trip-123');
+await BackgroundLocation.updateNotification('Title', 'Text');
+const status = await BackgroundLocation.isTracking();
+const locations = await BackgroundLocation.getLocations('trip-123');
+await BackgroundLocation.clearTrip('trip-123');
+await BackgroundLocation.stopTracking();
+
+// After (0.14.0)
+import {
+  startTracking,
+  stopTracking,
+  isTracking,
+  getLocations,
+  clearTrip,
+  updateNotification,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking('trip-123');
+await updateNotification('Title', 'Text');
+const status = await isTracking();
+const locations = await getLocations('trip-123');
+await clearTrip('trip-123');
+await stopTracking();
+```
+
+No runtime behavior changed -- the method signatures and return types are identical. This is strictly an import-shape refactor. Run `yarn typecheck` after migration; any remaining default-import site will surface as a TypeScript error.
+
+See `BREAKING_CHANGES.md` for the full migration guide including rationale and a find-and-replace recipe.
+
+## [0.13.0] - 2026-03-30
+
+> **Non-breaking change** -- the public TypeScript API is unchanged. This release is an internal Android refactor and bug fix only.
+
+### Changed
+
+- Migrated all Android event broadcasting from `LocalBroadcastManager` to Kotlin `SharedFlow` singletons. Location updates, geofence transitions, and notification actions now flow through type-safe `SharedFlow` channels instead of `Intent`-based broadcasts.
+- `BackgroundLocationModule.kt` collects events from SharedFlow singletons via coroutine Jobs scoped to `moduleScope` (Dispatchers.Main), replacing the former `BroadcastReceiver` registration/unregistration pattern.
+- Renamed "Broadcaster" to "Emitter" across the entire codebase (`LocationEventBroadcaster` -> `LocationEventEmitter`, `GeofenceEventBroadcaster` -> `GeofenceEventEmitter`) for consistency with the new SharedFlow-based architecture.
+- Clarified documentation references to system `BroadcastReceiver` (`NotificationActionReceiver`, `BootCompletedReceiver`) vs. the removed internal `LocalBroadcastManager` mechanism.
+- `LocationEventEmitter.kt` emits location events (update, error, warning) via `LocationEventFlow` instead of `LocalBroadcastManager.sendBroadcast()`.
+- `GeofenceEventEmitter.kt` emits geofence transition events via `GeofenceEventFlow` instead of `LocalBroadcastManager.sendBroadcast()`.
+- `NotificationActionReceiver.kt` emits directly via `NotificationActionFlow` instead of routing through `LocationEventEmitter`.
+- `useLocationUpdates` hook: replaced periodic `setInterval` DB polling with one-time mount hydration and automatic `AppState`-based re-hydration on foreground resume. Exposed `refreshLocations()` method for on-demand DB sync.
+
+### Added
+
+- `LocationEventFlow.kt` -- `sealed interface LocationEvent` (Update, Error, Warning) + `LocationEventFlow` singleton with `MutableSharedFlow<LocationEvent>` (replay=0, buffer=64, DROP_OLDEST). Type-safe replacement for location broadcast intents.
+- `GeofenceEventFlow.kt` -- `sealed interface GeofenceEvent` (Transition) + `GeofenceEventFlow` singleton with `MutableSharedFlow<GeofenceEvent>`. Type-safe replacement for geofence broadcast intents.
+- `NotificationActionFlow.kt` -- `sealed interface NotificationActionEvent` (ActionClicked) + `NotificationActionFlow` singleton with `MutableSharedFlow<NotificationActionEvent>`. Decouples notification actions from `LocationEventEmitter` routing.
+- `LocationExtensions.kt` shared utility extracting `isMockLocation()` extension function, replacing duplicated implementations across provider files.
+- Unit tests for all three SharedFlow singletons (`LocationEventFlow`, `GeofenceEventFlow`, `NotificationActionFlow`) with Turbine.
+- Unit tests for `RecoveryWorker` verifying the `isRunning` guard behavior.
+- Unit tests for `FusedLocationProvider` and `AndroidLocationProvider` verifying duplicate-callback prevention.
+- Test dependencies: `kotlinx-coroutines-test`, `turbine`, and `mockk` for SharedFlow and provider testing.
+
+### Removed
+
+- `androidx.localbroadcastmanager:localbroadcastmanager:1.1.0` dependency from `android/build.gradle`.
+- `LocationEventEmitter.createIntentFilter()` method and `@Deprecated` annotation.
+- `LocationEventEmitter` `ACTION_*` constants: `ACTION_LOCATION_UPDATE`, `ACTION_LOCATION_ERROR`, `ACTION_LOCATION_WARNING`, `ACTION_NOTIFICATION_ACTION`.
+- `LocationEventEmitter` `EXTRA_*` constants: `EXTRA_TRIP_ID`, `EXTRA_LOCATION_DATA`, `EXTRA_ERROR_TYPE`, `EXTRA_ERROR_MESSAGE`, `EXTRA_ACTION_ID`.
+- `LocationEventEmitter` `import android.content.IntentFilter`.
+- `GeofenceEventEmitter.createIntentFilter()` method and `@Deprecated` annotation.
+- `GeofenceEventEmitter.intentToWritableMap()` method (dead code, zero callers after SharedFlow migration).
+- `GeofenceEventEmitter` `ACTION_GEOFENCE_TRANSITION` constant.
+- `GeofenceEventEmitter` all `EXTRA_*` constants (7 total).
+- `GeofenceEventEmitter` `isoFormatter` property.
+- `GeofenceEventEmitter` 9 orphaned imports (`IntentFilter`, `Intent`, `Bundle`, `WritableNativeMap`, `Arguments`, `SimpleDateFormat`, `Locale`, `TimeZone`, `Date`).
+- Deprecated synchronous `getTrackingState()` dead code.
+- Stale "broadcast" terminology in `LocationService.kt` (7 locations), `BackgroundLocationModule.kt` (1 location), `GeofenceManager.kt` (1 location) -- updated to "emit"/"event".
+- Interval-based DB polling logic and its associated timer cleanup from `useLocationUpdates`.
+
+### Fixed
+
+- **(Android)** Duplicate location events delivered to JavaScript when `LocationService.onStartCommand()` was called multiple times via recovery paths. Each location update now produces exactly one event. This was a pre-existing bug masked by the old polling mechanism, not a regression. iOS is not affected.
+- **(Android)** `FusedLocationProvider` and `AndroidLocationProvider` now call `removeLocationUpdates()` before registering new callbacks/listeners in `requestLocationUpdates()`, preventing callback accumulation (provider-level deduplication).
+- **(Android)** `BackgroundLocationModule.onHostResume()` and `RecoveryWorker.doWork()` now check `LocationService.isRunning` before triggering recovery, preventing redundant `onStartCommand()` calls (caller-level guards).
+- Kotlin compiler deprecation warning for `Location.isFromMockProvider` in `LocationService.kt` and `LocationEventEmitter.kt`. Both files now use `LocationExtensions.isMockLocation()` which calls `Location.isMock` on API 31+ and falls back to the deprecated property on API 24-30.
+- Kotlin compiler deprecation warning for synchronous `storage.getTrackingState()` in `LocationService.onStartCommand()`. Replaced with `runBlocking { storage.getTrackingStateAsync() }` -- safe because this code path only executes on system-initiated service restarts (rare recovery scenario).
+- Removed dead `JELLY_BEAN_MR2` API level guard in `LocationEventEmitter.locationToBundle()` (library minSdk is 24, making the guard always true).
+
 ## [0.12.0] - 2026-03-28
 
 ### BREAKING CHANGES
@@ -902,9 +1022,11 @@ If upgrading from 0.1.0:
 **New Recommended Approach** - Use hooks for new code:
 
 ```typescript
-// Old (still works)
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
-await BackgroundLocation.startTracking('trip-123');
+// Old (imperative) -- NOTE: the default-export form shown in the original
+// 0.2.0 release notes was later removed in the 0.14.0 entry above.
+// Use named imports instead.
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+await startTracking('trip-123');
 
 // New (recommended)
 import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
@@ -968,6 +1090,8 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - No event emitters for real-time location updates
 - Storage limited to SharedPreferences (consider SQLite for large datasets)
 
+[0.14.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.14.0
+[0.13.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.13.0
 [0.12.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.12.0
 [0.11.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.11.0
 [0.10.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.10.0

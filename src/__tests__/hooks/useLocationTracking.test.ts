@@ -204,8 +204,13 @@ describe('useLocationTracking', () => {
       );
     });
 
-    it.skip('should warn when module is not available', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should warn when module is not available', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const { result } = renderHook(() => useLocationTracking(false));
 
@@ -216,6 +221,14 @@ describe('useLocationTracking', () => {
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining('BackgroundLocation not available')
       );
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
 
     it('should handle when isTracking is not a function (line 11)', async () => {
@@ -516,10 +529,14 @@ describe('useLocationTracking', () => {
       expect(result.current.isTracking).toBe(true);
     });
 
-    // NOTE: Module availability tests are skipped due to Jest module caching limitations
-    it.skip('should handle iOS platform (not available)', async () => {
+    it('should handle iOS platform (not available)', async () => {
       Platform.OS = 'ios';
-      (global as any).setModuleAvailable(false);
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const { result } = renderHook(() => useLocationTracking(false));
 
@@ -529,6 +546,14 @@ describe('useLocationTracking', () => {
 
       expect(result.current.isTracking).toBe(false);
       expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
   });
 
@@ -550,8 +575,13 @@ describe('useLocationTracking', () => {
       expect(BackgroundLocationModule.isTracking).toHaveBeenCalled();
     });
 
-    it.skip('should detect when module is not available', async () => {
-      (global as any).setModuleAvailable(false);
+    it('should detect when module is not available', async () => {
+      const originalIsTracking = BackgroundLocationModule.isTracking;
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: undefined,
+        configurable: true,
+        writable: true,
+      });
 
       const { result } = renderHook(() => useLocationTracking(false));
 
@@ -561,6 +591,14 @@ describe('useLocationTracking', () => {
 
       expect(result.current.isTracking).toBe(false);
       expect(console.warn).toHaveBeenCalled();
+
+      // Restore
+      Object.defineProperty(BackgroundLocationModule, 'isTracking', {
+        value: originalIsTracking,
+        configurable: true,
+        writable: true,
+      });
+      (BackgroundLocationModule.isTracking as jest.Mock) = jest.fn();
     });
   });
 

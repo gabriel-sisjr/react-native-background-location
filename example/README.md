@@ -54,6 +54,6 @@ example/
 
 ## See Also
 
-- [Quick Start Guide](../docs/getting-started/QUICKSTART.md)
-- [Hooks API Guide](../docs/getting-started/hooks.md)
-- [Integration Guide](../docs/getting-started/INTEGRATION_GUIDE.md)
+- [Quick Start Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/quick-start)
+- [Hooks API Reference](https://gabriel-sisjr.github.io/react-native-background-location/docs/category/hooks)
+- [Installation Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/installation)

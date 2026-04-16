@@ -1,0 +1,124 @@
+:root {
+  --ifm-color-primary: #0891b2;
+  --ifm-color-primary-dark: #0782a1;
+  --ifm-color-primary-darker: #077b98;
+  --ifm-color-primary-darkest: #06657d;
+  --ifm-color-primary-light: #09a0c3;
+  --ifm-color-primary-lighter: #0aa7cc;
+  --ifm-color-primary-lightest: #0bbde7;
+  --ifm-code-font-size: 95%;
+  --ifm-font-family-base: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+    Cantarell, Noto Sans, sans-serif;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #22d3ee;
+  --ifm-color-primary-dark: #11c9e5;
+  --ifm-color-primary-darker: #10bed9;
+  --ifm-color-primary-darkest: #0d9db3;
+  --ifm-color-primary-light: #41daf1;
+  --ifm-color-primary-lighter: #4dddf2;
+  --ifm-color-primary-lightest: #78e6f6;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+.hero {
+  padding: 4rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero__title {
+  font-size: 3rem;
+  font-weight: 800;
+}
+
+.hero__subtitle {
+  font-size: 1.3rem;
+  max-width: 640px;
+  margin: 0 auto;
+  opacity: 0.85;
+}
+
+.features {
+  display: flex;
+  align-items: stretch;
+  padding: 2rem 0;
+  width: 100%;
+}
+
+.feature {
+  flex: 1;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.feature h3 {
+  font-size: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.feature p {
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.install-command {
+  display: inline-block;
+  background: var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.95rem;
+  margin: 1.5rem 0;
+  user-select: all;
+  color: #1b1b1d;
+}
+
+[data-theme='dark'] .install-command {
+  background: var(--ifm-color-emphasis-200);
+  color: #e3e3e3;
+}
+
+.hero-api-button {
+  background: transparent;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+}
+
+.hero-api-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+[data-theme='dark'] .hero-api-button {
+  color: #1b1b1d;
+  border-color: #1b1b1d;
+}
+
+[data-theme='dark'] .hero-api-button:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1b1b1d;
+}
+
+.badges {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+.buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.feature-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}

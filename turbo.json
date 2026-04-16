@@ -37,6 +37,24 @@
         "!example/ios/Pods"
       ],
       "outputs": []
+    },
+    "website#build": {
+      "inputs": [
+        "website/docs/**",
+        "website/src/**",
+        "website/static/**",
+        "website/docusaurus.config.ts",
+        "website/sidebars.ts",
+        "website/package.json"
+      ],
+      "outputs": ["website/build/**"]
+    },
+    "website#start": {
+      "cache": false,
+      "persistent": true
+    },
+    "website#clear": {
+      "cache": false
     }
   }
 }
