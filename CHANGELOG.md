@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.14.0] - 2026-04-15
+
+> **Breaking change** -- the public TypeScript API surface was cleaned up. The `BackgroundLocation` default export has been removed. No native (Android/iOS) behavior changed. Consumers must update their imports (see migration guide below and `BREAKING_CHANGES.md`).
+>
+> **Cross-project notice:** This library is consumed by **GereFrotaApp-Motoristas**. Bumping the library version there requires migrating all `import BackgroundLocation from ...` statements to named imports before the build will pass.
+
+### BREAKING CHANGES
+
+- **Removed default export** from `src/index.tsx`. The 6 tracking methods (`startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`) are now published exclusively as top-level named exports. Consumers using `import BackgroundLocation from '@gabriel-sisjr/react-native-background-location'` followed by `BackgroundLocation.<method>()` must migrate to `import { <method> } from '@gabriel-sisjr/react-native-background-location'`.
+
+### Changed
+
+- `src/index.tsx` is now a lean public-API facade that composes helpers from `src/utils/` and `src/errors/`. All `@internal` helpers have been extracted (see Added section).
+- `example/src/App.tsx`, `src/__tests__/index.test.ts`, and `src/__tests__/integration/ios-tracking.test.ts` updated to use named imports.
+
+### Added
+
+- `src/utils/isNativeModuleAvailable.ts` -- `@internal` non-throwing probe for the TurboModule (returns `false` when running in a simulator without the module linked).
+- `src/utils/trackingOptionsMapper.ts` -- `@internal` `toTrackingOptionsSpec()` helper that converts TypeScript enums to Codegen-compatible string values before crossing the TurboModule bridge. Previously inlined in `src/index.tsx`.
+- `src/utils/geofenceValidation.ts` -- `@internal` `validateGeofenceRegion()` runtime validation (identifier, radius, coordinates, metadata shape).
+- `src/utils/geofenceSerialization.ts` -- `@internal` `prepareGeofenceRegion()` and `serializeGeofenceRegion()` JSON serialization helpers (the TurboModule spec accepts strings because Codegen does not support typed object arrays).
+- `src/utils/index.ts` -- barrel re-exporting all utils.
+- `src/errors/GeofenceError.ts` -- `GeofenceError` class (moved from `src/index.tsx`). Still re-exported via `src/index.tsx` so `import { GeofenceError } from '@gabriel-sisjr/react-native-background-location'` continues to work.
+- `src/errors/index.ts` -- barrel.
+
+### Refactor
+
+- Extracted all `@internal` helpers from `src/index.tsx` into `src/utils/`. `src/index.tsx` no longer contains inline enum-to-string conversion, module probing, geofence validation, or geofence serialization logic.
+- Moved `GeofenceError` from `src/index.tsx` into a dedicated `src/errors/` folder. Public re-export preserved to avoid breaking type imports.
+- Existing `src/utils/moduleCheck.ts` (`assertNativeModuleAvailable`) and `src/utils/objectUtils.ts` (`extractDefinedProperties`) are unchanged.
+
+### Migration Guide
+
+If upgrading from `0.13.x`:
+
+```typescript
+// Before (0.13.x and earlier)
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+
+await BackgroundLocation.startTracking('trip-123');
+await BackgroundLocation.updateNotification('Title', 'Text');
+const status = await BackgroundLocation.isTracking();
+const locations = await BackgroundLocation.getLocations('trip-123');
+await BackgroundLocation.clearTrip('trip-123');
+await BackgroundLocation.stopTracking();
+
+// After (0.14.0)
+import {
+  startTracking,
+  stopTracking,
+  isTracking,
+  getLocations,
+  clearTrip,
+  updateNotification,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking('trip-123');
+await updateNotification('Title', 'Text');
+const status = await isTracking();
+const locations = await getLocations('trip-123');
+await clearTrip('trip-123');
+await stopTracking();
+```
+
+No runtime behavior changed -- the method signatures and return types are identical. This is strictly an import-shape refactor. Run `yarn typecheck` after migration; any remaining default-import site will surface as a TypeScript error.
+
+See `BREAKING_CHANGES.md` for the full migration guide including rationale and a find-and-replace recipe.
+
 ## [0.13.0] - 2026-03-30
 
 > **Non-breaking change** -- the public TypeScript API is unchanged. This release is an internal Android refactor and bug fix only.
@@ -954,9 +1022,11 @@ If upgrading from 0.1.0:
 **New Recommended Approach** - Use hooks for new code:
 
 ```typescript
-// Old (still works)
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
-await BackgroundLocation.startTracking('trip-123');
+// Old (imperative) -- NOTE: the default-export form shown in the original
+// 0.2.0 release notes was later removed in the 0.14.0 entry above.
+// Use named imports instead.
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+await startTracking('trip-123');
 
 // New (recommended)
 import { useBackgroundLocation } from '@gabriel-sisjr/react-native-background-location';
@@ -1020,6 +1090,7 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - No event emitters for real-time location updates
 - Storage limited to SharedPreferences (consider SQLite for large datasets)
 
+[0.14.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.14.0
 [0.13.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.13.0
 [0.12.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.12.0
 [0.11.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.11.0

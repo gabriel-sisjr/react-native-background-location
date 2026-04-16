@@ -91,6 +91,11 @@ coverage/
 # Misc
 */.watchman-*
 
+# Docusaurus
+website/build/
+website/.docusaurus/
+website/node_modules/
+
 # AI
 .claude
 claude.md

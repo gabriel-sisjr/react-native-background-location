@@ -12,7 +12,8 @@ import {
   TouchableOpacity,
   LogBox,
 } from 'react-native';
-import BackgroundLocation, {
+import {
+  updateNotification,
   useLocationPermissions,
   useBackgroundLocation,
   useLocationUpdates,
@@ -694,7 +695,7 @@ export default function App() {
                   title="Update Notification Text"
                   onPress={() => {
                     const now = new Date().toLocaleTimeString();
-                    BackgroundLocation.updateNotification(
+                    updateNotification(
                       'Updated at ' + now,
                       `${locations.length} locations collected`
                     );

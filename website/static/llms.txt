@@ -1,0 +1,80 @@
+# React Native Background Location
+
+> Cross-platform React Native TurboModule library for background location tracking on Android and iOS.
+
+## Package
+
+- npm: @gabriel-sisjr/react-native-background-location
+- Repository: https://github.com/gabriel-sisjr/react-native-background-location
+- Documentation: https://gabriel-sisjr.github.io/react-native-background-location/
+
+## Overview
+
+A React Native library that provides background location tracking using TurboModules (New Architecture). Supports Android (foreground service + Room DB) and iOS (CLLocationManager + Core Data). Features include real-time location updates, geofencing with ENTER/EXIT/DWELL transitions, crash recovery, persistent storage, and configurable notifications.
+
+## Requirements
+
+- React Native >= 0.73.0
+- React >= 18.2.0
+- TurboModules (New Architecture) enabled
+- Android: min SDK 24, target SDK 34
+- iOS: 13+
+
+## Public API
+
+### Tracking Functions
+- `startTracking(tripIdOrOptions?, options?)` — Start background location tracking. Returns trip ID.
+- `stopTracking()` — Stop tracking and terminate the service.
+- `isTracking()` — Check if tracking is active. Returns `TrackingStatus`.
+- `getLocations(tripId)` — Retrieve stored locations for a trip.
+- `clearTrip(tripId)` — Delete all stored data for a trip.
+- `updateNotification(title, text)` — Update Android notification while tracking.
+
+### Geofencing Functions
+- `addGeofence(region)` — Register a single geofence.
+- `addGeofences(regions)` — Register multiple geofences atomically.
+- `removeGeofence(identifier)` — Remove a geofence by identifier.
+- `removeGeofences(identifiers)` — Remove multiple geofences.
+- `removeAllGeofences()` — Remove all active geofences.
+- `getActiveGeofences()` — List all active geofences.
+- `getMaxGeofences()` — Get platform geofence limit (Android: 100, iOS: 20).
+- `getGeofenceTransitions(identifier?)` — Retrieve stored transition events.
+- `clearGeofenceTransitions(identifier?)` — Clear stored transitions.
+- `configureGeofenceNotifications(options)` — Configure geofence notification settings.
+- `getGeofenceNotificationConfig()` — Get current geofence notification config.
+
+### React Hooks
+- `useBackgroundLocation(options?)` — Full tracking control with trip management.
+- `useLocationTracking(options?)` — Lightweight tracking status monitoring.
+- `useLocationUpdates(options?)` — Real-time location event stream.
+- `useLocationPermissions()` — Cross-platform permission management.
+- `useGeofencing(options?)` — Geofence CRUD operations.
+- `useGeofenceEvents(options?)` — Real-time geofence transition listener.
+- `useGeofencePermissions()` — Alias for useLocationPermissions.
+
+### Enums
+- `LocationAccuracy` — HIGH_ACCURACY, BALANCED_POWER_ACCURACY, LOW_POWER, NO_POWER, PASSIVE
+- `NotificationPriority` — LOW, DEFAULT, HIGH, MAX
+- `LocationPermissionStatus` — GRANTED, WHEN_IN_USE, DENIED, BLOCKED, UNDETERMINED
+- `NotificationPermissionStatus` — GRANTED, DENIED, UNDETERMINED
+- `GeofenceTransitionType` — ENTER, EXIT, DWELL
+- `GeofenceErrorCode` — INVALID_REGION, DUPLICATE_IDENTIFIER, LIMIT_EXCEEDED, MONITORING_FAILED, NOT_AVAILABLE, PERMISSION_DENIED, PLAY_SERVICES_UNAVAILABLE
+
+### Key Types
+- `TrackingOptions` — Configuration for tracking (updateInterval, accuracy, distanceFilter, notificationOptions, etc.)
+- `Coords` — Location coordinate data (latitude, longitude, timestamp, accuracy, altitude, speed, bearing)
+- `TrackingStatus` — Active status and trip ID
+- `GeofenceRegion` — Geofence definition (identifier, lat/lng, radius, transitionTypes)
+- `GeofenceTransitionEvent` — Transition event data
+- `NotificationOptions` — Android notification configuration
+- `GeofenceError` — Custom error class for geofence operations
+
+## Documentation Pages
+- Getting Started: /docs/getting-started/introduction
+- Installation: /docs/getting-started/installation
+- Quick Start: /docs/getting-started/quick-start
+- Background Tracking Guide: /docs/guides/background-tracking
+- Geofencing Guide: /docs/guides/geofencing
+- API Reference: /docs/api-reference/functions
+- Hooks Reference: /docs/api-reference/hooks/useBackgroundLocation
+- Architecture: /docs/architecture/overview

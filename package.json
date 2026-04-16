@@ -1,6 +1,6 @@
 {
   "name": "@gabriel-sisjr/react-native-background-location",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "React Native library for background location tracking using TurboModules. Track user location even when the app is minimized or in the background.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -38,7 +38,11 @@
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
-    "release": "release-it --only-version"
+    "release": "release-it --only-version",
+    "docs:dev": "yarn workspace website start",
+    "docs:build": "yarn workspace website build",
+    "docs:serve": "yarn workspace website serve",
+    "docs:clear": "yarn workspace website clear"
   },
   "keywords": [
     "react-native",
@@ -81,7 +85,7 @@
   "bugs": {
     "url": "https://github.com/gabriel-sisjr/react-native-background-location/issues"
   },
-  "homepage": "https://github.com/gabriel-sisjr/react-native-background-location#readme",
+  "homepage": "https://gabriel-sisjr.github.io/react-native-background-location/",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
@@ -118,7 +122,8 @@
     "react-native": ">=0.73.0"
   },
   "workspaces": [
-    "example"
+    "example",
+    "website"
   ],
   "packageManager": "yarn@3.6.1",
   "jest": {
@@ -128,6 +133,7 @@
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
+      "<rootDir>/website/",
       "<rootDir>/lib/"
     ],
     "testMatch": [
@@ -213,5 +219,8 @@
     "languages": "kotlin-objc",
     "type": "turbo-module",
     "version": "0.54.7"
+  },
+  "resolutions": {
+    "webpack": "5.105.4"
   }
 }

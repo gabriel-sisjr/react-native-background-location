@@ -98,5 +98,5 @@ We thank all sponsors and contributors who make this project possible. Your gene
 
 ---
 
-_For more information about the project, visit the [README](README.md) or the [complete documentation](docs/README.md)._
+_For more information about the project, visit the [README](README.md) or the [complete documentation](website/docs/getting-started/introduction.md)._
 

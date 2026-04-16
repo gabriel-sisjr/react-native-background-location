@@ -6,7 +6,7 @@ import { useLocationTracking } from '../../hooks/useLocationTracking';
 import { useLocationUpdates } from '../../hooks/useLocationUpdates';
 import { LocationPermissionStatus, LocationAccuracy } from '../../types';
 import BackgroundLocationModule from '../../NativeBackgroundLocation';
-import BackgroundLocation from '../../index';
+import { updateNotification } from '../../index';
 
 jest.mock('../../NativeBackgroundLocation', () => ({
   __esModule: true,
@@ -725,10 +725,7 @@ describe('iOS Tracking Integration Tests', () => {
       ).mockResolvedValue(undefined);
 
       await expect(
-        BackgroundLocation.updateNotification(
-          'Updated Title',
-          'Updated tracking text'
-        )
+        updateNotification('Updated Title', 'Updated tracking text')
       ).resolves.toBeUndefined();
     });
 
@@ -737,10 +734,7 @@ describe('iOS Tracking Integration Tests', () => {
         BackgroundLocationModule.updateNotification as jest.Mock
       ).mockResolvedValue(undefined);
 
-      await BackgroundLocation.updateNotification(
-        'Delivery Active',
-        'En route to destination'
-      );
+      await updateNotification('Delivery Active', 'En route to destination');
 
       expect(BackgroundLocationModule.updateNotification).toHaveBeenCalledWith(
         'Delivery Active',

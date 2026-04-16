@@ -1,10 +1,36 @@
+# Breaking Changes
+
+## 0.14.0 (2026-04-15) - Public API Surface Cleanup
+
+> **Upgrade path:** v0.13.x --> v0.14.0
+>
+> **Full migration guide:** [`docs/migration/v0.14.0.md`](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-14-0) -- includes a 2-minute sed/Node codemod, step-by-step instructions, common pitfalls, and the full affected-symbols table. The summary below is for the changelog; the migration guide is the authoritative reference.
+
+One breaking change to the public TypeScript API surface. **Compile-time error only** -- your build will fail until migrated, but there are zero silent runtime regressions and no native (Android/iOS) code changed.
+
+### Default export removed
+
+The library's legacy `BackgroundLocation` default export has been removed. The 6 tracking methods (`startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`) are now published exclusively as top-level **named exports** from `src/index.tsx`. Geofencing methods, hooks, enums, and `GeofenceError` were already named exports and are unaffected.
+
+```typescript
+// Before
+import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
+await BackgroundLocation.startTracking('trip-123');
+
+// After
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+await startTracking('trip-123');
+```
+
+**Why:** tree-shaking, IDE auto-import consistency, and alignment with the rest of the API (geofencing + hooks were already named exports). See the [migration guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-14-0#why-this-changed) for the full rationale.
+
+**Migration:** see [`docs/migration/v0.14.0.md`](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-14-0) for a codemod, step-by-step, and pitfalls.
+
 # Breaking Changes - v0.12.0
 
 > **Upgrade path:** v0.10.x --> v0.12.0 (v0.11 was internal only, never published to npm)
 
 This release contains 3 breaking changes to the TypeScript types layer. All are compile-time errors -- your existing code will fail to build until migrated, but there are no silent behavioral regressions.
-
----
 
 ## 1. `PermissionState` -- Granular Structure
 
@@ -75,8 +101,6 @@ import type {
   NotificationPermissionState,
 } from '@gabriel-sisjr/react-native-background-location';
 ```
-
----
 
 ## 2. `NotificationOptions` -- Unified Object
 
@@ -157,8 +181,6 @@ startTracking({
 import type { NotificationOptions } from '@gabriel-sisjr/react-native-background-location';
 ```
 
----
-
 ## 3. `NotificationPermissionStatus` Enum & iOS Notification Permission
 
 A new enum for notification permission states, paired with native iOS notification permission support in `useLocationPermissions`.
@@ -193,8 +215,6 @@ import { NotificationPermissionStatus } from '@gabriel-sisjr/react-native-backgr
 3. **Request notification permission on iOS** via `UNUserNotificationCenter` (new in v0.12.0)
 
 Notification permission is optional -- `requestPermissions()` will return `true` when location is granted, even if notification permission is denied. The notification status is exposed reactively through `permissionStatus.notification` so consumers can build their own UI to guide users.
-
----
 
 ## Quick Migration Checklist
 
