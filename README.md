@@ -17,6 +17,8 @@
 
 A cross-platform React Native library for background location tracking built on TurboModules (New Architecture). Tracks user location reliably on both Android and iOS even when the app is minimized, with persistent storage, crash recovery, and platform-native behavior.
 
+**[Read the full documentation](https://gabriel-sisjr.github.io/react-native-background-location/)**
+
 ![Tracking demo](docs/assets/tracking.gif)
 
 ## Table of Contents
