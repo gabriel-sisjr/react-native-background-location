@@ -4,7 +4,7 @@
 
 > **Upgrade path:** v0.13.x --> v0.14.0
 >
-> **Full migration guide:** [`docs/migration/v0.14.0.md`](./docs/migration/v0.14.0.md) -- includes a 2-minute sed/Node codemod, step-by-step instructions, common pitfalls, and the full affected-symbols table. The summary below is for the changelog; the migration guide is the authoritative reference.
+> **Full migration guide:** [`docs/migration/v0.14.0.md`](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-14-0) -- includes a 2-minute sed/Node codemod, step-by-step instructions, common pitfalls, and the full affected-symbols table. The summary below is for the changelog; the migration guide is the authoritative reference.
 
 One breaking change to the public TypeScript API surface. **Compile-time error only** -- your build will fail until migrated, but there are zero silent runtime regressions and no native (Android/iOS) code changed.
 
@@ -22,9 +22,9 @@ import { startTracking } from '@gabriel-sisjr/react-native-background-location';
 await startTracking('trip-123');
 ```
 
-**Why:** tree-shaking, IDE auto-import consistency, and alignment with the rest of the API (geofencing + hooks were already named exports). See the [migration guide](./docs/migration/v0.14.0.md#why-this-changed) for the full rationale.
+**Why:** tree-shaking, IDE auto-import consistency, and alignment with the rest of the API (geofencing + hooks were already named exports). See the [migration guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-14-0#why-this-changed) for the full rationale.
 
-**Migration:** see [`docs/migration/v0.14.0.md`](./docs/migration/v0.14.0.md) for a codemod, step-by-step, and pitfalls.
+**Migration:** see [`docs/migration/v0.14.0.md`](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-14-0) for a codemod, step-by-step, and pitfalls.
 
 # Breaking Changes - v0.12.0
 

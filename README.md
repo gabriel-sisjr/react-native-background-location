@@ -19,7 +19,7 @@ A cross-platform React Native library for background location tracking built on 
 
 **[Read the full documentation](https://gabriel-sisjr.github.io/react-native-background-location/)**
 
-![Tracking demo](docs/assets/tracking.gif)
+![Tracking demo](docs-site/static/img/tracking.gif)
 
 ## Table of Contents
 
@@ -75,7 +75,7 @@ Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
 </manifest>
 ```
 
-> On Android 11+, background location must be requested **separately** from foreground permissions. See the [Quick Start Guide](docs/getting-started/QUICKSTART.md) for the full permission flow and the [Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md) for detailed setup in existing apps.
+> On Android 11+, background location must be requested **separately** from foreground permissions. See the [Quick Start Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/quick-start) for the full permission flow and the [Installation Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/installation) for detailed setup in existing apps.
 
 ### iOS Setup
 
@@ -92,7 +92,7 @@ Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
 
 3. Run `pod install` in your `ios/` directory.
 
-> **iOS:** Unlike Android, iOS does not use a foreground notification for background tracking. Instead, the system shows a blue status bar indicator when the app is using location in the background. See the [iOS Setup Guide](docs/getting-started/IOS_SETUP.md) for full details and App Store compliance requirements.
+> **iOS:** Unlike Android, iOS does not use a foreground notification for background tracking. Instead, the system shows a blue status bar indicator when the app is using location in the background. See the [iOS Setup Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details and App Store compliance requirements.
 
 ## Quick Start
 
@@ -132,22 +132,22 @@ function TrackingScreen() {
 }
 ```
 
-For step-by-step setup, see the [Quick Start Guide](docs/getting-started/QUICKSTART.md). For the direct (non-hook) API, see [Using Direct API](#api-reference).
+For step-by-step setup, see the [Quick Start Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/quick-start). For the direct (non-hook) API, see [Using Direct API](#api-reference).
 
 ## Hooks
 
-| Hook                                                                             | Purpose                                                                                                                        |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [`useLocationPermissions`](docs/getting-started/hooks.md#uselocationpermissions) | Manages cross-platform permission flow (Android: foreground, background, notifications; iOS: WhenInUse, Always, notifications) |
-| [`useBackgroundLocation`](docs/getting-started/hooks.md#usebackgroundlocation)   | Full tracking control: start, stop, locations, trip management                                                                 |
-| [`useLocationTracking`](docs/getting-started/hooks.md#uselocationtracking)       | Lightweight tracking status monitor (read-only)                                                                                |
-| [`useLocationUpdates`](docs/getting-started/hooks.md#uselocationupdates)         | Real-time event-driven location stream with warnings and action callbacks                                                      |
+| Hook                                                                                                                                                    | Purpose                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [`useLocationPermissions`](https://gabriel-sisjr.github.io/react-native-background-location/docs/api-reference/hooks/useLocationPermissions) | Manages cross-platform permission flow (Android: foreground, background, notifications; iOS: WhenInUse, Always, notifications) |
+| [`useBackgroundLocation`](https://gabriel-sisjr.github.io/react-native-background-location/docs/api-reference/hooks/useBackgroundLocation)   | Full tracking control: start, stop, locations, trip management                                                                 |
+| [`useLocationTracking`](https://gabriel-sisjr.github.io/react-native-background-location/docs/api-reference/hooks/useLocationTracking)       | Lightweight tracking status monitor (read-only)                                                                                |
+| [`useLocationUpdates`](https://gabriel-sisjr.github.io/react-native-background-location/docs/api-reference/hooks/useLocationUpdates)         | Real-time event-driven location stream with warnings and action callbacks                                                      |
 
-See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation, options, and examples.
+See the [Hooks API Reference](https://gabriel-sisjr.github.io/react-native-background-location/docs/category/hooks) for complete documentation, options, and examples.
 
 ## API Reference
 
-> ⚠️ **Upgrading from v0.13.x?** The legacy `BackgroundLocation` default export was removed in v0.14.0. All tracking methods are now top-level **named exports**. See the [v0.14.0 Migration Guide](docs/migration/v0.14.0.md) for a 2-minute migration recipe (sed/Node codemod included).
+> ⚠️ **Upgrading from v0.13.x?** The legacy `BackgroundLocation` default export was removed in v0.14.0. All tracking methods are now top-level **named exports**. See the [v0.14.0 Migration Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-14-0) for a 2-minute migration recipe (sed/Node codemod included).
 
 ```typescript
 // v0.14.0+
@@ -477,33 +477,33 @@ await updateNotification('Delivery #1234', 'Arriving in 5 minutes');
 
 ## Documentation
 
+Browse the **[full documentation site](https://gabriel-sisjr.github.io/react-native-background-location/)** for comprehensive guides, API reference, and production checklists.
+
 ### Getting Started
 
-- [Quick Start Guide](docs/getting-started/QUICKSTART.md) -- Get running in 5 minutes
-- [Integration Guide](docs/getting-started/INTEGRATION_GUIDE.md) -- Detailed setup for existing apps
-- [iOS Setup Guide](docs/getting-started/IOS_SETUP.md) -- iOS-specific configuration and requirements
-- [Hooks Guide](docs/getting-started/hooks.md) -- Complete hooks documentation
-- [Real-Time Updates](docs/getting-started/REAL_TIME_UPDATES.md) -- Event-driven location watching
+- [Quick Start Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/quick-start) -- Get running in 5 minutes
+- [Installation Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/installation) -- Detailed setup for existing apps
+- [iOS Setup Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) -- iOS-specific configuration and requirements
+- [Permissions Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/permissions) -- Cross-platform permission flow
+
+### Guides
+
+- [Background Tracking](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/background-tracking) -- Full tracking lifecycle
+- [Real-Time Updates](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/real-time-updates) -- Event-driven location watching
+- [Geofencing](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/geofencing) -- Region monitoring
+- [Notification Customization](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/notification-customization) -- Android foreground notification
+- [Crash Recovery](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/crash-recovery) -- Session persistence and recovery
 
 ### Production
 
-- [Google Play Compliance](docs/production/GOOGLE_PLAY_COMPLIANCE.md) -- Required steps for Play Store approval
-- [App Store Compliance](docs/production/APP_STORE_COMPLIANCE.md) -- Required steps for App Store approval (iOS)
-- [Battery Optimization](docs/production/BATTERY_OPTIMIZATION.md) -- Platform-specific battery management
-- [Crash Recovery](docs/production/CRASH_RECOVERY.md) -- Session persistence and recovery strategies
-- [Platform Comparison](docs/production/PLATFORM_COMPARISON.md) -- Android vs iOS behavior differences
-
-### Development
-
-- [Testing Guide](docs/development/TESTING.md) -- Test structure and guidelines
-- [CI/CD Guide](docs/development/CICD.md) -- Automated pipelines
-- [Publishing Guide](docs/development/PUBLISHING.md) -- How to publish to npm
-- [Realtime Debug Guide](docs/development/REALTIME_DEBUG_GUIDE.md) -- Debugging location updates
-- [Implementation Summary](docs/development/IMPLEMENTATION_SUMMARY.md) -- Technical architecture overview
+- [Production Checklist](https://gabriel-sisjr.github.io/react-native-background-location/docs/production/production-checklist) -- Pre-launch checklist
+- [Google Play Compliance](https://gabriel-sisjr.github.io/react-native-background-location/docs/production/google-play-compliance) -- Required steps for Play Store approval
+- [App Store Compliance](https://gabriel-sisjr.github.io/react-native-background-location/docs/production/app-store-compliance) -- Required steps for App Store approval (iOS)
+- [Platform Comparison](https://gabriel-sisjr.github.io/react-native-background-location/docs/production/platform-comparison) -- Android vs iOS behavior differences
 
 ### Help
 
-- [Troubleshooting Guide](docs/troubleshooting.md) -- Symptom -> cause -> fix for common integration issues
+- [Troubleshooting Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/troubleshooting) -- Symptom -> cause -> fix for common integration issues
 
 ## Platform Support
 
@@ -512,7 +512,7 @@ await updateNotification('Delivery #1234', 'Arriving in 5 minutes');
 | Android  | Supported | Kotlin native implementation. Min SDK 24, target SDK 34.            |
 | iOS      | Supported | Swift native implementation. CLLocationManager, Core Data, iOS 13+. |
 
-> **iOS:** Background tracking on iOS uses the system blue status bar indicator instead of a notification. The `notificationOptions` field in `TrackingOptions` is Android-only and is silently ignored on iOS. See [Platform Comparison](docs/production/PLATFORM_COMPARISON.md) for detailed differences.
+> **iOS:** Background tracking on iOS uses the system blue status bar indicator instead of a notification. The `notificationOptions` field in `TrackingOptions` is Android-only and is silently ignored on iOS. See [Platform Comparison](https://gabriel-sisjr.github.io/react-native-background-location/docs/production/platform-comparison) for detailed differences.
 
 ## Contributing
 
