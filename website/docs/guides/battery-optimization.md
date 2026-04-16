@@ -500,6 +500,6 @@ Before release, test on devices from problematic manufacturers. Emulators do not
 
 ## Next Steps
 
-- [Crash Recovery](./crash-recovery) -- How the library recovers from service kills
-- [Background Tracking](./background-tracking) -- TrackingOptions and distance filter configuration
-- [Real-Time Updates](./real-time-updates) -- Handling SERVICE_TIMEOUT warnings
+- [Crash Recovery](./crash-recovery.md) -- How the library recovers from service kills
+- [Background Tracking](./background-tracking.md) -- TrackingOptions and distance filter configuration
+- [Real-Time Updates](./real-time-updates.md) -- Handling SERVICE_TIMEOUT warnings

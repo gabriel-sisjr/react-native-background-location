@@ -39,5 +39,5 @@ exclude = [
 ]
 
 # --- Link scheme filters ------------------------------------------------------
-# mailto: and tel: links are not verifiable over HTTP; skip them.
-exclude_mail = true
+# mailto: and tel: links are not verifiable over HTTP.
+# E-mail checking is disabled by default in lychee v0.18+; no flag needed.

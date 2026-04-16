@@ -42,7 +42,7 @@ Geofencing operates entirely in the background. Once registered, geofences are m
 
 Before using geofencing:
 
-1. **Location permissions:** Background location access is required. Use `useLocationPermissions` and call `requestPermissions()` before registering geofences. See the [Permission Handling](./permission-handling) guide.
+1. **Location permissions:** Background location access is required. Use `useLocationPermissions` and call `requestPermissions()` before registering geofences. See the [Permission Handling](./permission-handling.md) guide.
 2. **Android:** Google Play Services must be installed. Without it, a `GeofenceError` with code `PLAY_SERVICES_UNAVAILABLE` is thrown.
 3. **iOS:** "Always" authorization is required for reliable background monitoring. "When In Use" works only in the foreground.
 4. **Minimum versions:** iOS 13+, Android SDK 24+.
@@ -496,7 +496,7 @@ function GeofenceMonitor() {
 
 ## Next Steps
 
-- [Advanced Geofencing](./geofencing-advanced) -- Server-driven geofencing, notification templates, and metadata
-- [Notification Customization](./notification-customization) -- Configure geofence transition notifications
-- [Permission Handling](./permission-handling) -- Ensure proper permissions for geofencing
-- [Battery Optimization](./battery-optimization) -- Handle battery restrictions that affect geofence delivery
+- [Advanced Geofencing](./geofencing-advanced.md) -- Server-driven geofencing, notification templates, and metadata
+- [Notification Customization](./notification-customization.md) -- Configure geofence transition notifications
+- [Permission Handling](./permission-handling.md) -- Ensure proper permissions for geofencing
+- [Battery Optimization](./battery-optimization.md) -- Handle battery restrictions that affect geofence delivery

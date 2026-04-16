@@ -446,6 +446,6 @@ const persistTrackingState = async (tripId: string, metadata: any) => {
 
 ## Next Steps
 
-- [Battery Optimization](./battery-optimization) -- Why services might be killed and how to prevent it
-- [Background Tracking](./background-tracking) -- Full tracking lifecycle
-- [Real-Time Updates](./real-time-updates) -- Handling service warnings
+- [Battery Optimization](./battery-optimization.md) -- Why services might be killed and how to prevent it
+- [Background Tracking](./background-tracking.md) -- Full tracking lifecycle
+- [Real-Time Updates](./real-time-updates.md) -- Handling service warnings

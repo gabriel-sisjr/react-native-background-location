@@ -490,6 +490,6 @@ No. The hook automatically receives real-time events and re-hydrates from the da
 
 ## Next Steps
 
-- [Background Tracking](./background-tracking) -- Full tracking lifecycle and TrackingOptions
-- [Notification Customization](./notification-customization) -- Configure action buttons and notification appearance
-- [Battery Optimization](./battery-optimization) -- Manage memory and battery for long sessions
+- [Background Tracking](./background-tracking.md) -- Full tracking lifecycle and TrackingOptions
+- [Notification Customization](./notification-customization.md) -- Configure action buttons and notification appearance
+- [Battery Optimization](./battery-optimization.md) -- Manage memory and battery for long sessions

@@ -21,7 +21,7 @@ This guide explains how to publish `@gabriel-sisjr/react-native-background-locat
 
 ## Automated Publishing (Recommended)
 
-The library uses GitHub Actions for automated publishing. For complete details on CI/CD workflows, setup, and troubleshooting, see the [CI/CD Pipeline guide](./ci-cd).
+The library uses GitHub Actions for automated publishing. For complete details on CI/CD workflows, setup, and troubleshooting, see the [CI/CD Pipeline guide](./ci-cd.md).
 
 ### Quick Overview
 
@@ -46,7 +46,7 @@ Before using automated publishing, configure:
 2. **GitHub Secret** -- Add `NPM_TOKEN` to repository secrets
 3. **Branch Protection** -- Protect `main` and `develop` branches
 
-See [CI/CD Pipeline > Setup Guide](./ci-cd#setup-guide) for step-by-step instructions.
+See [CI/CD Pipeline > Setup Guide](./ci-cd.md#setup-guide) for step-by-step instructions.
 
 ---
 

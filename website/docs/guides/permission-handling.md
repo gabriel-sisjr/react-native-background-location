@@ -531,6 +531,6 @@ import type {
 
 ## Next Steps
 
-- [Background Tracking](./background-tracking) -- Start tracking after permissions are granted
-- [Geofencing](./geofencing) -- Geofencing requires "Always" permission on iOS
-- [Notification Customization](./notification-customization) -- Android notification setup
+- [Background Tracking](./background-tracking.md) -- Start tracking after permissions are granted
+- [Geofencing](./geofencing.md) -- Geofencing requires "Always" permission on iOS
+- [Notification Customization](./notification-customization.md) -- Android notification setup

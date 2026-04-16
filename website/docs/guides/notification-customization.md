@@ -422,6 +422,6 @@ function NotificationDemo() {
 
 ## Next Steps
 
-- [Background Tracking](./background-tracking) -- Full TrackingOptions configuration
-- [Advanced Geofencing](./geofencing-advanced) -- Template variables and per-geofence overrides in depth
-- [Permission Handling](./permission-handling) -- Notification permission flow on iOS
+- [Background Tracking](./background-tracking.md) -- Full TrackingOptions configuration
+- [Advanced Geofencing](./geofencing-advanced.md) -- Template variables and per-geofence overrides in depth
+- [Permission Handling](./permission-handling.md) -- Notification permission flow on iOS

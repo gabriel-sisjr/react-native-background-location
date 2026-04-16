@@ -631,19 +631,19 @@ const handleEndTrip = async (tripId: string) => {
 
 ## Best Practices
 
-1. **Always check permissions first.** Use `useLocationPermissions` to request permissions before starting tracking. See the [Permission Handling](./permission-handling) guide.
+1. **Always check permissions first.** Use `useLocationPermissions` to request permissions before starting tracking. See the [Permission Handling](./permission-handling.md) guide.
 
 2. **Handle errors.** Wrap tracking operations in try/catch or use the `onError` callback.
 
 3. **Use the right hook for the job.** Use `useBackgroundLocation` for tracking control, `useLocationUpdates` for real-time visualization, and `useLocationTracking` for lightweight status display.
 
-4. **Choose appropriate accuracy and intervals.** Higher accuracy means higher battery drain. See the [Battery Optimization](./battery-optimization) guide.
+4. **Choose appropriate accuracy and intervals.** Higher accuracy means higher battery drain. See the [Battery Optimization](./battery-optimization.md) guide.
 
-5. **Do not generate new trip IDs unnecessarily.** Check `isTracking()` on startup and resume existing sessions when appropriate. See the [Crash Recovery](./crash-recovery) guide.
+5. **Do not generate new trip IDs unnecessarily.** Check `isTracking()` on startup and resume existing sessions when appropriate. See the [Crash Recovery](./crash-recovery.md) guide.
 
 ## Next Steps
 
-- [Real-Time Updates](./real-time-updates) -- Watch location updates as they arrive
-- [Permission Handling](./permission-handling) -- Request and manage permissions
-- [Notification Customization](./notification-customization) -- Configure the Android notification
-- [Battery Optimization](./battery-optimization) -- Optimize for long tracking sessions
+- [Real-Time Updates](./real-time-updates.md) -- Watch location updates as they arrive
+- [Permission Handling](./permission-handling.md) -- Request and manage permissions
+- [Notification Customization](./notification-customization.md) -- Configure the Android notification
+- [Battery Optimization](./battery-optimization.md) -- Optimize for long tracking sessions

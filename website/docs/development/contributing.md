@@ -177,7 +177,7 @@ To publish new versions:
 yarn release
 ```
 
-For more details, see the [Publishing Guide](./publishing).
+For more details, see the [Publishing Guide](./publishing.md).
 
 ---
 

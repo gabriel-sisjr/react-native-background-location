@@ -16,7 +16,7 @@ keywords:
 
 # Advanced Geofencing
 
-This guide covers production-ready geofencing patterns: server-driven geofencing, notification template customization, per-geofence notification overrides, and programmatic transition handling. It assumes familiarity with the [Geofencing](./geofencing) guide.
+This guide covers production-ready geofencing patterns: server-driven geofencing, notification template customization, per-geofence notification overrides, and programmatic transition handling. It assumes familiarity with the [Geofencing](./geofencing.md) guide.
 
 ## Server-Driven Geofencing
 
@@ -707,7 +707,7 @@ Both snippets produce identical behavior. The second form is simpler and recomme
 
 ## Next Steps
 
-- [Geofencing Basics](./geofencing) -- Core API reference and quick start
-- [Notification Customization](./notification-customization) -- Full notification configuration reference
-- [Permission Handling](./permission-handling) -- Ensure proper permissions for geofencing
-- [Battery Optimization](./battery-optimization) -- Handle battery restrictions affecting geofence delivery
+- [Geofencing Basics](./geofencing.md) -- Core API reference and quick start
+- [Notification Customization](./notification-customization.md) -- Full notification configuration reference
+- [Permission Handling](./permission-handling.md) -- Ensure proper permissions for geofencing
+- [Battery Optimization](./battery-optimization.md) -- Handle battery restrictions affecting geofence delivery

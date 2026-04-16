@@ -34,11 +34,11 @@ The app crashes with `ForegroundServiceDidNotStartInTimeException` shortly after
 **Fix.**
 
 1. The library already calls `startForeground()` immediately in `onStartCommand()` with a **minimal notification** and then replaces it once `TrackingOptions` are parsed -- you do **not** need to implement this yourself.
-2. Make sure you declared the `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_LOCATION` permissions in `AndroidManifest.xml`. See the [Quick Start guide](./getting-started/quick-start) for permission setup.
+2. Make sure you declared the `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_LOCATION` permissions in `AndroidManifest.xml`. See the [Quick Start guide](./getting-started/quick-start.md) for permission setup.
 3. Do **not** block the main thread between `startTracking()` and receiving the first location update -- heavy synchronous JS work delays `onStartCommand()`.
 4. If you added custom notification icons/colors, verify the drawables exist and the hex color is valid; a failed resource lookup can silently delay the upgrade to the full notification.
 
-**Related:** [Platform Comparison](./production/platform-comparison)
+**Related:** [Platform Comparison](./production/platform-comparison.md)
 
 ---
 
@@ -54,7 +54,7 @@ After a process restart you receive two `onLocationUpdate` events per GPS fix, o
 2. If you forked or wrapped the provider, preserve the `removeLocationUpdates()` call at the top of `requestLocationUpdates()`.
 3. Verify you are not calling `startTracking()` twice from JS (e.g. from a `useEffect` that fires on every render). `startTracking()` is idempotent on the native side, but stacking JS callers is still a code smell.
 
-**Related:** [Crash Recovery guide](./guides/crash-recovery), [Debugging guide](./development/debugging)
+**Related:** [Crash Recovery guide](./guides/crash-recovery.md), [Debugging guide](./development/debugging.md)
 
 ---
 
@@ -68,10 +68,10 @@ The foreground service restarts several times in a row, then stops entirely; sub
 
 1. Wait ~1 hour or reboot the device to reset the restart counter.
 2. Check your logs for whatever is actually killing the service (usually an OEM battery optimizer, a `TASK_REMOVED` + stopWithTask interaction, or `SecurityException` on background start). Fix the root cause before retrying.
-3. Ensure the user has whitelisted your app in battery optimization settings -- see [Battery Optimization](./guides/battery-optimization) for vendor-specific flows.
+3. Ensure the user has whitelisted your app in battery optimization settings -- see [Battery Optimization](./guides/battery-optimization.md) for vendor-specific flows.
 4. Call `stopTracking()` cleanly on app shutdown when possible; `onDestroy` resets the restart counter.
 
-**Related:** [Battery Optimization](./guides/battery-optimization), [Crash Recovery](./guides/crash-recovery)
+**Related:** [Battery Optimization](./guides/battery-optimization.md), [Crash Recovery](./guides/crash-recovery.md)
 
 ---
 
@@ -109,7 +109,7 @@ function PermissionGate() {
 }
 ```
 
-**Related:** [iOS Setup](./getting-started/ios-setup), [Permission Handling](./guides/permission-handling)
+**Related:** [iOS Setup](./getting-started/ios-setup.md), [Permission Handling](./guides/permission-handling.md)
 
 ---
 
@@ -125,7 +125,7 @@ On iOS the first `requestPermissions()` call returns immediately with a stale st
 2. If you extended `LocationManagerWrapper` or instantiated your own `CLLocationManager`, apply the same guard before completing your permission promise.
 3. When debugging, log `didChangeAuthorization` invocations in the delegate and confirm the first event after assignment is ignored.
 
-**Related:** [iOS Setup](./getting-started/ios-setup)
+**Related:** [iOS Setup](./getting-started/ios-setup.md)
 
 ---
 
@@ -143,7 +143,7 @@ Calling `startTracking()` (or any method) throws `Native module is not available
    - iOS: `cd ios && pod install && cd .. && yarn ios`
    - Android: `yarn android` (Gradle picks up the autolinked module)
 2. For probing whether the module is available without throwing, wrap calls in `try`/`catch`. The library's geofencing methods use a throwing variant (`assertNativeModuleAvailable()`) and will raise a clear error.
-3. If you see this only in unit tests, mock `react-native`'s `NativeModules` or provide a Jest setup that stubs the module. See the [Testing guide](./development/testing) for mock patterns.
+3. If you see this only in unit tests, mock `react-native`'s `NativeModules` or provide a Jest setup that stubs the module. See the [Testing guide](./development/testing.md) for mock patterns.
 
 ```ts
 import { isTracking } from '@gabriel-sisjr/react-native-background-location';
@@ -156,7 +156,7 @@ try {
 }
 ```
 
-**Related:** [Installation](./getting-started/installation), [iOS Setup](./getting-started/ios-setup)
+**Related:** [Installation](./getting-started/installation.md), [iOS Setup](./getting-started/ios-setup.md)
 
 ---
 
@@ -182,7 +182,7 @@ await stopTracking();
 const points = await getLocations(tripId); // DB is flushed by this point
 ```
 
-**Related:** [Real-Time Updates](./guides/real-time-updates)
+**Related:** [Real-Time Updates](./guides/real-time-updates.md)
 
 ---
 
@@ -212,9 +212,9 @@ You added geofences with `addGeofences()`, but `ENTER`/`EXIT` events only arrive
 1. The library runs a **location heartbeat** that keeps the GPS pipeline warm for passive geofence detection when tracking is not active. It auto-starts when geofences exist and tracking is off, and auto-stops when the last geofence is removed. No manual wiring required.
 2. Use a minimum radius of ~100 m on Android and ~150 m on iOS. Smaller geofences are unreliable on both platforms regardless of heartbeat.
 3. On iOS, `Always` permission is mandatory for background geofence monitoring -- see the "Always permission" entry above.
-4. If transitions are delayed, check battery optimizer whitelisting ([Battery Optimization](./guides/battery-optimization)) -- OEM doze can suppress geofence broadcasts even with a heartbeat.
+4. If transitions are delayed, check battery optimizer whitelisting ([Battery Optimization](./guides/battery-optimization.md)) -- OEM doze can suppress geofence broadcasts even with a heartbeat.
 
-**Related:** [Geofencing](./guides/geofencing), [Geofencing Advanced](./guides/geofencing-advanced), [Battery Optimization](./guides/battery-optimization)
+**Related:** [Geofencing](./guides/geofencing.md), [Geofencing Advanced](./guides/geofencing-advanced.md), [Battery Optimization](./guides/battery-optimization.md)
 
 ---
 
@@ -235,12 +235,12 @@ Building the iOS or Android app fails at the Codegen step, complaining about enu
 3. Do **not** modify the library's `NativeBackgroundLocation.ts` spec to use TypeScript enums or typed object arrays -- Codegen will reject them.
 4. If the generated files are stale, run `yarn clean` in the library and `yarn prepare` to regenerate the published artifacts.
 
-**Related:** [iOS Setup](./getting-started/ios-setup)
+**Related:** [iOS Setup](./getting-started/ios-setup.md)
 
 ---
 
 ## Still Stuck?
 
-1. Re-read the [Quick Start](./getting-started/quick-start) and [Installation](./getting-started/installation) guides to make sure nothing was skipped.
+1. Re-read the [Quick Start](./getting-started/quick-start.md) and [Installation](./getting-started/installation.md) guides to make sure nothing was skipped.
 2. Browse the [Example App](https://github.com/gabriel-sisjr/react-native-background-location/tree/main/example) for a working reference.
 3. Search the [GitHub Issues](https://github.com/gabriel-sisjr/react-native-background-location/issues) -- include full stack traces and the output of `npx react-native info` when filing a new issue.
