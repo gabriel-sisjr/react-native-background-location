@@ -38,7 +38,11 @@
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
-    "release": "release-it --only-version"
+    "release": "release-it --only-version",
+    "docs:dev": "yarn workspace docs-site start",
+    "docs:build": "yarn workspace docs-site build",
+    "docs:serve": "yarn workspace docs-site serve",
+    "docs:clear": "yarn workspace docs-site clear"
   },
   "keywords": [
     "react-native",
@@ -81,7 +85,7 @@
   "bugs": {
     "url": "https://github.com/gabriel-sisjr/react-native-background-location/issues"
   },
-  "homepage": "https://github.com/gabriel-sisjr/react-native-background-location#readme",
+  "homepage": "https://gabriel-sisjr.github.io/react-native-background-location/",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
@@ -118,7 +122,8 @@
     "react-native": ">=0.73.0"
   },
   "workspaces": [
-    "example"
+    "example",
+    "docs-site"
   ],
   "packageManager": "yarn@3.6.1",
   "jest": {
@@ -128,6 +133,7 @@
     ],
     "modulePathIgnorePatterns": [
       "<rootDir>/example/node_modules",
+      "<rootDir>/docs-site/",
       "<rootDir>/lib/"
     ],
     "testMatch": [
@@ -213,5 +219,8 @@
     "languages": "kotlin-objc",
     "type": "turbo-module",
     "version": "0.54.7"
+  },
+  "resolutions": {
+    "webpack": "5.105.4"
   }
 }

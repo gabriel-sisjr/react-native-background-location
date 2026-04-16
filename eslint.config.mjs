@@ -31,6 +31,7 @@ export default defineConfig([
       '**/build/',
       '**/dist/',
       'eslint.config.mjs',
+      'docs-site/',
     ],
   },
 ]);
