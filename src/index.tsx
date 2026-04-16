@@ -1,5 +1,5 @@
 import BackgroundLocationModule from './NativeBackgroundLocation';
-import type { TrackingOptions, Coords } from './types';
+import type { TrackingOptions, TrackingStatus, Coords } from './types';
 import {
   LocationPermissionStatus as LocationPermissionStatusEnum,
   LocationAccuracy as LocationAccuracyEnum,
@@ -145,7 +145,7 @@ export function stopTracking(): Promise<void> {
  * Checks if location tracking is currently active.
  * @returns Promise resolving to object with active status and current tripId if tracking
  */
-export function isTracking(): Promise<{ active: boolean; tripId?: string }> {
+export function isTracking(): Promise<TrackingStatus> {
   if (!isNativeModuleAvailable()) {
     console.warn(
       'BackgroundLocation not available - running in simulator or module not linked?'
