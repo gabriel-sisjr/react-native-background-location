@@ -13,7 +13,7 @@ const features = [
   },
   {
     title: 'Geofencing',
-    icon: '🔔',
+    icon: '🚧',
     description:
       'Monitor circular regions with ENTER, EXIT, and DWELL transitions. Up to 100 geofences on Android, 20 on iOS.',
   },
@@ -22,6 +22,12 @@ const features = [
     icon: '⚡',
     description:
       'Built on React Native New Architecture with TurboModules for synchronous, type-safe native communication.',
+  },
+  {
+    title: 'Custom Notifications',
+    icon: '🔔',
+    description:
+      'Fully customizable foreground notifications with action buttons, dynamic updates, and per-platform priority controls.',
   },
   {
     title: 'Cross-Platform',
@@ -51,8 +57,7 @@ function HeroBanner() {
             Get Started
           </Link>
           <Link
-            className="button button--outline button--lg"
-            style={{ color: 'white', borderColor: 'white' }}
+            className="button button--lg hero-api-button"
             to="/docs/api-reference/functions"
           >
             API Reference

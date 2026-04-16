@@ -74,10 +74,33 @@
   font-size: 0.95rem;
   margin: 1.5rem 0;
   user-select: all;
+  color: #1b1b1d;
 }
 
 [data-theme='dark'] .install-command {
   background: var(--ifm-color-emphasis-200);
+  color: #e3e3e3;
+}
+
+.hero-api-button {
+  background: transparent;
+  color: #ffffff;
+  border: 2px solid #ffffff;
+}
+
+.hero-api-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+[data-theme='dark'] .hero-api-button {
+  color: #1b1b1d;
+  border-color: #1b1b1d;
+}
+
+[data-theme='dark'] .hero-api-button:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #1b1b1d;
 }
 
 .badges {
