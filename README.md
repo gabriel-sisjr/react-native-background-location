@@ -145,30 +145,20 @@ See the [Hooks Guide](docs/getting-started/hooks.md) for complete documentation,
 
 ## API Reference
 
-> ⚠️ **Breaking change (v0.14.0):** The default export `BackgroundLocation` has been removed. All tracking and geofencing methods are now top-level **named exports**. See [Migration from default export](#migration-from-default-export) below.
-
-### Migration from default export
-
-The legacy default-import pattern no longer works. Replace every `BackgroundLocation.<method>` call with a direct named import.
+> ⚠️ **Upgrading from v0.13.x?** The legacy `BackgroundLocation` default export was removed in v0.14.0. All tracking methods are now top-level **named exports**. See the [v0.14.0 Migration Guide](docs/migration/v0.14.0.md) for a 2-minute migration recipe (sed/Node codemod included).
 
 ```typescript
-// Before
-import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
-
-await BackgroundLocation.startTracking('trip-123');
-await BackgroundLocation.updateNotification('Delivery #1234', 'Arriving soon');
-
-// After
+// v0.14.0+
 import {
   startTracking,
+  stopTracking,
   updateNotification,
 } from '@gabriel-sisjr/react-native-background-location';
 
 await startTracking('trip-123');
 await updateNotification('Delivery #1234', 'Arriving soon');
+await stopTracking();
 ```
-
-Affected symbols: `startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`, plus all geofencing functions (`addGeofence`, `addGeofences`, `removeGeofence`, `removeGeofences`, `removeAllGeofences`, `getActiveGeofences`, `getMaxGeofences`, `getGeofenceTransitions`, `clearGeofenceTransitions`, `configureGeofenceNotifications`, `getGeofenceNotificationConfig`). All were previously accessed via the default export.
 
 ### Methods
 
@@ -508,6 +498,10 @@ await updateNotification('Delivery #1234', 'Arriving in 5 minutes');
 - [Publishing Guide](docs/development/PUBLISHING.md) -- How to publish to npm
 - [Realtime Debug Guide](docs/development/REALTIME_DEBUG_GUIDE.md) -- Debugging location updates
 - [Implementation Summary](docs/development/IMPLEMENTATION_SUMMARY.md) -- Technical architecture overview
+
+### Help
+
+- [Troubleshooting Guide](docs/troubleshooting.md) -- Symptom -> cause -> fix for common integration issues
 
 ## Platform Support
 

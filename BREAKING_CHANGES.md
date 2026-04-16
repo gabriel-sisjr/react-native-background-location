@@ -4,70 +4,27 @@
 
 > **Upgrade path:** v0.13.x --> v0.14.0
 >
-> **Affected consumers:** All consumers of `@gabriel-sisjr/react-native-background-location`. Within the GereFrota ecosystem this includes **GereFrotaApp-Motoristas**, which must be updated in lockstep with the library version bump. Any other app importing the library directly will fail to compile until imports are migrated.
+> **Full migration guide:** [`docs/migration/v0.14.0.md`](./docs/migration/v0.14.0.md) -- includes a 2-minute sed/Node codemod, step-by-step instructions, common pitfalls, and the full affected-symbols table. The summary below is for the changelog; the migration guide is the authoritative reference.
 
-This release contains 1 breaking change to the public TypeScript API surface. It is a compile-time error -- existing code will fail to build until migrated, but there are no silent behavioral regressions. No native (Android/iOS) behavior changed.
+One breaking change to the public TypeScript API surface. **Compile-time error only** -- your build will fail until migrated, but there are zero silent runtime regressions and no native (Android/iOS) code changed.
 
-### 1. Default export removed
+### Default export removed
 
-The library's legacy `BackgroundLocation` default export has been removed. All 6 tracking methods are now published as top-level **named exports** from `src/index.tsx`. Geofencing methods and `GeofenceError` were already named exports and are unaffected.
-
-#### Before
+The library's legacy `BackgroundLocation` default export has been removed. The 6 tracking methods (`startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`) are now published exclusively as top-level **named exports** from `src/index.tsx`. Geofencing methods, hooks, enums, and `GeofenceError` were already named exports and are unaffected.
 
 ```typescript
+// Before
 import BackgroundLocation from '@gabriel-sisjr/react-native-background-location';
-
 await BackgroundLocation.startTracking('trip-123');
-await BackgroundLocation.updateNotification('Title', 'Text');
-const status = await BackgroundLocation.isTracking();
-```
 
-#### After
-
-```typescript
-import {
-  startTracking,
-  updateNotification,
-  isTracking,
-} from '@gabriel-sisjr/react-native-background-location';
-
+// After
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
 await startTracking('trip-123');
-await updateNotification('Title', 'Text');
-const status = await isTracking();
 ```
 
-#### Affected symbols
+**Why:** tree-shaking, IDE auto-import consistency, and alignment with the rest of the API (geofencing + hooks were already named exports). See the [migration guide](./docs/migration/v0.14.0.md#why-this-changed) for the full rationale.
 
-| Symbol               | Before                                  | After                           |
-| -------------------- | --------------------------------------- | ------------------------------- |
-| `startTracking`      | `BackgroundLocation.startTracking`      | `import { startTracking }`      |
-| `stopTracking`       | `BackgroundLocation.stopTracking`       | `import { stopTracking }`       |
-| `isTracking`         | `BackgroundLocation.isTracking`         | `import { isTracking }`         |
-| `getLocations`       | `BackgroundLocation.getLocations`       | `import { getLocations }`       |
-| `clearTrip`          | `BackgroundLocation.clearTrip`          | `import { clearTrip }`          |
-| `updateNotification` | `BackgroundLocation.updateNotification` | `import { updateNotification }` |
-
-#### Migration (one-line codemod)
-
-For most projects, a simple regex find-and-replace is sufficient:
-
-```bash
-# 1. Remove default imports
-# Find:    import BackgroundLocation[ ,]
-# Review each match and convert to a named import list.
-
-# 2. Strip the object prefix from call sites
-# Find:    BackgroundLocation\.(startTracking|stopTracking|isTracking|getLocations|clearTrip|updateNotification)
-# Replace: $1
-```
-
-After running the replacement, verify TypeScript compiles (`yarn typecheck`) -- any missed named-import entries will surface as `Cannot find name` errors.
-
-#### Rationale
-
-- **Tree-shaking:** Named exports allow bundlers to eliminate unused methods. The default export forced every consumer to pull the entire tracking API even if they only called `isTracking()`.
-- **Consistency:** Geofencing methods (added in v0.11.0) were already named exports. Mixing a default export with named exports was inconsistent and confused IDE auto-import.
-- **Public API hygiene:** `src/index.tsx` is now a lean facade. All `@internal` helpers (`isNativeModuleAvailable`, `toTrackingOptionsSpec`, `validateGeofenceRegion`, `prepareGeofenceRegion`, `serializeGeofenceRegion`) have been extracted into `src/utils/`, and `GeofenceError` moved to `src/errors/`. See the [changelog](./CHANGELOG.md) for the full refactor list.
+**Migration:** see [`docs/migration/v0.14.0.md`](./docs/migration/v0.14.0.md) for a codemod, step-by-step, and pitfalls.
 
 # Breaking Changes - v0.12.0
 
