@@ -30,6 +30,16 @@ Start here if you're new to the library:
 - **[Real-Time Debug Guide](development/REALTIME_DEBUG_GUIDE.md)**
   Debugging tools and techniques for real-time location events.
 
+## ⬆️ Migration Guides
+
+Upgrading between versions:
+
+- **[v0.13.x → v0.14.0](migration/v0.14.0.md)**
+  Default export removed. Replace `BackgroundLocation.<method>` calls with named imports (2-minute migration with codemod).
+
+- **[v0.10.x → v0.12.0](migration/v0.12.0.md)**
+  Granular permission state, unified `NotificationOptions`, iOS notification permission.
+
 ## 🚀 Production
 
 Essential guides before publishing your app:
@@ -96,11 +106,11 @@ For maintainers and contributors:
 - **iOS-Specific Docs:**
   - [iOS Setup Guide](getting-started/IOS_SETUP.md)
   - [App Store Compliance](production/APP_STORE_COMPLIANCE.md)
-  - [iOS Background Behavior](ios/IOS_BACKGROUND_BEHAVIOR.md) (if available)
+  - [iOS Background Behavior](production/IOS_BACKGROUND_BEHAVIOR.md)
 
 ## 🆘 Need Help?
 
-1. Check the [Troubleshooting section](../README.md#troubleshooting) in the main README
+1. Check the [Troubleshooting Guide](./troubleshooting.md) for common symptoms and fixes
 2. Review the [Example App](../example/src/App.tsx) for working code
 3. Search [GitHub Issues](https://github.com/gabriel-sisjr/react-native-background-location/issues)
 4. Create a new issue if you can't find a solution
@@ -111,35 +121,37 @@ For maintainers and contributors:
 docs/
 ├── README.md                           # This file
 ├── STRUCTURE.md                        # Documentation organization
+├── troubleshooting.md                  # Symptom -> cause -> fix guide
 ├── getting-started/                    # New users start here
 │   ├── QUICKSTART.md                   # 5-minute setup guide
 │   ├── INTEGRATION_GUIDE.md            # Detailed integration
-│   ├── hooks.md                        # React Hooks API guide (6 hooks)
+│   ├── IOS_SETUP.md                    # iOS-specific configuration
+│   ├── hooks.md                        # React Hooks API guide
 │   ├── geofencing.md                   # Geofencing guide (API, hooks, types)
 │   └── REAL_TIME_UPDATES.md            # useLocationUpdates guide
+├── migration/                          # Version migration guides
+│   ├── v0.14.0.md                      # v0.13.x -> v0.14.0 (default export removed)
+│   └── v0.12.0.md                      # v0.10.x -> v0.12.0 (permissions + notifications)
 ├── production/                         # Before publishing
 │   ├── GOOGLE_PLAY_COMPLIANCE.md       # Play Store requirements
 │   ├── APP_STORE_COMPLIANCE.md         # App Store requirements (iOS)
 │   ├── BATTERY_OPTIMIZATION.md         # Platform-specific battery management
 │   ├── CRASH_RECOVERY.md               # Session persistence
+│   ├── IOS_BACKGROUND_BEHAVIOR.md      # iOS background mode semantics
 │   └── PLATFORM_COMPARISON.md          # Android vs iOS differences
 ├── development/                        # For maintainers
 │   ├── CICD.md                         # CI/CD and automation
 │   ├── PUBLISHING.md                   # Release process
 │   ├── TESTING.md                      # Testing guide
+│   ├── REALTIME_DEBUG_GUIDE.md         # Real-time debugging tools
 │   └── IMPLEMENTATION_SUMMARY.md       # Technical details
-├── geofencing/                         # Geofencing planning & analysis
-│   ├── ADVANCED_USAGE.md               # Server-driven geofencing, callbacks, examples
-│   ├── BUSINESS_CASE.md                # Business case & justification
-│   └── TECHNICAL_PLAN.md               # Technical implementation plan
-└── ios/                                # iOS planning & analysis
-    ├── BUSINESS_REQUIREMENTS.md        # iOS requirements analysis
-    └── IOS_IMPLEMENTATION_PLAN.md      # Implementation plan
+└── geofencing/                         # Geofencing deep dives
+    └── ADVANCED_USAGE.md               # Server-driven geofencing, callbacks, examples
 ```
 
 ## Version
 
-This documentation is for version **0.12.0** which includes:
+This documentation is for version **0.14.0** which includes:
 
 - Android implementation (Kotlin, Room DB, WorkManager)
 - iOS implementation (Swift, CLLocationManager, Core Data)
