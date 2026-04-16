@@ -1,0 +1,40 @@
+# Lychee link checker config
+# Docs: https://lychee.cli.rs/usage/config/
+# Used by .github/workflows/docs-link-check.yml in two passes:
+#   1) --offline + --include-fragments  -> fails CI on broken internal links/anchors
+#   2) default (online)                 -> warns on broken external links (non-blocking)
+
+# --- Paths to exclude (vendored / generated / build output) -------------------
+exclude_path = [
+  "node_modules",
+  "lib",
+  "build",
+  "example/node_modules",
+  "example/ios/Pods",
+  "example/ios/build",
+  "example/android/build",
+  "example/android/.gradle",
+  "example/android/app/build",
+  "android/build",
+  "android/.gradle",
+  ".yarn",
+  ".turbo",
+  "coverage",
+]
+
+# --- Network behavior (only applies to the online pass) -----------------------
+max_redirects = 5
+max_retries = 2
+timeout = 20
+# 200-299 = OK, 429 = rate-limited (treat as success to reduce flake).
+accept = ["200..=299", "429"]
+
+# --- Hosts that are chronically flaky from GitHub runners ---------------------
+# Add entries here (regex) if a specific host starts producing false positives.
+exclude = [
+  # Example: "^https?://(www\\.)?linkedin\\.com/",
+]
+
+# --- Link scheme filters ------------------------------------------------------
+# mailto: and tel: links are not verifiable over HTTP; skip them.
+exclude_mail = true
