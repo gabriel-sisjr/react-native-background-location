@@ -22,6 +22,7 @@ import {
   NotificationPriority,
   type TrackingOptions,
   type NotificationActionEvent,
+  type RequestPermissionsOptions,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import styles from './styles';
@@ -86,6 +87,22 @@ function formatLocationProperties(location: Coords) {
 
   return properties;
 }
+
+/**
+ * Localized rationale strings shown in the Android background-location
+ * system dialog (Android API 29+). Silently ignored on iOS, on Android
+ * API < 29, and on the foreground-only flow.
+ */
+const BACKGROUND_RATIONALE_OPTIONS: RequestPermissionsOptions = {
+  backgroundRationale: {
+    title: 'Permissão de localização',
+    message:
+      'Precisamos da sua localização em segundo plano para registrar suas viagens.',
+    buttonPositive: 'Permitir',
+    buttonNegative: 'Cancelar',
+    buttonNeutral: 'Mais tarde',
+  },
+};
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = React.useState<
@@ -300,7 +317,7 @@ export default function App() {
           ) : (
             <Button
               title="Grant Permissions"
-              onPress={requestPermissions}
+              onPress={() => requestPermissions(BACKGROUND_RATIONALE_OPTIONS)}
               color="#4CAF50"
             />
           )}
