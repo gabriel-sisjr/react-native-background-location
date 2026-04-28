@@ -1168,6 +1168,22 @@ describe('useLocationPermissions - Complete Tests', () => {
         expect(granted).toBe(true);
       });
     });
+
+    it('should return false on unsupported platforms without invoking native APIs', async () => {
+      Platform.OS = 'web';
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const granted = await result.current.requestPermissions();
+        expect(granted).toBe(false);
+      });
+
+      expect(PermissionsAndroid.requestMultiple).not.toHaveBeenCalled();
+      expect(
+        BackgroundLocationModule.requestLocationPermission
+      ).not.toHaveBeenCalled();
+    });
   });
 
   describe('iOS permissions', () => {
