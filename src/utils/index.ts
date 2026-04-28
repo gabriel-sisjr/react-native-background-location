@@ -15,3 +15,4 @@ export {
   prepareGeofenceRegion,
   serializeGeofenceRegion,
 } from './geofenceSerialization';
+export { resolveRationale } from './resolveRationale';
