@@ -42,6 +42,8 @@ export type {
   LocationWarningType,
   NotificationAction,
   NotificationActionEvent,
+  PermissionRationale,
+  RequestPermissionsOptions,
 } from './types';
 export type { UseLocationTrackingResult } from './hooks/useLocationTracking';
 export type { UseGeofencingOptions, UseGeofencingReturn } from './hooks';

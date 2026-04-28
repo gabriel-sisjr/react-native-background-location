@@ -7,6 +7,50 @@ import {
 } from '../../types';
 import BackgroundLocationModule from '../../NativeBackgroundLocation';
 
+/**
+ * Folds the repetitive Android `requestPermissions` mock chain (foreground
+ * granted via `requestMultiple`, background pending via `request`) into a
+ * single helper. Each call sets `Platform.Version` and the foreground
+ * `requestMultiple` resolution, then queues the supplied `backgroundResult`
+ * (granted by default) on the next `PermissionsAndroid.request(...)` call.
+ *
+ * Notification permission is granted by default; pass `notificationStatus`
+ * to override.
+ */
+function arrangeAndroidRequest(
+  opts: {
+    apiVersion?: number;
+    backgroundResult?: string;
+    foregroundResult?: string;
+    notificationStatus?: 'granted' | 'denied';
+  } = {}
+): void {
+  const {
+    apiVersion = 30,
+    backgroundResult = PermissionsAndroid.RESULTS.GRANTED,
+    foregroundResult = PermissionsAndroid.RESULTS.GRANTED,
+    notificationStatus = 'granted',
+  } = opts;
+
+  Object.defineProperty(Platform, 'Version', {
+    get: () => apiVersion,
+    configurable: true,
+  });
+
+  (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
+    'android.permission.ACCESS_FINE_LOCATION': foregroundResult,
+    'android.permission.ACCESS_COARSE_LOCATION': foregroundResult,
+  });
+
+  (PermissionsAndroid.request as jest.Mock).mockResolvedValueOnce(
+    backgroundResult
+  );
+
+  (
+    BackgroundLocationModule.requestNotificationPermission as jest.Mock
+  ).mockResolvedValueOnce(notificationStatus);
+}
+
 describe('useLocationPermissions - Complete Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -700,6 +744,277 @@ describe('useLocationPermissions - Complete Tests', () => {
       );
       expect(result.current.permissionStatus.hasAllPermissions).toBe(false);
     });
+
+    describe('with backgroundRationale option (Android API 29+)', () => {
+      // Default English rationale assertions are duplicated here (rather than
+      // imported) because DEFAULT_BACKGROUND_LOCATION_RATIONALE is `@internal`.
+      const DEFAULT_RATIONALE_ARG = {
+        title: 'Background Location Permission',
+        message:
+          'This app needs access to your location in the background to track your trips.',
+        buttonPositive: 'OK',
+        buttonNegative: 'Cancel',
+        buttonNeutral: 'Ask Me Later',
+      };
+
+      const PORTUGUESE_RATIONALE = {
+        title: 'Permissão de localização',
+        message:
+          'Precisamos da sua localização em segundo plano para registrar suas viagens.',
+        buttonPositive: 'Permitir',
+        buttonNegative: 'Cancelar',
+        buttonNeutral: 'Mais tarde',
+      };
+
+      it('RP-1: zero-arg call still uses defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions();
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining(DEFAULT_RATIONALE_ARG)
+        );
+      });
+
+      it('RP-2: requestPermissions(undefined) uses defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions(undefined);
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining(DEFAULT_RATIONALE_ARG)
+        );
+      });
+
+      it('RP-3: requestPermissions({}) uses defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({});
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining(DEFAULT_RATIONALE_ARG)
+        );
+      });
+
+      it('RP-4: requestPermissions({ backgroundRationale: undefined }) uses defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: undefined,
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining(DEFAULT_RATIONALE_ARG)
+        );
+      });
+
+      it('RP-5: requestPermissions({ backgroundRationale: {} }) uses defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: {},
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining(DEFAULT_RATIONALE_ARG)
+        );
+      });
+
+      it('RP-6: full Portuguese override is forwarded to PermissionsAndroid.request', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: PORTUGUESE_RATIONALE,
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining(PORTUGUESE_RATIONALE)
+        );
+      });
+
+      it('RP-7: partial override (title only) keeps remaining defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: { title: 'Permissão' },
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining({
+            title: 'Permissão',
+            message: DEFAULT_RATIONALE_ARG.message,
+            buttonPositive: DEFAULT_RATIONALE_ARG.buttonPositive,
+            buttonNegative: DEFAULT_RATIONALE_ARG.buttonNegative,
+            buttonNeutral: DEFAULT_RATIONALE_ARG.buttonNeutral,
+          })
+        );
+      });
+
+      it('RP-8: empty-string fields fall back to defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: { title: '', message: '' },
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining({
+            title: DEFAULT_RATIONALE_ARG.title,
+            message: DEFAULT_RATIONALE_ARG.message,
+          })
+        );
+      });
+
+      it('RP-9: whitespace-only fields fall back to defaults', async () => {
+        arrangeAndroidRequest();
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: { title: '   ', buttonNeutral: '\t\n' },
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.objectContaining({
+            title: DEFAULT_RATIONALE_ARG.title,
+            buttonNeutral: DEFAULT_RATIONALE_ARG.buttonNeutral,
+          })
+        );
+      });
+
+      it('RP-10: Android API < 29 ignores backgroundRationale (no request call)', async () => {
+        Object.defineProperty(Platform, 'Version', {
+          get: () => 28,
+          configurable: true,
+        });
+        (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
+          'android.permission.ACCESS_FINE_LOCATION':
+            PermissionsAndroid.RESULTS.GRANTED,
+          'android.permission.ACCESS_COARSE_LOCATION':
+            PermissionsAndroid.RESULTS.GRANTED,
+        });
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: PORTUGUESE_RATIONALE,
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(PermissionsAndroid.request).not.toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.anything()
+        );
+      });
+
+      it('RP-11: foreground denial path ignores backgroundRationale', async () => {
+        Object.defineProperty(Platform, 'Version', {
+          get: () => 30,
+          configurable: true,
+        });
+        (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
+          'android.permission.ACCESS_FINE_LOCATION':
+            PermissionsAndroid.RESULTS.DENIED,
+          'android.permission.ACCESS_COARSE_LOCATION':
+            PermissionsAndroid.RESULTS.GRANTED,
+        });
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: PORTUGUESE_RATIONALE,
+          });
+          expect(granted).toBe(false);
+        });
+
+        expect(PermissionsAndroid.request).not.toHaveBeenCalledWith(
+          'android.permission.ACCESS_BACKGROUND_LOCATION',
+          expect.anything()
+        );
+      });
+
+      it('RP-12: iOS path ignores backgroundRationale', async () => {
+        Platform.OS = 'ios';
+        (
+          BackgroundLocationModule.requestLocationPermission as jest.Mock
+        ).mockResolvedValueOnce({
+          status: 'granted',
+          canRequestAgain: false,
+        });
+        (
+          BackgroundLocationModule.requestNotificationPermission as jest.Mock
+        ).mockResolvedValueOnce('granted');
+
+        const { result } = renderHook(() => useLocationPermissions());
+
+        await act(async () => {
+          const granted = await result.current.requestPermissions({
+            backgroundRationale: PORTUGUESE_RATIONALE,
+          });
+          expect(granted).toBe(true);
+        });
+
+        expect(
+          BackgroundLocationModule.requestLocationPermission
+        ).toHaveBeenCalledWith(false);
+        expect(PermissionsAndroid.request).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('toNotificationPermissionState default branch', () => {
@@ -852,6 +1167,22 @@ describe('useLocationPermissions - Complete Tests', () => {
         const granted = await result.current.requestPermissions();
         expect(granted).toBe(true);
       });
+    });
+
+    it('should return false on unsupported platforms without invoking native APIs', async () => {
+      Platform.OS = 'web';
+
+      const { result } = renderHook(() => useLocationPermissions());
+
+      await act(async () => {
+        const granted = await result.current.requestPermissions();
+        expect(granted).toBe(false);
+      });
+
+      expect(PermissionsAndroid.requestMultiple).not.toHaveBeenCalled();
+      expect(
+        BackgroundLocationModule.requestLocationPermission
+      ).not.toHaveBeenCalled();
     });
   });
 

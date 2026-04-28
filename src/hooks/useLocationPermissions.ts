@@ -9,9 +9,11 @@ import type {
   PermissionState,
   LocationPermissionState,
   NotificationPermissionState,
+  RequestPermissionsOptions,
 } from '../types';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
 import type { PermissionStatusResult } from '../NativeBackgroundLocation';
+import { resolveRationale } from '../utils';
 
 /**
  * Module-level flag to prevent repeated notification denial warnings in __DEV__.
@@ -247,120 +249,79 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
    * affect the return value — check `permissionStatus.notification`
    * for notification-specific state.
    */
-  const requestPermissions = useCallback(async (): Promise<boolean> => {
-    if (Platform.OS === 'ios') {
+  const requestPermissions = useCallback(
+    async (options?: RequestPermissionsOptions): Promise<boolean> => {
+      if (Platform.OS === 'ios') {
+        setIsRequesting(true);
+        try {
+          // Step 1: Request location permission (WhenInUse → Always escalation)
+          const locationResult =
+            await BackgroundLocationModule.requestLocationPermission(false);
+          const location = toLocationPermissionState(locationResult);
+
+          // Step 2: Request notification permission (non-blocking)
+          const notificationStatus =
+            await BackgroundLocationModule.requestNotificationPermission();
+          const notification =
+            toNotificationPermissionState(notificationStatus);
+
+          warnNotificationDenied(notificationStatus);
+
+          setPermissionStatus({
+            hasAllPermissions:
+              location.hasPermission && notification.hasPermission,
+            location,
+            notification,
+          });
+
+          return location.hasPermission;
+        } catch (error) {
+          console.error('Error requesting iOS permissions:', error);
+          setPermissionStatus({
+            hasAllPermissions: false,
+            location: {
+              hasPermission: false,
+              status: LocationPermissionStatus.DENIED,
+              canRequestAgain: false,
+            },
+            notification: {
+              hasPermission: false,
+              status: NotificationPermissionStatus.UNDETERMINED,
+              canRequestAgain: true,
+            },
+          });
+          return false;
+        } finally {
+          setIsRequesting(false);
+        }
+      }
+
+      if (Platform.OS !== 'android') {
+        return false;
+      }
+
       setIsRequesting(true);
+
       try {
-        // Step 1: Request location permission (WhenInUse → Always escalation)
-        const locationResult =
-          await BackgroundLocationModule.requestLocationPermission(false);
-        const location = toLocationPermissionState(locationResult);
+        // Step 1: Request foreground permissions first
+        const foregroundPermissions = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+        ]);
 
-        // Step 2: Request notification permission (non-blocking)
-        const notificationStatus =
-          await BackgroundLocationModule.requestNotificationPermission();
-        const notification = toNotificationPermissionState(notificationStatus);
+        const foregroundGranted =
+          foregroundPermissions['android.permission.ACCESS_FINE_LOCATION'] ===
+            PermissionsAndroid.RESULTS.GRANTED &&
+          foregroundPermissions['android.permission.ACCESS_COARSE_LOCATION'] ===
+            PermissionsAndroid.RESULTS.GRANTED;
 
-        warnNotificationDenied(notificationStatus);
-
-        setPermissionStatus({
-          hasAllPermissions:
-            location.hasPermission && notification.hasPermission,
-          location,
-          notification,
-        });
-
-        return location.hasPermission;
-      } catch (error) {
-        console.error('Error requesting iOS permissions:', error);
-        setPermissionStatus({
-          hasAllPermissions: false,
-          location: {
-            hasPermission: false,
-            status: LocationPermissionStatus.DENIED,
-            canRequestAgain: false,
-          },
-          notification: {
-            hasPermission: false,
-            status: NotificationPermissionStatus.UNDETERMINED,
-            canRequestAgain: true,
-          },
-        });
-        return false;
-      } finally {
-        setIsRequesting(false);
-      }
-    }
-
-    if (Platform.OS !== 'android') {
-      return false;
-    }
-
-    setIsRequesting(true);
-
-    try {
-      // Step 1: Request foreground permissions first
-      const foregroundPermissions = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-      ]);
-
-      const foregroundGranted =
-        foregroundPermissions['android.permission.ACCESS_FINE_LOCATION'] ===
-          PermissionsAndroid.RESULTS.GRANTED &&
-        foregroundPermissions['android.permission.ACCESS_COARSE_LOCATION'] ===
-          PermissionsAndroid.RESULTS.GRANTED;
-
-      if (!foregroundGranted) {
-        const canRequestAgain =
-          foregroundPermissions['android.permission.ACCESS_FINE_LOCATION'] !==
-            PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN &&
-          foregroundPermissions['android.permission.ACCESS_COARSE_LOCATION'] !==
-            PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
-
-        const location: LocationPermissionState = {
-          hasPermission: false,
-          status: canRequestAgain
-            ? LocationPermissionStatus.DENIED
-            : LocationPermissionStatus.BLOCKED,
-          canRequestAgain,
-        };
-
-        // Still request notification even if location denied
-        const notificationStatus = await requestAndroidNotificationPermission();
-        const notification = toNotificationPermissionState(notificationStatus);
-        warnNotificationDenied(notificationStatus);
-
-        setPermissionStatus({
-          hasAllPermissions: false,
-          location,
-          notification,
-        });
-
-        return false;
-      }
-
-      // Step 2: Request background permission for Android 10+
-      let backgroundGranted = true;
-      if (Platform.Version >= 29) {
-        const backgroundResult = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
-          {
-            title: 'Background Location Permission',
-            message:
-              'This app needs access to your location in the background to track your trips.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-
-        backgroundGranted =
-          backgroundResult === PermissionsAndroid.RESULTS.GRANTED;
-
-        if (!backgroundGranted) {
+        if (!foregroundGranted) {
           const canRequestAgain =
-            backgroundResult !== PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
+            foregroundPermissions['android.permission.ACCESS_FINE_LOCATION'] !==
+              PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN &&
+            foregroundPermissions[
+              'android.permission.ACCESS_COARSE_LOCATION'
+            ] !== PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
 
           const location: LocationPermissionState = {
             hasPermission: false,
@@ -370,7 +331,7 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
             canRequestAgain,
           };
 
-          // Still request notification even if background location denied
+          // Still request notification even if location denied
           const notificationStatus =
             await requestAndroidNotificationPermission();
           const notification =
@@ -385,46 +346,88 @@ export function useLocationPermissions(): UseLocationPermissionsResult {
 
           return false;
         }
+
+        // Step 2: Request background permission for Android 10+
+        let backgroundGranted = true;
+        if (Platform.Version >= 29) {
+          const backgroundResult = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION,
+            resolveRationale(options?.backgroundRationale)
+          );
+
+          backgroundGranted =
+            backgroundResult === PermissionsAndroid.RESULTS.GRANTED;
+
+          if (!backgroundGranted) {
+            const canRequestAgain =
+              backgroundResult !== PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN;
+
+            const location: LocationPermissionState = {
+              hasPermission: false,
+              status: canRequestAgain
+                ? LocationPermissionStatus.DENIED
+                : LocationPermissionStatus.BLOCKED,
+              canRequestAgain,
+            };
+
+            // Still request notification even if background location denied
+            const notificationStatus =
+              await requestAndroidNotificationPermission();
+            const notification =
+              toNotificationPermissionState(notificationStatus);
+            warnNotificationDenied(notificationStatus);
+
+            setPermissionStatus({
+              hasAllPermissions: false,
+              location,
+              notification,
+            });
+
+            return false;
+          }
+        }
+
+        // Step 3: Request notification permission (PermissionsAndroid on API 33+, native module on older)
+        const notificationStatus = await requestAndroidNotificationPermission();
+        const notification = toNotificationPermissionState(notificationStatus);
+        warnNotificationDenied(notificationStatus);
+
+        const location: LocationPermissionState = {
+          hasPermission: true,
+          status: LocationPermissionStatus.GRANTED,
+          canRequestAgain: true,
+        };
+
+        setPermissionStatus({
+          hasAllPermissions:
+            location.hasPermission && notification.hasPermission,
+          location,
+          notification,
+        });
+
+        return true;
+      } catch (error) {
+        console.error('Error requesting permissions:', error);
+        setPermissionStatus({
+          hasAllPermissions: false,
+          location: {
+            hasPermission: false,
+            status: LocationPermissionStatus.DENIED,
+            canRequestAgain: true,
+          },
+          notification: {
+            hasPermission: false,
+            status: NotificationPermissionStatus.UNDETERMINED,
+            canRequestAgain: true,
+          },
+        });
+        return false;
+      } finally {
+        setIsRequesting(false);
       }
-
-      // Step 3: Request notification permission (PermissionsAndroid on API 33+, native module on older)
-      const notificationStatus = await requestAndroidNotificationPermission();
-      const notification = toNotificationPermissionState(notificationStatus);
-      warnNotificationDenied(notificationStatus);
-
-      const location: LocationPermissionState = {
-        hasPermission: true,
-        status: LocationPermissionStatus.GRANTED,
-        canRequestAgain: true,
-      };
-
-      setPermissionStatus({
-        hasAllPermissions: location.hasPermission && notification.hasPermission,
-        location,
-        notification,
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error requesting permissions:', error);
-      setPermissionStatus({
-        hasAllPermissions: false,
-        location: {
-          hasPermission: false,
-          status: LocationPermissionStatus.DENIED,
-          canRequestAgain: true,
-        },
-        notification: {
-          hasPermission: false,
-          status: NotificationPermissionStatus.UNDETERMINED,
-          canRequestAgain: true,
-        },
-      });
-      return false;
-    } finally {
-      setIsRequesting(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   return useMemo(
     () => ({

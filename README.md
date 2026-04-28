@@ -475,6 +475,21 @@ await updateNotification('Delivery #1234', 'Arriving in 5 minutes');
 
 **Action buttons** (max 3) can be added via `notificationOptions.actions` and handled through the `onNotificationAction` callback in `useLocationUpdates`.
 
+## Localized Permission Rationales
+
+The `requestPermissions` function returned by `useLocationPermissions` accepts an optional `backgroundRationale` to localize the Android background-location system dialog (API 29+):
+
+```typescript
+await requestPermissions({
+  backgroundRationale: {
+    title: 'Permissão de localização',
+    message: 'Precisamos da sua localização em segundo plano para registrar suas viagens.',
+  },
+});
+```
+
+Each field is merged independently — fields that are omitted, `undefined`, `null`, empty, or whitespace-only fall back to the built-in English defaults. The option is silently ignored on iOS, on Android < 29, on the foreground-only flow, and on the notification permission request. For the full permission flow, see the [Permissions Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/permissions).
+
 ## Documentation
 
 Browse the **[full documentation site](https://gabriel-sisjr.github.io/react-native-background-location/)** for comprehensive guides, API reference, and production checklists.

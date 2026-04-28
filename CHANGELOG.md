@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.15.0] - 2026-04-27
+
+> **Non-breaking change** -- the `requestPermissions` closure returned by `useLocationPermissions` now accepts an optional `RequestPermissionsOptions` argument. Existing zero-arg callers continue to work unchanged.
+
+### Added
+
+- `PermissionRationale` public type -- localized strings (`title`, `message`, `buttonPositive`, `buttonNegative`, `buttonNeutral`) for an Android system permission dialog. Reusable shape designed to be shared by future sibling fields (`foregroundRationale`, `notificationRationale`).
+- `RequestPermissionsOptions` public type -- options envelope accepted by `requestPermissions`, currently exposing the optional `backgroundRationale` field.
+- `backgroundRationale` parameter on `useLocationPermissions().requestPermissions()` -- threads localized copy into the Android background-location system dialog (`PermissionsAndroid.request(ACCESS_BACKGROUND_LOCATION, ...)`, API 29+). Silently ignored on iOS, on Android < 29, on the foreground-only flow (`requestMultiple`), and on the `POST_NOTIFICATIONS` request.
+- `src/utils/resolveRationale.ts` -- `@internal` resolver that merges a partial `PermissionRationale` over the library's English defaults on a per-field basis. Each field is read explicitly (no key iteration); empty strings, whitespace-only strings, `undefined`, and `null` all fall back to the default. Re-exported from `src/utils/index.ts` (the defaults constant and the resolved interface remain module-private).
+- `BACKGROUND_RATIONALE_OPTIONS` showcase in `example/src/App.tsx` -- module-scoped `RequestPermissionsOptions` constant with Portuguese strings, wired into the "Grant Permissions" button to demonstrate the localized flow.
+- 21 new tests covering the rationale flow: 9 unit tests for `resolveRationale` (MR-1..MR-9, including default fallback, full override, partial override, empty-string fallback, whitespace-only fallback, mixed inputs, and trim-then-truthy semantics) and 12 hook integration tests (RP-1..RP-12, including the zero-arg path, `undefined`/`{}`/`{ backgroundRationale: undefined }`/`{ backgroundRationale: {} }` defaults, full Portuguese override, partial override, empty/whitespace fallback, Android API < 29 skip path, foreground-denial skip path, and iOS skip path).
+
+### Changed
+
+- `useLocationPermissions().requestPermissions` signature widened from `() => Promise<boolean>` to `(options?: RequestPermissionsOptions) => Promise<boolean>`. **Non-breaking**: every existing zero-arg invocation type-checks and behaves identically. The hardcoded English literal block in `src/hooks/useLocationPermissions.ts` is now sourced from `resolveRationale(options?.backgroundRationale)`.
+- `useGeofencePermissions` (alias of `useLocationPermissions` at `src/hooks/index.ts`) inherits the new option for free with no extra code.
+
 ## [0.14.0] - 2026-04-15
 
 > **Breaking change** -- the public TypeScript API surface was cleaned up. The `BackgroundLocation` default export has been removed. No native (Android/iOS) behavior changed. Consumers must update their imports (see migration guide below and `BREAKING_CHANGES.md`).
@@ -1090,6 +1108,7 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - No event emitters for real-time location updates
 - Storage limited to SharedPreferences (consider SQLite for large datasets)
 
+[0.15.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.15.0
 [0.14.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.14.0
 [0.13.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.13.0
 [0.12.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.12.0
