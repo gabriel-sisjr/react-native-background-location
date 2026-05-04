@@ -28,6 +28,8 @@ export type {
   NotificationPermissionState,
   PermissionState,
   UseLocationPermissionsResult,
+  PermissionRationale,
+  RequestPermissionsOptions,
 } from './permissions';
 
 // Hook types

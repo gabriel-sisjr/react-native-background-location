@@ -47,7 +47,8 @@ function PermissionGate({ children }: { children: React.ReactNode }) {
           onPress={requestPermissions}
           disabled={isRequesting}
         />
-        {permissionStatus.location.status === LocationPermissionStatus.BLOCKED && (
+        {permissionStatus.location.status ===
+          LocationPermissionStatus.BLOCKED && (
           <Button
             title="Open Settings"
             onPress={() => Linking.openSettings()}
@@ -67,16 +68,16 @@ The `permissionStatus` object returned by the hook uses a granular nested struct
 
 ```typescript
 interface PermissionState {
-  hasAllPermissions: boolean;      // true only when both location AND notification are granted
+  hasAllPermissions: boolean; // true only when both location AND notification are granted
   location: {
-    hasPermission: boolean;        // true if location access is granted
+    hasPermission: boolean; // true if location access is granted
     status: LocationPermissionStatus;
     canRequestAgain: boolean;
   };
   notification: {
-    hasPermission: boolean;        // true if notification permission is granted
+    hasPermission: boolean; // true if notification permission is granted
     status: NotificationPermissionStatus;
-    canRequestAgain: boolean;      // true only when status is UNDETERMINED
+    canRequestAgain: boolean; // true only when status is UNDETERMINED
   };
 }
 ```
@@ -85,12 +86,12 @@ interface PermissionState {
 
 ### Return Values
 
-| Property | Type | Description |
-|---|---|---|
-| `permissionStatus` | `PermissionState` | Current state of location and notification permissions |
-| `requestPermissions` | `() => Promise<boolean>` | Requests all permissions. Returns `true` if location is granted |
-| `checkPermissions` | `() => Promise<boolean>` | Checks current status without prompting. Returns `true` if location is granted |
-| `isRequesting` | `boolean` | `true` while a permission request is in progress |
+| Property             | Type                                                        | Description                                                                                                                                                                                                                             |
+| -------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `permissionStatus`   | `PermissionState`                                           | Current state of location and notification permissions                                                                                                                                                                                  |
+| `requestPermissions` | `(options?: RequestPermissionsOptions) => Promise<boolean>` | Requests all permissions. Returns `true` if location is granted. Accepts an optional `options.backgroundRationale` for localized Android dialog copy (see [Localized Permission Rationales](#localized-permission-rationales-android)). |
+| `checkPermissions`   | `() => Promise<boolean>`                                    | Checks current status without prompting. Returns `true` if location is granted                                                                                                                                                          |
+| `isRequesting`       | `boolean`                                                   | `true` while a permission request is in progress                                                                                                                                                                                        |
 
 ### What requestPermissions Does
 
@@ -107,8 +108,6 @@ On **iOS**, `requestPermissions()` executes two sequential steps:
 
 Notification permission denial is **non-blocking** -- `requestPermissions()` returns `true` as long as location permission is granted. Check `permissionStatus.notification` separately if you need notification state.
 
----
-
 ## Android Permission Model
 
 Android uses a layered permission system where each permission level must be requested separately and in the correct order.
@@ -117,14 +116,14 @@ Android uses a layered permission system where each permission level must be req
 
 These must be declared in `AndroidManifest.xml` (see [Installation](./installation.md)):
 
-| Permission | When Required | Purpose |
-|---|---|---|
-| `ACCESS_FINE_LOCATION` | Always | GPS-based location |
-| `ACCESS_COARSE_LOCATION` | Always | Network-based location |
-| `ACCESS_BACKGROUND_LOCATION` | Android 10+ (API 29+) | Location when app is not visible |
-| `FOREGROUND_SERVICE` | Always | Required for background service |
-| `FOREGROUND_SERVICE_LOCATION` | Android 14+ (API 34+) | Foreground service type declaration |
-| `POST_NOTIFICATIONS` | Android 13+ (API 33+) | Show foreground service notification |
+| Permission                    | When Required         | Purpose                              |
+| ----------------------------- | --------------------- | ------------------------------------ |
+| `ACCESS_FINE_LOCATION`        | Always                | GPS-based location                   |
+| `ACCESS_COARSE_LOCATION`      | Always                | Network-based location               |
+| `ACCESS_BACKGROUND_LOCATION`  | Android 10+ (API 29+) | Location when app is not visible     |
+| `FOREGROUND_SERVICE`          | Always                | Required for background service      |
+| `FOREGROUND_SERVICE_LOCATION` | Android 14+ (API 34+) | Foreground service type declaration  |
+| `POST_NOTIFICATIONS`          | Android 13+ (API 33+) | Show foreground service notification |
 
 ### Runtime Permission Flow
 
@@ -146,13 +145,13 @@ Step 3: Notification (Android 13+)
 
 ### Android API Level Differences
 
-| API Level | Android Version | Permission Behavior |
-|---|---|---|
-| 24-28 | 7.0 -- 9.0 | Foreground permission grants background access automatically |
-| 29 | 10 | Background location requires separate `ACCESS_BACKGROUND_LOCATION` request |
-| 30+ | 11+ | Background location must be requested **separately** (combined request silently fails) |
-| 33+ | 13+ | Notification permission (`POST_NOTIFICATIONS`) required at runtime |
-| 34+ | 14+ | `FOREGROUND_SERVICE_LOCATION` type must be declared |
+| API Level | Android Version | Permission Behavior                                                                    |
+| --------- | --------------- | -------------------------------------------------------------------------------------- |
+| 24-28     | 7.0 -- 9.0      | Foreground permission grants background access automatically                           |
+| 29        | 10              | Background location requires separate `ACCESS_BACKGROUND_LOCATION` request             |
+| 30+       | 11+             | Background location must be requested **separately** (combined request silently fails) |
+| 33+       | 13+             | Notification permission (`POST_NOTIFICATIONS`) required at runtime                     |
+| 34+       | 14+             | `FOREGROUND_SERVICE_LOCATION` type must be declared                                    |
 
 ### Manual Android Permissions (Without Hook)
 
@@ -184,8 +183,8 @@ async function requestLocationPermissions(): Promise<boolean> {
     await new Promise<void>((resolve) => {
       Alert.alert(
         'Background Location',
-        'To track your location when the app is closed, please select '
-        + '"Allow all the time" on the next screen.',
+        'To track your location when the app is closed, please select ' +
+          '"Allow all the time" on the next screen.',
         [{ text: 'Continue', onPress: () => resolve() }]
       );
     });
@@ -273,7 +272,68 @@ if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
 
 The hook handles this automatically -- check `permissionStatus.location.status === 'blocked'` and `canRequestAgain === false`.
 
----
+## Localized Permission Rationales (Android)
+
+Starting in **v0.15.0**, the `requestPermissions` closure returned by `useLocationPermissions` accepts an optional `backgroundRationale` field that controls the copy shown in the `ACCESS_BACKGROUND_LOCATION` system dialog on Android API 29+.
+
+The feature is **opt-in and non-breaking** -- existing zero-arg `requestPermissions()` calls continue to work unchanged and use the built-in English defaults.
+
+### Usage
+
+```tsx
+import { useLocationPermissions } from '@gabriel-sisjr/react-native-background-location';
+
+function PermissionGate() {
+  const { requestPermissions } = useLocationPermissions();
+
+  const handleGrant = async () => {
+    const granted = await requestPermissions({
+      backgroundRationale: {
+        title: 'Permissão de localização',
+        message:
+          'Precisamos da sua localização em segundo plano para registrar suas viagens.',
+        buttonPositive: 'Permitir',
+        buttonNegative: 'Cancelar',
+        buttonNeutral: 'Mais tarde',
+      },
+    });
+
+    if (!granted) {
+      // handle denial
+    }
+  };
+
+  return <Button title="Grant Permissions" onPress={handleGrant} />;
+}
+```
+
+### Behavior
+
+- **Opt-in.** Both `requestPermissions()` and `requestPermissions({})` continue to surface the built-in English defaults. Pass `backgroundRationale` only when you need localized copy.
+- **Android API 29+ only.** The option is wired exclusively into the `PermissionsAndroid.request(ACCESS_BACKGROUND_LOCATION, ...)` system dialog. It is silently ignored on iOS, on Android < 29, on the foreground-only flow (`PermissionsAndroid.requestMultiple`), and on the `POST_NOTIFICATIONS` request.
+- **Per-field merge.** Each of the five fields (`title`, `message`, `buttonPositive`, `buttonNegative`, `buttonNeutral`) is resolved independently. Passing `{ title: 'Permissão' }` overrides only the title and leaves the other four fields at their English defaults.
+- **Trim-then-truthy fallback.** Each field is trimmed; if the trimmed string is non-empty, it is used. Otherwise the default is used. This means `undefined`, `null`, `''`, and whitespace-only values (`'   '`, `'\t\n'`) all fall back to the default.
+- **No native code involved.** The rationale never crosses the TurboModule bridge -- the merge happens in JavaScript and is forwarded directly to React Native's `PermissionsAndroid.request()`.
+
+### Default English Strings
+
+If a field is omitted or falls back, the library uses these built-in defaults:
+
+| Field            | Default Value                                                                   |
+| ---------------- | ------------------------------------------------------------------------------- |
+| `title`          | `Background Location Permission`                                                |
+| `message`        | `This app needs access to your location in the background to track your trips.` |
+| `buttonPositive` | `OK`                                                                            |
+| `buttonNegative` | `Cancel`                                                                        |
+| `buttonNeutral`  | `Ask Me Later`                                                                  |
+
+> **Note:** The default wording is internal and may evolve between minor versions without a SemVer bump. If you depend on exact wording (for QA, screenshots, or store review), pass an explicit `backgroundRationale` so your copy is the source of truth.
+
+### Future Sibling Fields
+
+The field is named `backgroundRationale` (not the generic `rationale`) so future releases can add `foregroundRationale` and `notificationRationale` as additional optional fields without a breaking rename. These siblings are **reserved** and not yet implemented.
+
+See the [`useLocationPermissions` hook reference](../api-reference/hooks/useLocationPermissions.md#requestpermissions-parameters) and the [`PermissionRationale`](../api-reference/types.md#permissionrationale) / [`RequestPermissionsOptions`](../api-reference/types.md#requestpermissionsoptions) type entries for the full API contract.
 
 ## iOS Permission Model
 
@@ -301,21 +361,21 @@ The `useLocationPermissions` hook handles all three steps when you call `request
 
 ### Location Permission Status Values
 
-| Status | CLAuthorizationStatus | Meaning |
-|---|---|---|
-| `undetermined` | `.notDetermined` | User has not been asked yet |
-| `whenInUse` | `.authorizedWhenInUse` | Foreground only -- app can track while visible |
-| `granted` | `.authorizedAlways` | Full background tracking support |
-| `denied` | `.denied` | User explicitly denied |
-| `blocked` | `.restricted` | Restricted by parental controls or MDM |
+| Status         | CLAuthorizationStatus  | Meaning                                        |
+| -------------- | ---------------------- | ---------------------------------------------- |
+| `undetermined` | `.notDetermined`       | User has not been asked yet                    |
+| `whenInUse`    | `.authorizedWhenInUse` | Foreground only -- app can track while visible |
+| `granted`      | `.authorizedAlways`    | Full background tracking support               |
+| `denied`       | `.denied`              | User explicitly denied                         |
+| `blocked`      | `.restricted`          | Restricted by parental controls or MDM         |
 
 ### Notification Permission Status Values
 
-| Status | UNAuthorizationStatus | Meaning |
-|---|---|---|
-| `undetermined` | `.notDetermined` | User has not been asked yet |
-| `granted` | `.authorized` | Notifications allowed |
-| `denied` | `.denied` | User denied -- tracking still works |
+| Status         | UNAuthorizationStatus | Meaning                             |
+| -------------- | --------------------- | ----------------------------------- |
+| `undetermined` | `.notDetermined`      | User has not been asked yet         |
+| `granted`      | `.authorized`         | Notifications allowed               |
+| `denied`       | `.denied`             | User denied -- tracking still works |
 
 ### iOS Permission Behavior
 
@@ -343,17 +403,15 @@ function openAppSettings() {
 }
 ```
 
----
-
 ## Notification Permission
 
 Notification permission is separate from location permission on both platforms:
 
-| Platform | When Required | Impact of Denial |
-|---|---|---|
-| Android 13+ (API 33+) | At runtime | Foreground service notification may not appear, but tracking continues |
-| Android < 13 | Auto-granted | N/A |
-| iOS | At runtime | Geofence transition alerts will not display, but detection continues |
+| Platform              | When Required | Impact of Denial                                                       |
+| --------------------- | ------------- | ---------------------------------------------------------------------- |
+| Android 13+ (API 33+) | At runtime    | Foreground service notification may not appear, but tracking continues |
+| Android < 13          | Auto-granted  | N/A                                                                    |
+| iOS                   | At runtime    | Geofence transition alerts will not display, but detection continues   |
 
 The hook requests notification permission as the final step after location permission. Notification denial is **non-blocking** -- the return value of `requestPermissions()` only reflects location permission status.
 
@@ -367,17 +425,15 @@ if (!permissionStatus.notification.hasPermission) {
 }
 ```
 
----
-
 ## Permission Decision Tree
 
 Use this to determine the minimum permissions your app needs:
 
-| Use Case | Location Permission | Background | Notification |
-|---|---|---|---|
-| Foreground-only tracking | Foreground (fine/coarse) | Not needed | Optional |
-| Background tracking | Foreground + Background | Required | Recommended |
-| Background tracking + geofence alerts | Foreground + Background | Required | Required for alerts |
+| Use Case                              | Location Permission      | Background | Notification        |
+| ------------------------------------- | ------------------------ | ---------- | ------------------- |
+| Foreground-only tracking              | Foreground (fine/coarse) | Not needed | Optional            |
+| Background tracking                   | Foreground + Background  | Required   | Recommended         |
+| Background tracking + geofence alerts | Foreground + Background  | Required   | Required for alerts |
 
 For foreground-only tracking, you can skip the background permission request entirely:
 
@@ -389,8 +445,6 @@ const tripId = await startTracking({
   foregroundOnly: true,
 });
 ```
-
----
 
 ## Google Play and App Store Compliance
 
