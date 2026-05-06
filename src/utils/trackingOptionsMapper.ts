@@ -7,16 +7,13 @@ import type { TrackingOptionsSpec } from '../NativeBackgroundLocation';
  * expected by the TurboModule Codegen contract (strings + JSON-stringified
  * notification options).
  *
- * Returns `undefined` if no options were provided, so callers can forward the
- * `undefined` value directly to the native module.
- *
  * @internal
  */
 export function toTrackingOptionsSpec(
-  options: TrackingOptions | undefined
-): TrackingOptionsSpec | undefined {
+  options?: TrackingOptions | null
+): TrackingOptionsSpec {
   if (!options) {
-    return undefined;
+    return {};
   }
 
   return {
