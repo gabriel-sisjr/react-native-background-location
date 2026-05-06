@@ -75,7 +75,7 @@ describe('BackgroundLocation API', () => {
       expect(result).toBe(mockTripId);
       expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
         mockTripId,
-        undefined
+        {}
       );
       expect(console.warn).not.toHaveBeenCalled();
     });
@@ -91,7 +91,7 @@ describe('BackgroundLocation API', () => {
       expect(result).toBe(generatedId);
       expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
         undefined,
-        undefined
+        {}
       );
     });
 
@@ -151,7 +151,7 @@ describe('BackgroundLocation API', () => {
       expect(result).toBe('new-trip-id');
       expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
         '',
-        undefined
+        {}
       );
     });
 
@@ -1235,7 +1235,7 @@ describe('BackgroundLocation API', () => {
       expect(result).toBe(mockTripId);
       expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
         mockTripId,
-        undefined
+        {}
       );
       expect(console.warn).not.toHaveBeenCalled();
     });
