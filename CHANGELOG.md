@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.15.1] - 2026-05-06
+
+> **Hotfix** -- resolves a deterministic iOS crash on `startTracking()` when no `options` argument is provided ([#39](https://github.com/gabriel-sisjr/react-native-background-location/issues/39)). No behavior change for callers who already pass an options object. No native (Android/iOS) source change in this release; the fix is contained in the TypeScript bridge layer.
+
+### Fixed
+
+- **(iOS)** Deterministic `EXC_BAD_ACCESS (code=1, address=0x0)` crash when calling `startTracking()`, `startTracking('trip-id')`, or `startTracking('trip-id', undefined)` ([#39](https://github.com/gabriel-sisjr/react-native-background-location/issues/39)). Root cause: the TurboModule ObjC++ bridge declares `options` as a non-nullable C++ reference (`JS::NativeBackgroundLocation::TrackingOptionsSpec &options`). When the JS caller omits `options`, React Native's `RCTTurboModule.mm` skipped the `RCTCxxConvert` step and passed `nil` directly into the `NSInvocation` slot, leaving the ObjC++ method with a reference whose `this == NULL`. The first method invocation on that reference (`options.accuracy()`) dereferenced `0x0` at `BackgroundLocationSpec.h:155` and triggered a Mach-level signal that cannot be caught by `@try/@catch`. The TypeScript layer now normalizes `undefined`/`null` to `{}` before crossing the bridge, guaranteeing a non-nil `NSDictionary` reaches the ObjC++ entry point and the C++ struct is constructed via the standard `RCTCxxConvert` path. See `docs/analysis/issue-39-ios-crash.md` for the full empirical analysis.
+
+### Changed
+
+- `toTrackingOptionsSpec` (`@internal`, `src/utils/trackingOptionsMapper.ts`): return type tightened from `TrackingOptionsSpec | undefined` to non-optional `TrackingOptionsSpec`; input widened from `options?: TrackingOptions` to `options?: TrackingOptions | null` to also accept explicit `null`. When the input is `null`/`undefined` (or the no-arg form), the helper now returns `{}` instead of `undefined`. **Non-breaking**: the only caller is `src/index.tsx` and the public `startTracking` signature is unchanged.
+
+### Internal
+
+- `src/__tests__/utils/trackingOptionsMapper.test.ts` -- 9 new unit tests covering the issue-#39 contract: `undefined` input returns `{}`, `null` input returns `{}`, no-arg invocation returns `{}`, empty `{}` input still returns `{}` (backward compat), fully populated options round-trip correctly, `LocationAccuracy` enum-to-string conversion, `notificationOptions` JSON-stringification, `notificationOptions` left undefined when omitted, and `distanceFilter: 0` preserved (truthiness-trap guard).
+- `src/__tests__/index.test.ts` -- 4 pre-existing assertions updated from `undefined` to `{}` for the second argument passed to `BackgroundLocationModule.startTracking`. Total suite: 482/482 passing across 16 suites.
+
+Thanks to [@qb1ty](https://github.com/qb1ty) for the detailed reproduction snippet and for empirically validating the `startTracking({})` workaround on the affected toolchain.
+
 ## [0.15.0] - 2026-04-27
 
 > **Non-breaking change** -- the `requestPermissions` closure returned by `useLocationPermissions` now accepts an optional `RequestPermissionsOptions` argument. Existing zero-arg callers continue to work unchanged.
@@ -1108,6 +1127,7 @@ Starting with 0.2.0, the project follows a two-branch strategy:
 - No event emitters for real-time location updates
 - Storage limited to SharedPreferences (consider SQLite for large datasets)
 
+[0.15.1]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.15.1
 [0.15.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.15.0
 [0.14.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.14.0
 [0.13.0]: https://github.com/gabriel-sisjr/react-native-background-location/releases/tag/v0.13.0
