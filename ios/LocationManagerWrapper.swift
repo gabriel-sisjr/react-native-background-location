@@ -63,6 +63,18 @@ import CoreLocation
 
   // MARK: - Public API
 
+  /// Workstream A entry point used by the `.mm` transport layer.
+  ///
+  /// Accepts the raw options payload as `Any?` and delegates to the typed
+  /// `TrackingOptions.from(rawOptions:methodName:)` guarded factory before
+  /// forwarding to the canonical typed `startTracking(tripId:options:)`.
+  /// Keeping this seam in Swift (instead of `.mm`) guarantees that all
+  /// nil/non-dict/wrong-type coercion lives behind a single audit point.
+  @objc public func startTracking(tripId: String?, rawOptions: Any?) -> String {
+    let opts = TrackingOptions.from(rawOptions: rawOptions, methodName: "startTracking")
+    return startTracking(tripId: tripId, options: opts)
+  }
+
   @objc public func startTracking(tripId: String?, options: TrackingOptions?) -> String {
     return queue.sync {
       if _isTracking, let existingTripId = _currentTripId {

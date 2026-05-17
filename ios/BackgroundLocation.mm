@@ -115,9 +115,19 @@
   }
 }
 
-// MARK: - Options Parsing
+// MARK: - Codegen Transport (no content branching — see Workstream A, v0.16.0)
+//
+// The C++ `TrackingOptionsSpec` struct has typed accessors that already
+// preserve absent/present semantics via `std::optional<>`. Building an
+// `NSDictionary` from those accessors is purely a transport-layer adaptation
+// from the Codegen wire format to the Swift wire format (NSDictionary).
+//
+// Crucially: this function does NOT validate dict contents, decide defaults,
+// or branch on option semantics. It just translates representations. All
+// validation and degenerate-input coercion is owned by
+// `TrackingOptions.from(rawOptions:methodName:)` in Swift.
 
-- (NSDictionary *)optionsDictionaryFrom:(JS::NativeBackgroundLocation::TrackingOptionsSpec &)options
+- (NSDictionary *)transportDictFromCodegenSpec:(JS::NativeBackgroundLocation::TrackingOptionsSpec &)options
 {
   NSMutableDictionary *dict = [NSMutableDictionary new];
 
@@ -146,8 +156,6 @@
     dict[@"waitForAccurateLocation"] = @(waitForAccurateLocation.value());
   }
 
-  // Notification options — no-op on iOS (no foreground service notification concept)
-  // Passed through as JSON string to avoid crashes when consumers pass Android notification options
   NSString *notificationOptions = options.notificationOptions();
   if (notificationOptions) {
     dict[@"notificationOptions"] = notificationOptions;
@@ -199,8 +207,12 @@
 
     [self configureEventEmitters];
 
-    NSDictionary *optionsDict = [self optionsDictionaryFrom:options];
-    TrackingOptions *trackingOptions = [[TrackingOptions alloc] initWithDictionary:optionsDict];
+    // Workstream A (v0.16.0) — `.mm` is a thin pass-through.
+    // Translate Codegen struct → NSDictionary (transport only, no content
+    // branching) and forward verbatim to the Swift validation authority.
+    // Swift owns nil/non-dict/wrong-type coercion via the
+    // `startTrackingWithTripId:rawOptions:` entry point.
+    NSDictionary *transportDict = [self transportDictFromCodegenSpec:options];
 
     // Register for app lifecycle notifications (foregroundOnly mode support)
     __weak __typeof(self) weakSelf = self;
@@ -209,7 +221,7 @@
     });
 
     NSString *resultTripId = [[LocationManagerWrapper shared] startTrackingWithTripId:tripId
-                                                                              options:trackingOptions];
+                                                                           rawOptions:transportDict];
     resolve(resultTripId);
   } @catch (NSException *exception) {
     reject(@"START_TRACKING_ERROR", [NSString stringWithFormat:@"Failed to start tracking: %@", exception.reason], nil);
