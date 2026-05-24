@@ -19,6 +19,7 @@ import {
   useLocationUpdates,
   LocationPermissionStatus,
   LocationAccuracy,
+  LocationActivityType,
   NotificationPriority,
   type TrackingOptions,
   type NotificationActionEvent,
@@ -124,6 +125,7 @@ export default function App() {
       fastestInterval: 3000,
       maxWaitTime: 10000,
       accuracy: LocationAccuracy.HIGH_ACCURACY,
+      activityType: LocationActivityType.OTHER,
       waitForAccurateLocation: false,
       notificationOptions: {
         title: 'Location Tracking',
@@ -150,6 +152,7 @@ export default function App() {
       fastestInterval: 3000,
       maxWaitTime: 10000,
       accuracy: LocationAccuracy.HIGH_ACCURACY,
+      activityType: LocationActivityType.OTHER,
       waitForAccurateLocation: false,
       notificationOptions: {
         title: 'Location Tracking',
@@ -172,6 +175,7 @@ export default function App() {
       fastestInterval: 1000,
       maxWaitTime: 5000,
       accuracy: LocationAccuracy.HIGH_ACCURACY,
+      activityType: LocationActivityType.AUTOMOTIVE_NAVIGATION,
       waitForAccurateLocation: true,
       notificationOptions: {
         title: 'High Accuracy Tracking',
@@ -189,6 +193,7 @@ export default function App() {
       fastestInterval: 5000,
       maxWaitTime: 15000,
       accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
+      activityType: LocationActivityType.OTHER,
       waitForAccurateLocation: false,
       notificationOptions: {
         title: 'Balanced Tracking',
@@ -205,6 +210,7 @@ export default function App() {
       fastestInterval: 15000,
       maxWaitTime: 60000,
       accuracy: LocationAccuracy.LOW_POWER,
+      activityType: LocationActivityType.OTHER,
       waitForAccurateLocation: false,
       notificationOptions: {
         title: 'Low Power Tracking',
@@ -496,6 +502,48 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
+              <Text style={styles.configSectionTitle}>iOS Activity Type:</Text>
+              <View style={styles.presetContainer}>
+                {[
+                  { value: LocationActivityType.OTHER, label: 'Other' },
+                  {
+                    value: LocationActivityType.AUTOMOTIVE_NAVIGATION,
+                    label: 'Automotive',
+                  },
+                  { value: LocationActivityType.FITNESS, label: 'Fitness' },
+                  {
+                    value: LocationActivityType.OTHER_NAVIGATION,
+                    label: 'Other Nav',
+                  },
+                  { value: LocationActivityType.AIRBORNE, label: 'Airborne' },
+                ].map(({ value, label }) => (
+                  <TouchableOpacity
+                    key={value}
+                    style={[
+                      styles.presetButton,
+                      trackingOptions.activityType === value &&
+                        styles.presetButtonSelected,
+                    ]}
+                    onPress={() =>
+                      setTrackingOptions((prev) => ({
+                        ...prev,
+                        activityType: value,
+                      }))
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.presetButtonText,
+                        trackingOptions.activityType === value &&
+                          styles.presetButtonTextSelected,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               <View style={styles.configDetails}>
                 <Text style={styles.configDetailTitle}>
                   Current Configuration:
@@ -511,6 +559,9 @@ export default function App() {
                 </Text>
                 <Text style={styles.configDetailText}>
                   Accuracy: {trackingOptions.accuracy}
+                </Text>
+                <Text style={styles.configDetailText}>
+                  Activity Type (iOS): {trackingOptions.activityType}
                 </Text>
                 <Text style={styles.configDetailText}>
                   Wait for Accurate:{' '}

@@ -19,7 +19,7 @@ keywords:
 
 Common issues when integrating `@gabriel-sisjr/react-native-background-location`, organized as **Symptom, Cause, Fix**. If your issue is not listed, check the [Example App](https://github.com/gabriel-sisjr/react-native-background-location/tree/main/example), the [GitHub Issues](https://github.com/gabriel-sisjr/react-native-background-location/issues), and the related guide links at the end of each entry.
 
-> All code samples use **granular named imports**, matching the v0.14.0+ public API.
+> All code samples use **granular named imports** from the public API.
 
 ---
 

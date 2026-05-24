@@ -274,7 +274,7 @@ The hook handles this automatically -- check `permissionStatus.location.status =
 
 ## Localized Permission Rationales (Android)
 
-Starting in **v0.15.0**, the `requestPermissions` closure returned by `useLocationPermissions` accepts an optional `backgroundRationale` field that controls the copy shown in the `ACCESS_BACKGROUND_LOCATION` system dialog on Android API 29+.
+The `requestPermissions` closure returned by `useLocationPermissions` accepts an optional `backgroundRationale` field that controls the copy shown in the `ACCESS_BACKGROUND_LOCATION` system dialog on Android API 29+.
 
 The feature is **opt-in and non-breaking** -- existing zero-arg `requestPermissions()` calls continue to work unchanged and use the built-in English defaults.
 

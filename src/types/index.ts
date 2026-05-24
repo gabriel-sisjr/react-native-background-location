@@ -6,6 +6,7 @@
 export {
   LocationPermissionStatus,
   LocationAccuracy,
+  LocationActivityType,
   NotificationPriority,
   NotificationPermissionStatus,
 } from './enums';

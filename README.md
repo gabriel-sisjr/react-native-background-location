@@ -184,11 +184,64 @@ All fields are optional. Defaults are applied when omitted.
 | `fastestInterval`         | `number`              | `3000`          | Fastest allowed update interval (ms)                                                                    |
 | `maxWaitTime`             | `number`              | `10000`         | Max wait before delivering batched updates (ms)                                                         |
 | `accuracy`                | `LocationAccuracy`    | `HIGH_ACCURACY` | Location accuracy priority                                                                              |
+| `activityType`            | `LocationActivityType`| `OTHER`         | iOS-only. Motion-classification hint for `CLLocationManager.activityType`. See [iOS Activity Type](#ios-activity-type). |
 | `waitForAccurateLocation` | `boolean`             | `false`         | Delay updates until accurate location is available                                                      |
 | `distanceFilter`          | `number`              | `0`             | Minimum distance (meters) between updates. `0` = no filter                                              |
 | `foregroundOnly`          | `boolean`             | `false`         | Track only while app is visible (no background permission needed)                                       |
 | `onUpdateInterval`        | `number`              | `undefined`     | Throttle callback execution (ms). Locations still collected at `updateInterval`                         |
 | `notificationOptions`     | `NotificationOptions` | see below       | Notification configuration for the foreground service. See [NotificationOptions](#notificationoptions). |
+
+> **Platform applicability:** `updateInterval`, `fastestInterval`, `maxWaitTime`, and `waitForAccurateLocation` are **Android-only** at the native layer. They are accepted on iOS for cross-platform readability but have no effect — iOS uses `accuracy` and `distanceFilter` as its only tuning inputs. `notificationOptions` is also Android-only (iOS shows the system blue status-bar indicator instead of a foreground notification).
+
+#### iOS Activity Type
+
+The `activityType` field hints to iOS's motion-classification subsystem about what kind of trip is being tracked. iOS uses this hint to decide how aggressively to auto-pause location updates to save battery. The library defaults to `LocationActivityType.OTHER`, which is the recommended value for ride-share, delivery, fleet-tracking, courier, and any non-navigation use case.
+
+```typescript
+import {
+  startTracking,
+  LocationActivityType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking('trip-id', {
+  activityType: LocationActivityType.OTHER, // default — explicit for clarity
+});
+```
+
+| Enum value | iOS `CLActivityType` | Typical use case | Pause / auto-resume behavior |
+| --- | --- | --- | --- |
+| `OTHER` (default) | `.other` | Generic tracking; works well for delivery, courier, or mixed-modality trips | iOS does **not** auto-pause; the library does not need to auto-resume |
+| `AUTOMOTIVE_NAVIGATION` | `.automotiveNavigation` | In-vehicle navigation where the device is mounted | iOS may pause after 2-3 min stationary; the library auto-resumes during active non-foreground-only trips |
+| `FITNESS` | `.fitness` | Walking, running, cycling, indoor sports | iOS may pause when motion is undetected; library auto-resumes during active non-foreground-only trips |
+| `OTHER_NAVIGATION` | `.otherNavigation` | Non-automotive navigation (boats, trains, etc.) | iOS may pause when stationary; library auto-resumes during active non-foreground-only trips |
+| `AIRBORNE` | `.airborne` | Drones, aircraft, aviation telemetry | iOS may pause when stationary; library auto-resumes during active non-foreground-only trips |
+
+> ℹ️ **Auto-resume behavior:** When iOS pauses location updates via `didPauseLocationUpdates` during an active non-`foregroundOnly` trip, the library immediately calls `startUpdatingLocation()` to resume the stream. The `LOCATION_UPDATES_PAUSED` warning event is still emitted via `useLocationUpdates`'s `onLocationWarning` callback for observability, so consumers can log pauses without needing to react to them to keep the stream alive.
+
+> **Android:** `activityType` is iOS-only at the native layer. The option crosses the TurboModule bridge as a string and is silently ignored by the Android Kotlin module. Passing `activityType` from cross-platform code is safe.
+
+##### Migrating from v0.16.0 to v0.17.0
+
+In v0.16.0 and earlier the iOS default activity type was hardcoded to `automotiveNavigation`. v0.17.0 changes that default to `other` to fix issue [#44](https://github.com/gabriel-sisjr/react-native-background-location/issues/44), where iOS would stop emitting location updates 2–3 minutes after the device became stationary because the motion classifier decided the "automotive navigation" hint no longer matched the observed motion.
+
+**For most apps, no change is required.** The new default (`other`) is the correct value for ride-share, delivery, fleet-tracking, and any non-navigation use case. Recompile against v0.17.0 and the bug disappears.
+
+**For turn-by-turn navigation apps**, restore the previous behavior by passing the option explicitly:
+
+```typescript
+import {
+  startTracking,
+  LocationActivityType,
+} from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking('trip-id', {
+  activityType: LocationActivityType.AUTOMOTIVE_NAVIGATION,
+});
+```
+
+A new auto-resume guard now reverses any system-initiated pause while the trip is active (any `activityType`, except when `foregroundOnly: true`). The `LOCATION_UPDATES_PAUSED` warning event continues to fire for observability, but consumers no longer need to react to it to keep the stream alive.
+
+> **No types or imports changed.** This is a runtime default change only. See the [CHANGELOG](CHANGELOG.md) for the full release notes.
 
 #### NotificationOptions
 
@@ -419,6 +472,18 @@ interface UseLocationUpdatesResult {
 | `LOW_POWER`               | Network-based. Lower accuracy, better battery.        |
 | `NO_POWER`                | Only receives updates requested by other apps.        |
 | `PASSIVE`                 | Passive updates from other apps. No additional power. |
+
+### LocationActivityType
+
+iOS-only at the native layer. See [iOS Activity Type](#ios-activity-type) for the full per-value table including the pause/auto-resume behavior on iOS.
+
+| Value                   | iOS `CLActivityType`    | Description                                                              |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------ |
+| `OTHER` (default)       | `.other`                | General-purpose tracking. Recommended for delivery, courier, ride-share. |
+| `AUTOMOTIVE_NAVIGATION` | `.automotiveNavigation` | Turn-by-turn driving apps.                                               |
+| `FITNESS`               | `.fitness`              | Walking, running, cycling.                                               |
+| `OTHER_NAVIGATION`      | `.otherNavigation`      | Non-automotive navigation (boats, trains).                               |
+| `AIRBORNE`              | `.airborne`             | Drones, aircraft, aviation telemetry.                                    |
 
 ### NotificationPriority
 

@@ -3,6 +3,7 @@ import type { TrackingOptions, TrackingStatus, Coords } from './types';
 import {
   LocationPermissionStatus as LocationPermissionStatusEnum,
   LocationAccuracy as LocationAccuracyEnum,
+  LocationActivityType as LocationActivityTypeEnum,
   NotificationPriority as NotificationPriorityEnum,
   NotificationPermissionStatus as NotificationPermissionStatusEnum,
 } from './types/enums';
@@ -63,6 +64,8 @@ export const LocationPermissionStatus = LocationPermissionStatusEnum;
 export type LocationPermissionStatus = LocationPermissionStatusEnum;
 export const LocationAccuracy = LocationAccuracyEnum;
 export type LocationAccuracy = LocationAccuracyEnum;
+export const LocationActivityType = LocationActivityTypeEnum;
+export type LocationActivityType = LocationActivityTypeEnum;
 export const NotificationPriority = NotificationPriorityEnum;
 export type NotificationPriority = NotificationPriorityEnum;
 export const NotificationPermissionStatus = NotificationPermissionStatusEnum;

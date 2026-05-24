@@ -26,6 +26,7 @@ export interface TrackingOptionsSpec {
   fastestInterval?: number;
   maxWaitTime?: number;
   accuracy?: string;
+  activityType?: string;
   waitForAccurateLocation?: boolean;
   foregroundOnly?: boolean;
   distanceFilter?: number;

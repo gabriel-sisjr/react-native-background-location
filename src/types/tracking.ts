@@ -2,7 +2,7 @@
  * Types and interfaces for location tracking
  */
 
-import type { LocationAccuracy } from './enums';
+import type { LocationAccuracy, LocationActivityType } from './enums';
 import type { NotificationOptions } from './notifications';
 
 /**
@@ -224,6 +224,7 @@ export interface TrackingOptions {
   /**
    * Interval between location updates in milliseconds
    * @default 5000 (5 seconds)
+   * @platform Android
    */
   updateInterval?: number;
 
@@ -231,6 +232,7 @@ export interface TrackingOptions {
    * Fastest interval between location updates in milliseconds
    * The system will never update location faster than this interval
    * @default 3000 (3 seconds)
+   * @platform Android
    */
   fastestInterval?: number;
 
@@ -238,6 +240,7 @@ export interface TrackingOptions {
    * Maximum wait time in milliseconds before delivering location updates
    * Allows batching of location updates for better battery efficiency
    * @default 10000 (10 seconds)
+   * @platform Android
    */
   maxWaitTime?: number;
 
@@ -248,9 +251,24 @@ export interface TrackingOptions {
   accuracy?: LocationAccuracy;
 
   /**
+   * Activity-type hint for iOS's `CLLocationManager.activityType`.
+   * Influences how aggressively iOS will pause location updates when motion
+   * classification disagrees with the activity (e.g. vehicle navigation
+   * pauses when the device looks stationary).
+   *
+   * Pass `LocationActivityType.OTHER` (the default) unless the app is
+   * specifically a navigation, fitness, or aviation app.
+   *
+   * @default LocationActivityType.OTHER
+   * @platform iOS
+   */
+  activityType?: LocationActivityType;
+
+  /**
    * Whether to wait for accurate location before delivering updates
    * If true, the system may delay location updates until accurate location is available
    * @default false
+   * @platform Android
    */
   waitForAccurateLocation?: boolean;
 
