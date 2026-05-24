@@ -425,19 +425,19 @@ const { locations } = useLocationUpdates({
 
 Locations are still collected at the native `updateInterval` rate and stored locally.
 
-### Simplified API (v0.8.0+)
+### Trip ID Handling
 
-The v0.8.0 API is cleaner with auto-generated trip IDs -- no need to generate UUIDs yourself:
+`startTracking` returns the trip ID it used. Pass an explicit `tripId` to control the value, or omit it to let the library generate one:
 
 ```tsx
 import { startTracking } from '@gabriel-sisjr/react-native-background-location';
 
-// Before (v0.7.x) -- manual trip ID required
-const tripId = uuid.v4();
-await startTracking(tripId, options);
+// Default: auto-generated trip ID
+const autoTripId = await startTracking(options);
 
-// After (v0.8.0+) -- auto-generated trip ID
-const tripId = await startTracking(options);
+// Alternative: explicit trip ID
+const explicitTripId = uuid.v4();
+await startTracking(explicitTripId, options);
 ```
 
 ### Foreground-Only Mode

@@ -42,7 +42,7 @@ const { requestPermissions } = useLocationPermissions();
 // Zero-arg call (English defaults)
 await requestPermissions();
 
-// Configured call (since v0.15.0) — see "requestPermissions Parameters" below
+// Configured call — see "requestPermissions Parameters" below
 await requestPermissions({
   backgroundRationale: {
     title: 'Permissão de localização',
@@ -60,7 +60,7 @@ Returns a `UseLocationPermissionsResult` object.
 | Property             | Type                                                        | Description                                                                                                                                                                                                  |
 | -------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `permissionStatus`   | [`PermissionState`](../types.md#permissionstate)            | Current combined permission state                                                                                                                                                                            |
-| `requestPermissions` | `(options?: RequestPermissionsOptions) => Promise<boolean>` | Request all required permissions. Returns `true` if **location** permissions are granted. Accepts an optional [`RequestPermissionsOptions`](../types.md#requestpermissionsoptions) argument (since v0.15.0). |
+| `requestPermissions` | `(options?: RequestPermissionsOptions) => Promise<boolean>` | Request all required permissions. Returns `true` if **location** permissions are granted. Accepts an optional [`RequestPermissionsOptions`](../types.md#requestpermissionsoptions) argument.            |
 | `checkPermissions`   | `() => Promise<boolean>`                                    | Check current permissions without showing dialogs. Returns `true` if **location** permissions are granted.                                                                                                   |
 | `isRequesting`       | `boolean`                                                   | Whether a permission request is currently in progress                                                                                                                                                        |
 
@@ -84,7 +84,7 @@ Returns a `UseLocationPermissionsResult` object.
 
 ## `requestPermissions` Parameters
 
-Since v0.15.0, the `requestPermissions` closure accepts an optional configuration object. Existing zero-arg calls (`requestPermissions()`) continue to work unchanged.
+The `requestPermissions` closure accepts an optional configuration object. Zero-arg calls (`requestPermissions()`) continue to work unchanged.
 
 ### Signature
 
@@ -122,7 +122,7 @@ function PermissionGate() {
     // Existing zero-arg call -- unchanged behavior, English defaults.
     await requestPermissions();
 
-    // New (since v0.15.0): localized strings on Android API 29+.
+    // Localized strings on Android API 29+.
     await requestPermissions({
       backgroundRationale: {
         title: 'Permissão de localização',
