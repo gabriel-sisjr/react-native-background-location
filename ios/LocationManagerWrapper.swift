@@ -307,6 +307,17 @@ import CoreLocation
       }
       self.onLocationWarning?(eventData)
       NSLog("[BackgroundLocation] Location updates paused by system")
+
+      // Auto-resume guard: only auto-resume if tracking is active and configured for background updates
+      guard self._currentOptions?.isForegroundOnly == false else { return }
+
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self,
+              self._isTracking,
+              let manager = self.locationManager else { return }
+        manager.startUpdatingLocation()
+        NSLog("[BackgroundLocation] Auto-resumed location updates after system pause")
+      }
     }
   }
 
@@ -453,7 +464,12 @@ import CoreLocation
         manager.distanceFilter = self.defaultDistanceFilter(for: options.accuracy)
       }
 
-      manager.activityType = .automotiveNavigation
+      manager.activityType = options.clActivityType(methodName: "startTracking")
+      // `pausesLocationUpdatesAutomatically = false` reduces — but does not
+      // eliminate — system-initiated pauses. iOS may still pause when its
+      // motion classifier decides the configured `activityType` disagrees
+      // with the observed motion. The `didPauseLocationUpdates` delegate
+      // callback auto-resumes those pauses.
       manager.pausesLocationUpdatesAutomatically = false
       manager.allowsBackgroundLocationUpdates = !options.isForegroundOnly
       manager.showsBackgroundLocationIndicator = !options.isForegroundOnly

@@ -136,6 +136,11 @@
     dict[@"accuracy"] = accuracy;
   }
 
+  NSString *activityType = options.activityType();
+  if (activityType) {
+    dict[@"activityType"] = activityType;
+  }
+
   auto distanceFilter = options.distanceFilter();
   if (distanceFilter.has_value()) {
     dict[@"distanceFilter"] = @(distanceFilter.value());

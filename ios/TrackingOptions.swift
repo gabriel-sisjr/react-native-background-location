@@ -35,6 +35,7 @@ import CoreLocation
 
 @objc public class TrackingOptions: NSObject {
   @objc public let accuracy: String?
+  @objc public let activityType: String?
   @objc public let distanceFilter: NSNumber?
   @objc public let updateInterval: NSNumber?
   @objc public let foregroundOnly: NSNumber?
@@ -47,6 +48,7 @@ import CoreLocation
   @objc public init(dictionary: NSDictionary?) {
     guard let dict = dictionary else {
       self.accuracy = nil
+      self.activityType = nil
       self.distanceFilter = nil
       self.updateInterval = nil
       self.foregroundOnly = nil
@@ -57,6 +59,7 @@ import CoreLocation
     }
 
     self.accuracy = dict["accuracy"] as? String
+    self.activityType = dict["activityType"] as? String
     self.distanceFilter = dict["distanceFilter"] as? NSNumber
     self.updateInterval = dict["updateInterval"] as? NSNumber
     self.foregroundOnly = dict["foregroundOnly"] as? NSNumber
@@ -116,6 +119,15 @@ import CoreLocation
       }
     }
 
+    // activityType: NSString
+    if let raw = dict["activityType"] {
+      if let value = raw as? String {
+        sanitized["activityType"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'activityType' (expected NSString)")
+      }
+    }
+
     // distanceFilter: NSNumber
     if let raw = dict["distanceFilter"] {
       if let value = raw as? NSNumber, !(raw is NSNull) {
@@ -171,6 +183,10 @@ import CoreLocation
 
   @objc public var clAccuracy: CLLocationAccuracy {
     return LocationAccuracy.clAccuracy(from: accuracy)
+  }
+
+  @objc public func clActivityType(methodName: String) -> CLActivityType {
+    return LocationActivityType.clActivityType(from: activityType, methodName: methodName)
   }
 
   @objc public var clDistanceFilter: CLLocationDistance {

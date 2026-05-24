@@ -21,6 +21,9 @@ export function toTrackingOptionsSpec(
     fastestInterval: options.fastestInterval,
     maxWaitTime: options.maxWaitTime,
     accuracy: options.accuracy ? String(options.accuracy) : undefined,
+    activityType: options.activityType
+      ? String(options.activityType)
+      : undefined,
     waitForAccurateLocation: options.waitForAccurateLocation,
     foregroundOnly: options.foregroundOnly,
     distanceFilter: options.distanceFilter,

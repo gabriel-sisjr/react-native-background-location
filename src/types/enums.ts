@@ -85,3 +85,24 @@ export enum NotificationPermissionStatus {
   DENIED = 'denied',
   UNDETERMINED = 'undetermined',
 }
+
+/**
+ * iOS activity type hint passed to `CLLocationManager.activityType`.
+ * Influences iOS's motion-classification subsystem and decisions about
+ * when to auto-pause location updates to save battery.
+ *
+ * @default LocationActivityType.OTHER
+ * @platform iOS
+ */
+export enum LocationActivityType {
+  /** Default. General-purpose tracking, no motion-classification bias. Maps to `CLActivityType.other`. */
+  OTHER = 'OTHER',
+  /** Vehicle navigation (turn-by-turn). Maps to `CLActivityType.automotiveNavigation`. */
+  AUTOMOTIVE_NAVIGATION = 'AUTOMOTIVE_NAVIGATION',
+  /** Foot-based activity (walking, running, cycling). Maps to `CLActivityType.fitness`. */
+  FITNESS = 'FITNESS',
+  /** Non-vehicle navigation (trains, boats). Maps to `CLActivityType.otherNavigation`. */
+  OTHER_NAVIGATION = 'OTHER_NAVIGATION',
+  /** Aerial activity. Maps to `CLActivityType.airborne` (iOS 12+). */
+  AIRBORNE = 'AIRBORNE',
+}
