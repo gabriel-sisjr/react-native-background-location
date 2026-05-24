@@ -45,7 +45,7 @@ Used for `HIGH_ACCURACY`, `BALANCED_POWER_ACCURACY`, and `LOW_POWER` accuracy le
 - Configurable accuracy via `desiredAccuracy`
 - Distance filter support via `distanceFilter`
 - Works in background when `allowsBackgroundLocationUpdates = true`
-- Activity type set to `.automotiveNavigation` for optimal battery/accuracy balance
+- Activity type defaults to `.other` and is configurable via `TrackingOptions.activityType` (see [`LocationActivityType`](../api-reference/enums.md#locationactivitytype))
 
 ```text
 App starts tracking
@@ -170,11 +170,17 @@ const tripId = await startTracking({
 
 ## Battery Optimization
 
-### pausesLocationUpdatesAutomatically
+### pausesLocationUpdatesAutomatically and auto-resume
 
-The library sets `pausesLocationUpdatesAutomatically = false` to ensure continuous tracking. When this property is `true` (the default), iOS may pause location updates when it determines the user has stopped moving. This causes unexpected gaps in tracking data.
+The library sets `pausesLocationUpdatesAutomatically = false` to ensure continuous tracking. When this property is `true` (the default), iOS may pause location updates when it determines the user has stopped moving. Setting it to `false` reduces — but does not eliminate — system-initiated pauses, since iOS may still pause when its motion classifier decides the configured `activityType` disagrees with observed motion.
 
-If iOS does pause updates (due to extreme battery conditions), the library emits a `LOCATION_UPDATES_PAUSED` warning event, and a `LOCATION_UPDATES_RESUMED` event when updates resume.
+When iOS pauses updates, the library emits a `LOCATION_UPDATES_PAUSED` warning event for observability, then automatically resumes location updates if all of the following hold (`ios/LocationManagerWrapper.swift:289-314`):
+
+- `_isTracking == true`
+- `_currentOptions?.isForegroundOnly == false`
+- `locationManager != nil`
+
+If updates resume on their own (without the auto-resume call), the library also emits a `LOCATION_UPDATES_RESUMED` event.
 
 ```typescript
 import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
@@ -183,7 +189,7 @@ function TrackingScreen() {
   useLocationUpdates({
     onLocationWarning: (warning) => {
       if (warning.type === 'LOCATION_UPDATES_PAUSED') {
-        console.log('iOS paused location updates to save battery');
+        console.log('iOS paused location updates; library will auto-resume.');
       }
       if (warning.type === 'LOCATION_UPDATES_RESUMED') {
         console.log('iOS resumed location updates');
@@ -195,12 +201,23 @@ function TrackingScreen() {
 
 ### activityType
 
-The library sets `activityType = .automotiveNavigation`. This tells iOS the app is tracking vehicle movement, which:
+The library exposes the iOS `CLLocationManager.activityType` via the optional `TrackingOptions.activityType` field, typed by the [`LocationActivityType`](../api-reference/enums.md#locationactivitytype) enum. The default is `LocationActivityType.OTHER` (`CLActivityType.other`), which is stationary-friendly: iOS will not aggressively pause updates for inactivity.
+
+Pass `LocationActivityType.AUTOMOTIVE_NAVIGATION` for vehicle navigation. This tells iOS the app is tracking driving, which:
 
 - Optimizes location updates for driving scenarios
 - Keeps GPS active during highway driving
-- Allows iOS to make better power management decisions
 - Applies dead reckoning when GPS signal is temporarily lost
+- May cause iOS to pause updates approximately 2–3 minutes after the device becomes stationary (e.g. a parked car). When this happens during an active background trip, the library auto-resumes updates as described above.
+
+```typescript
+import { startTracking, LocationActivityType } from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking({
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  activityType: LocationActivityType.AUTOMOTIVE_NAVIGATION,
+});
+```
 
 ### Distance Filter Defaults
 

@@ -83,7 +83,7 @@ When `startTracking()` is called, `LocationManagerWrapper` configures `CLLocatio
 | `distanceFilter` | `TrackingOptions.distanceFilter` | `kCLDistanceFilterNone` |
 | `allowsBackgroundLocationUpdates` | Always `true` | -- |
 | `pausesLocationUpdatesAutomatically` | `TrackingOptions` | `false` |
-| `activityType` | Mapped from options | `.other` |
+| `activityType` | `TrackingOptions.activityType` mapped via `LocationActivityType.swift` | `CLActivityType.other` |
 | `showsBackgroundLocationIndicator` | Always `true` | -- |
 
 ### Lifecycle
@@ -293,6 +293,7 @@ When tracking starts, `LocationManagerWrapper` also calls `startMonitoringSignif
 | Bridge Field | iOS Property | Notes |
 |-------------|-------------|-------|
 | `accuracy` (string) | `CLLocationAccuracy` | Mapped via `LocationAccuracy.swift` |
+| `activityType` (string) | `CLActivityType` | Mapped via `LocationActivityType.swift`. Defaults to `.other`. Unknown values fall back to `.other` and log a guard warning. |
 | `distanceFilter` (number) | `CLLocationDistance` | `0` maps to `kCLDistanceFilterNone` |
 | `updateInterval` | Not used | iOS does not support interval-based updates |
 | `fastestInterval` | Not used | iOS does not support interval-based updates |

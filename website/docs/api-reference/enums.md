@@ -1,12 +1,13 @@
 ---
 sidebar_position: 5
 title: Enums
-description: All enum definitions for @gabriel-sisjr/react-native-background-location — LocationAccuracy, NotificationPriority, LocationPermissionStatus, NotificationPermissionStatus, GeofenceTransitionType, and GeofenceErrorCode.
+description: All enum definitions for @gabriel-sisjr/react-native-background-location — LocationAccuracy, LocationActivityType, NotificationPriority, LocationPermissionStatus, NotificationPermissionStatus, GeofenceTransitionType, and GeofenceErrorCode.
 keywords:
   - react-native
   - background-location
   - enums
   - LocationAccuracy
+  - LocationActivityType
   - NotificationPriority
   - LocationPermissionStatus
   - GeofenceTransitionType
@@ -20,6 +21,7 @@ All runtime enum values exported by the library. Each enum is exported both as a
 ```ts
 import {
   LocationAccuracy,
+  LocationActivityType,
   NotificationPriority,
   LocationPermissionStatus,
   NotificationPermissionStatus,
@@ -66,6 +68,53 @@ await startTracking({
   accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
 });
 ```
+
+---
+
+## `LocationActivityType`
+
+iOS-only hint passed to `CLLocationManager.activityType`. Tells iOS the nature of the activity being tracked so it can make better power management decisions (when to keep GPS hot, when to pause updates if motion stops, dead-reckoning behavior, etc.). Ignored on Android.
+
+```ts
+enum LocationActivityType {
+  OTHER = 'OTHER',
+  AUTOMOTIVE_NAVIGATION = 'AUTOMOTIVE_NAVIGATION',
+  FITNESS = 'FITNESS',
+  OTHER_NAVIGATION = 'OTHER_NAVIGATION',
+  AIRBORNE = 'AIRBORNE',
+}
+```
+
+| Value | String | Description | Native Mapping |
+|-------|--------|-------------|----------------|
+| `OTHER` | `'OTHER'` | Default. General-purpose tracking, including stationary or mixed-motion scenarios. iOS will not aggressively pause updates for inactivity. | iOS: `CLActivityType.other` |
+| `AUTOMOTIVE_NAVIGATION` | `'AUTOMOTIVE_NAVIGATION'` | Vehicle navigation. Optimized for driving but iOS may pause updates ~2–3 minutes after the device becomes stationary (e.g. parked car). | iOS: `CLActivityType.automotiveNavigation` |
+| `FITNESS` | `'FITNESS'` | Fitness or pedestrian tracking (walking, running, cycling). | iOS: `CLActivityType.fitness` |
+| `OTHER_NAVIGATION` | `'OTHER_NAVIGATION'` | Non-automotive navigation, such as boats or trains. | iOS: `CLActivityType.otherNavigation` |
+| `AIRBORNE` | `'AIRBORNE'` | Airborne tracking. | iOS: `CLActivityType.airborne` |
+
+**Platform:** iOS only. The value is parsed but ignored on Android.
+
+> **Note:** Unknown strings fall back to `OTHER` and a warning is logged via the iOS guard logger.
+
+### Usage
+
+```ts
+import { startTracking, LocationActivityType } from '@gabriel-sisjr/react-native-background-location';
+
+// Default (stationary-friendly): no value or LocationActivityType.OTHER
+await startTracking({
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+});
+
+// Vehicle navigation: tell iOS this is a driving session
+await startTracking({
+  accuracy: LocationAccuracy.HIGH_ACCURACY,
+  activityType: LocationActivityType.AUTOMOTIVE_NAVIGATION,
+});
+```
+
+Source: `ios/LocationActivityType.swift:5-26`.
 
 ---
 

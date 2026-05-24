@@ -75,7 +75,11 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Migration',
-      items: ['migration/v0-14-0', 'migration/v0-12-0'],
+      items: [
+        'migration/v0-17-0',
+        'migration/v0-14-0',
+        'migration/v0-12-0',
+      ],
     },
     {
       type: 'category',
