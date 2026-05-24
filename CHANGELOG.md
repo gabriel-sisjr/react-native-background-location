@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.17.0] - 2026-05-24
+
+> ⚠️ **Behavioral change (iOS default activity type):** apps relying on the previous `.automotiveNavigation` default may observe pause/auto-resume timing differences. See the [Migrating from v0.16.0 to v0.17.0](README.md#migrating-from-v0160-to-v0170) section in the README. No API or type changes.
+
+### Added
+
+- **`LocationActivityType` enum** exposed on the public API with five values: `OTHER`, `AUTOMOTIVE_NAVIGATION`, `FITNESS`, `OTHER_NAVIGATION`, `AIRBORNE`. Maps to iOS `CLLocationManager.activityType`. Has no effect on Android — the option crosses the bridge as a string and is silently ignored by the Android native layer.
+- **`TrackingOptions.activityType`** optional field that controls iOS motion classification. Defaults to `LocationActivityType.OTHER`.
+- **iOS auto-resume on `didPauseLocationUpdates`** — when the system pauses location updates during an active trip (non-`foregroundOnly`), the library now immediately resumes them while still emitting the existing `LOCATION_UPDATES_PAUSED` warning for observability.
+- Example app: new activity-type chip selector reusing the existing preset UX (no new dependencies).
+- `ios/LocationActivityType.swift` — new mapping helper between the wire-string enum values and `CLActivityType`. Unknown strings funnel through `guardLogger` and fall back to `.other`.
+
+### Changed
+
+- **Default iOS activity type changed from `.automotiveNavigation` to `.other`.** This fixes [#44](https://github.com/gabriel-sisjr/react-native-background-location/issues/44), where iOS would stop emitting location updates 2–3 minutes after the device became stationary because `.automotiveNavigation` made the motion classifier aggressively pause the stream once the user appeared to stop driving. Consumers building turn-by-turn navigation apps should opt back in explicitly with `{ activityType: LocationActivityType.AUTOMOTIVE_NAVIGATION }`.
+- `TrackingOptions.updateInterval`, `fastestInterval`, `maxWaitTime`, and `waitForAccurateLocation` are now annotated `@platform Android` in JSDoc. Their iOS behavior is unchanged (still accepted by the bridge, still ignored at the native layer — iOS does not expose comparable knobs and uses `distanceFilter` + `accuracy` only).
+- Internal: `src/hooks/useBackgroundLocation.ts` now consumes the canonical `toTrackingOptionsSpec` mapper instead of duplicating the conversion inline. Prevents future option fields from silently being dropped by the hook entry point.
+
+### Fixed
+
+- **iOS:** background tracking no longer stops within 2–3 minutes of the device becoming stationary ([#44](https://github.com/gabriel-sisjr/react-native-background-location/issues/44)). Root cause was the hardcoded `.automotiveNavigation` activity type combined with no auto-resume on `didPauseLocationUpdates`. Both halves of the fix ship in this release: the default activity type is now `.other`, and any system-initiated pause is reversed immediately while the trip is still active.
+
+### Notes
+
+- **API-compatible release.** No public TypeScript types were removed and no method signatures changed. Existing call sites that omit `activityType` continue to compile and run, but the runtime default behavior changes from `.automotiveNavigation` to `.other` — see the migration note in `README.md`.
+- The auto-resume in `didPauseLocationUpdates` cannot be disabled; the `LOCATION_UPDATES_PAUSED` warning event continues to be emitted for observability.
+
 ## [0.16.0] - 2026-05-17
 
 ### Added
