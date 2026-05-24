@@ -112,7 +112,7 @@ Implements `CLLocationManagerDelegate` to handle all callbacks from `CLLocationM
 ```mermaid
 flowchart TD
     CLM["CLLocationManager"] --> DID["didUpdateLocations:"]
-    DID --> TOKEN{Stop token<br/>valid?}
+    DID --> TOKEN{"Stop token<br/>valid?"}
     TOKEN -->|Yes| DROP["Drop locations"]
     TOKEN -->|No| EACH["Process each CLLocation"]
     EACH --> STORE["Write to LocationStorage<br/>(Core Data)"]
@@ -256,12 +256,12 @@ Handles crash recovery using iOS significant location monitoring -- a system-man
 flowchart TD
     CRASH["App terminated<br/>(crash or system kill)"] --> SIG["Significant location change<br/>(iOS relaunches app)"]
     SIG --> RM["RecoveryManager"]
-    RM --> TOKEN{Stop token<br/>in UserDefaults?}
+    RM --> TOKEN{"Stop token<br/>in UserDefaults?"}
     TOKEN -->|Set| ABORT["Do not recover"]
-    TOKEN -->|Clear| RATE{Recovery count<br/>< 5 this hour?}
+    TOKEN -->|Clear| RATE{"Recovery count<br/>< 5 this hour?"}
     RATE -->|No| SKIP["Skip recovery<br/>(rate limited)"]
     RATE -->|Yes| READ["Read TrackingState<br/>from Core Data"]
-    READ --> ACTIVE{Was tracking<br/>active?}
+    READ --> ACTIVE{"Was tracking<br/>active?"}
     ACTIVE -->|No| NOOP["No action needed"]
     ACTIVE -->|Yes| RESUME["Resume CLLocationManager<br/>with saved TrackingOptions"]
     RESUME --> INC["Increment recovery counter"]
