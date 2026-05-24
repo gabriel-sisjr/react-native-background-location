@@ -4,6 +4,9 @@ pre-commit:
     lint:
       glob: "*.{js,ts,jsx,tsx}"
       run: npx eslint {staged_files}
+    mermaid:
+      glob: "website/docs/**/*.{md,mdx}"
+      run: node website/scripts/validate-mermaid.mjs {staged_files}
     types:
       glob: "*.{js,ts,jsx,tsx}"
       run: npx tsc
