@@ -4,7 +4,11 @@ import { useLocationPermissions } from '../../hooks/useLocationPermissions';
 import { useBackgroundLocation } from '../../hooks/useBackgroundLocation';
 import { useLocationTracking } from '../../hooks/useLocationTracking';
 import { useLocationUpdates } from '../../hooks/useLocationUpdates';
-import { LocationPermissionStatus, LocationAccuracy } from '../../types';
+import {
+  LocationPermissionStatus,
+  LocationAccuracy,
+  LocationActivityType,
+} from '../../types';
 import BackgroundLocationModule from '../../NativeBackgroundLocation';
 import { updateNotification } from '../../index';
 
@@ -1059,6 +1063,123 @@ describe('iOS Tracking Integration Tests', () => {
       });
 
       expect(onTrackingStop).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('iOS activityType propagation', () => {
+    it('should not include activityType in native call when omitted', async () => {
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: false,
+        tripId: undefined,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await waitFor(() => {
+        expect(result_isNotLoading(result)).toBe(true);
+      });
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, {
+          accuracy: LocationAccuracy.HIGH_ACCURACY,
+          distanceFilter: 5,
+        });
+      });
+
+      const callArgs = (BackgroundLocationModule.startTracking as jest.Mock)
+        .mock.calls[0];
+      const options = callArgs?.[1];
+      expect(options?.activityType).toBeUndefined();
+    });
+
+    it('should pass LocationActivityType.FITNESS to native module as string', async () => {
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: false,
+        tripId: undefined,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await waitFor(() => {
+        expect(result_isNotLoading(result)).toBe(true);
+      });
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, {
+          activityType: LocationActivityType.FITNESS,
+        });
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          activityType: 'FITNESS',
+        })
+      );
+    });
+
+    it('should pass LocationActivityType.AIRBORNE via 2-arg startTracking signature', async () => {
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: false,
+        tripId: undefined,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await waitFor(() => {
+        expect(result_isNotLoading(result)).toBe(true);
+      });
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, {
+          activityType: LocationActivityType.AIRBORNE,
+        });
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          activityType: 'AIRBORNE',
+        })
+      );
+    });
+
+    it('should forward LocationActivityType.OTHER_NAVIGATION through the hook to native module', async () => {
+      (BackgroundLocationModule.startTracking as jest.Mock).mockResolvedValue(
+        mockTripId
+      );
+      (BackgroundLocationModule.isTracking as jest.Mock).mockResolvedValue({
+        active: false,
+        tripId: undefined,
+      });
+
+      const { result } = renderHook(() => useBackgroundLocation());
+
+      await waitFor(() => {
+        expect(result_isNotLoading(result)).toBe(true);
+      });
+
+      await act(async () => {
+        await result.current.startTracking(mockTripId, {
+          activityType: LocationActivityType.OTHER_NAVIGATION,
+        });
+      });
+
+      expect(BackgroundLocationModule.startTracking).toHaveBeenCalledWith(
+        mockTripId,
+        expect.objectContaining({
+          activityType: 'OTHER_NAVIGATION',
+        })
+      );
     });
   });
 });
