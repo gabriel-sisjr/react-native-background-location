@@ -47,7 +47,6 @@ import CoreLocation
       _currentOptions = options
       _isTracking = true
 
-      // Save recovered state
       LocationStorage.shared.saveTrackingState(tripId: effectiveTripId, isActive: true, options: options)
 
       configureAndStart(options: options)
@@ -63,13 +62,6 @@ import CoreLocation
 
   // MARK: - Public API
 
-  /// Workstream A entry point used by the `.mm` transport layer.
-  ///
-  /// Accepts the raw options payload as `Any?` and delegates to the typed
-  /// `TrackingOptions.from(rawOptions:methodName:)` guarded factory before
-  /// forwarding to the canonical typed `startTracking(tripId:options:)`.
-  /// Keeping this seam in Swift (instead of `.mm`) guarantees that all
-  /// nil/non-dict/wrong-type coercion lives behind a single audit point.
   @objc public func startTracking(tripId: String?, rawOptions: Any?) -> String {
     let opts = TrackingOptions.from(rawOptions: rawOptions, methodName: "startTracking")
     return startTracking(tripId: tripId, options: opts)
@@ -469,7 +461,6 @@ import CoreLocation
       // eliminate — system-initiated pauses. iOS may still pause when its
       // motion classifier decides the configured `activityType` disagrees
       // with the observed motion. The `didPauseLocationUpdates` delegate
-      // callback auto-resumes those pauses.
       manager.pausesLocationUpdatesAutomatically = false
       manager.allowsBackgroundLocationUpdates = !options.isForegroundOnly
       manager.showsBackgroundLocationIndicator = !options.isForegroundOnly

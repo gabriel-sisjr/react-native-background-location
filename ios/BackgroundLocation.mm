@@ -115,17 +115,7 @@
   }
 }
 
-// MARK: - Codegen Transport (no content branching — see Workstream A, v0.16.0)
-//
-// The C++ `TrackingOptionsSpec` struct has typed accessors that already
-// preserve absent/present semantics via `std::optional<>`. Building an
-// `NSDictionary` from those accessors is purely a transport-layer adaptation
-// from the Codegen wire format to the Swift wire format (NSDictionary).
-//
-// Crucially: this function does NOT validate dict contents, decide defaults,
-// or branch on option semantics. It just translates representations. All
-// validation and degenerate-input coercion is owned by
-// `TrackingOptions.from(rawOptions:methodName:)` in Swift.
+// MARK: - Codegen Transport
 
 - (NSDictionary *)transportDictFromCodegenSpec:(JS::NativeBackgroundLocation::TrackingOptionsSpec &)options
 {
@@ -212,11 +202,6 @@
 
     [self configureEventEmitters];
 
-    // Workstream A (v0.16.0) — `.mm` is a thin pass-through.
-    // Translate Codegen struct → NSDictionary (transport only, no content
-    // branching) and forward verbatim to the Swift validation authority.
-    // Swift owns nil/non-dict/wrong-type coercion via the
-    // `startTrackingWithTripId:rawOptions:` entry point.
     NSDictionary *transportDict = [self transportDictFromCodegenSpec:options];
 
     // Register for app lifecycle notifications (foregroundOnly mode support)
