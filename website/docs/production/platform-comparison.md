@@ -38,7 +38,7 @@ Side-by-side comparison of how `@gabriel-sisjr/react-native-background-location`
 | Aspect | Android | iOS |
 |---|---|---|
 | Location provider | FusedLocationProvider (Google Play Services) or AndroidLocationProvider (fallback) | CLLocationManager |
-| Activity type | Not applicable | `.automotiveNavigation` |
+| Activity type | Not applicable | `.other` by default; configurable via `TrackingOptions.activityType` ([`LocationActivityType`](../api-reference/enums.md#locationactivitytype)) |
 | Distance filter | Via FusedLocationProvider `setSmallestDisplacement` | Via `CLLocationManager.distanceFilter` |
 | Pauses automatically | Not applicable | `pausesLocationUpdatesAutomatically = false` (disabled) |
 | Stale location filter | Not applicable (FusedLocationProvider handles this) | Rejects locations older than 10 seconds |
@@ -224,6 +224,7 @@ interface PermissionState {
 | Option | Android | iOS | Notes |
 |---|---|---|---|
 | `accuracy` | Applied | Applied | Different native mappings (see Accuracy table) |
+| `activityType` | Ignored | Applied | Maps to `CLLocationManager.activityType`. Defaults to `LocationActivityType.OTHER`. iOS-only hint. |
 | `updateInterval` | Applied | Stored only | iOS does not support interval-based updates; uses distance filter |
 | `fastestInterval` | Applied | Ignored | Android-only FusedLocationProvider feature |
 | `maxWaitTime` | Applied | Ignored | Android-only batching parameter |

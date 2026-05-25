@@ -94,7 +94,7 @@ Once tracking is active, location updates flow from the OS through the native la
 flowchart TD
     GPS["GPS / Network Provider"] --> LP["LocationProvider<br/>(Fused or Android)"]
     LP --> LS["LocationService"]
-    LS --> ST{Stop token<br/>valid?}
+    LS --> ST{"Stop token<br/>valid?"}
     ST -->|Yes| DROP[Drop update]
     ST -->|No| PROC["Process location"]
     PROC --> STORE["LocationStorage<br/>(Room DB batch write)"]
@@ -123,7 +123,7 @@ All three flows share the same configuration: `replay = 0`, `extraBufferCapacity
 ```mermaid
 flowchart TD
     GPS["CLLocationManager"] --> DEL["LocationManagerDelegate"]
-    DEL --> ST{Stop token<br/>valid?}
+    DEL --> ST{"Stop token<br/>valid?"}
     ST -->|Yes| DROP[Drop update]
     ST -->|No| PROC["Process location"]
     PROC --> STORE["LocationStorage<br/>(Core Data batch write)"]
@@ -205,7 +205,7 @@ Both platforms emit identical event payloads to JavaScript:
 ```mermaid
 flowchart LR
     LOC["New location"] --> BUF["In-memory buffer<br/>(ConcurrentLinkedQueue / Array)"]
-    BUF --> CHECK{Buffer size >= 10<br/>OR 5s elapsed?}
+    BUF --> CHECK{"Buffer size >= 10<br/>OR 5s elapsed?"}
     CHECK -->|Yes| FLUSH["Batch INSERT<br/>(Room / Core Data)"]
     CHECK -->|No| WAIT["Wait for next<br/>location or timer"]
     FLUSH -->|Failure| RETRY["Re-add to buffer"]
@@ -305,7 +305,7 @@ flowchart TD
     T1 -->|Clear| READ["Read tracking state<br/>from Room DB"]
     READ --> T2{Stop token?}
     T2 -->|Set| ABORT2["Abort recovery"]
-    T2 -->|Clear| PERM{Permissions<br/>still granted?}
+    T2 -->|Clear| PERM{"Permissions<br/>still granted?"}
     PERM -->|No| CLEAR["Clear tracking state"]
     PERM -->|Yes| T3{Stop token?}
     T3 -->|Set| ABORT3["Abort recovery"]
@@ -320,7 +320,7 @@ flowchart TD
     SIG --> RM["RecoveryManager"]
     RM --> TOKEN{Stop token?}
     TOKEN -->|Set| ABORT["Abort recovery"]
-    TOKEN -->|Clear| RATE{Under rate limit?<br/>(5/hour)}
+    TOKEN -->|Clear| RATE{"Under rate limit?<br/>(5/hour)"}
     RATE -->|No| SKIP["Skip recovery"]
     RATE -->|Yes| READ["Read tracking state<br/>from Core Data"]
     READ --> RESUME["Resume CLLocationManager<br/>with saved options"]

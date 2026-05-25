@@ -130,7 +130,7 @@ A boolean flag in SharedPreferences with a 60-second TTL. Checked at every locat
 
 ```mermaid
 flowchart TD
-    LOC["New location arrives"] --> CHECK{Stop token set<br/>and < 60s old?}
+    LOC["New location arrives"] --> CHECK{"Stop token set<br/>and < 60s old?"}
     CHECK -->|Yes| DROP["Drop location,<br/>do not emit"]
     CHECK -->|No| PROCESS["Process and emit"]
 ```
@@ -154,7 +154,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    FACTORY["LocationProviderFactory"] --> CHECK{Google Play Services<br/>available?}
+    FACTORY["LocationProviderFactory"] --> CHECK{"Google Play Services<br/>available?"}
     CHECK -->|Yes| FUSED["FusedLocationProvider"]
     CHECK -->|No| ANDROID["AndroidLocationProvider"]
     CHECK -->|Explicit selection| CHOICE["Selected provider"]
@@ -363,19 +363,19 @@ A `CoroutineWorker` scheduled via WorkManager for crash recovery on Android 12+ 
 
 ```mermaid
 flowchart TD
-    START["RecoveryWorker.doWork()"] --> T1{Stop token<br/>set?}
+    START["RecoveryWorker.doWork()"] --> T1{"Stop token<br/>set?"}
     T1 -->|Yes| ABORT1["Return Result.success()"]
     T1 -->|No| READ["Read TrackingState<br/>from Room DB"]
-    READ --> T2{Stop token<br/>set?}
+    READ --> T2{"Stop token<br/>set?"}
     T2 -->|Yes| ABORT2["Return Result.success()"]
-    T2 -->|No| PERM{Permissions<br/>granted?}
+    T2 -->|No| PERM{"Permissions<br/>granted?"}
     PERM -->|No| CLEAR["Clear tracking state<br/>Return Result.success()"]
-    PERM -->|Yes| T3{Stop token<br/>set?}
+    PERM -->|Yes| T3{"Stop token<br/>set?"}
     T3 -->|Yes| ABORT3["Return Result.success()"]
     T3 -->|No| FG["setForeground(ForegroundInfo)"]
     FG --> SVC["Start LocationService<br/>with saved TrackingOptions"]
     SVC --> SUCCESS["Return Result.success()"]
-    SVC -->|Failure| RETRY{Attempt < 3?}
+    SVC -->|Failure| RETRY{"Attempt < 3?"}
     RETRY -->|Yes| BACK["Exponential backoff<br/>Return Result.retry()"]
     RETRY -->|No| FAIL["Return Result.failure()"]
 ```

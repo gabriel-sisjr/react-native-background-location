@@ -9,6 +9,8 @@ on:
       - '**/*.md'
       - 'lychee.toml'
       - '.github/workflows/docs-link-check.yml'
+      - 'website/scripts/validate-mermaid.mjs'
+      - 'website/package.json'
   pull_request:
     branches:
       - main
@@ -17,6 +19,8 @@ on:
       - '**/*.md'
       - 'lychee.toml'
       - '.github/workflows/docs-link-check.yml'
+      - 'website/scripts/validate-mermaid.mjs'
+      - 'website/package.json'
   workflow_dispatch:
 
 concurrency:
@@ -58,3 +62,25 @@ jobs:
             --config ./lychee.toml
             './**/*.md'
           fail: false
+
+  validate-mermaid:
+    name: Validate Mermaid diagrams
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # TODO: pin actions/setup-node to a SHA once a verified digest is on hand.
+      # Tag-pinning matches the convention used in deploy-docs.yml for now.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Validate Mermaid diagrams
+        run: yarn workspace website validate:mermaid

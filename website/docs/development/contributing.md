@@ -136,6 +136,25 @@ yarn test
 
 ---
 
+## Authoring Mermaid Diagrams
+
+Mermaid is enabled via `@docusaurus/theme-mermaid`. Use ```` ```mermaid ```` code fences in any `.md` file under `website/docs/`.
+
+**Quoting rule:** any node label containing reserved characters (`(`, `)`, `[`, `]`, `{`, `}`, `/`, `:`, `|`, `&`, `#`, `<br/>`) MUST be wrapped in double quotes. This applies to diamond `{...}`, square `[...]`, round `(...)`, and stadium `([...])` shapes alike.
+
+- Wrong: `NODE{Rate limit?<br/>(5/hour)}`
+- Right: `NODE{"Rate limit?<br/>(5/hour)"}`
+
+**Validation:** run the following before committing:
+
+```sh
+yarn workspace website validate:mermaid
+```
+
+The validator also runs automatically during `yarn workspace website build` (prebuild lifecycle), so broken diagrams fail the docs build.
+
+---
+
 ## Commit Message Convention
 
 We follow the [Conventional Commits specification](https://www.conventionalcommits.org/en) for commit messages:

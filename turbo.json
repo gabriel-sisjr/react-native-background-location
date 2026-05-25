@@ -45,9 +45,18 @@
         "website/static/**",
         "website/docusaurus.config.ts",
         "website/sidebars.ts",
-        "website/package.json"
+        "website/package.json",
+        "website/scripts/validate-mermaid.mjs"
       ],
       "outputs": ["website/build/**"]
+    },
+    "website#validate:mermaid": {
+      "inputs": [
+        "website/docs/**/*.{md,mdx}",
+        "website/scripts/validate-mermaid.mjs",
+        "website/package.json"
+      ],
+      "outputs": []
     },
     "website#start": {
       "cache": false,

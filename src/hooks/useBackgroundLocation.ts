@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import BackgroundLocationModule from '../NativeBackgroundLocation';
-import type { TrackingOptionsSpec } from '../NativeBackgroundLocation';
 import type {
   UseBackgroundLocationResult,
   Coords,
   UseLocationTrackingOptions,
   TrackingOptions,
 } from '../types';
+import { toTrackingOptionsSpec } from '../utils';
 
 // Check if native module is available
 const isNativeModuleAvailable = () => {
@@ -163,21 +163,8 @@ export function useBackgroundLocation(
         // Use provided options or fallback to options from hook config
         const effectiveOptions = trackingOptionsOverride || trackingOptions;
         // Convert TrackingOptions to TrackingOptionsSpec for native module
-        const specOptions: TrackingOptionsSpec | undefined = effectiveOptions
-          ? {
-              updateInterval: effectiveOptions.updateInterval,
-              fastestInterval: effectiveOptions.fastestInterval,
-              maxWaitTime: effectiveOptions.maxWaitTime,
-              accuracy: effectiveOptions.accuracy
-                ? String(effectiveOptions.accuracy)
-                : undefined,
-              waitForAccurateLocation: effectiveOptions.waitForAccurateLocation,
-              foregroundOnly: effectiveOptions.foregroundOnly,
-              distanceFilter: effectiveOptions.distanceFilter,
-              notificationOptions: effectiveOptions.notificationOptions
-                ? JSON.stringify(effectiveOptions.notificationOptions)
-                : undefined,
-            }
+        const specOptions = effectiveOptions
+          ? toTrackingOptionsSpec(effectiveOptions)
           : undefined;
         const effectiveTripId = await BackgroundLocationModule.startTracking(
           customTripId,

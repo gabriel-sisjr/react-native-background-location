@@ -83,7 +83,7 @@ When `startTracking()` is called, `LocationManagerWrapper` configures `CLLocatio
 | `distanceFilter` | `TrackingOptions.distanceFilter` | `kCLDistanceFilterNone` |
 | `allowsBackgroundLocationUpdates` | Always `true` | -- |
 | `pausesLocationUpdatesAutomatically` | `TrackingOptions` | `false` |
-| `activityType` | Mapped from options | `.other` |
+| `activityType` | `TrackingOptions.activityType` mapped via `LocationActivityType.swift` | `CLActivityType.other` |
 | `showsBackgroundLocationIndicator` | Always `true` | -- |
 
 ### Lifecycle
@@ -112,7 +112,7 @@ Implements `CLLocationManagerDelegate` to handle all callbacks from `CLLocationM
 ```mermaid
 flowchart TD
     CLM["CLLocationManager"] --> DID["didUpdateLocations:"]
-    DID --> TOKEN{Stop token<br/>valid?}
+    DID --> TOKEN{"Stop token<br/>valid?"}
     TOKEN -->|Yes| DROP["Drop locations"]
     TOKEN -->|No| EACH["Process each CLLocation"]
     EACH --> STORE["Write to LocationStorage<br/>(Core Data)"]
@@ -256,12 +256,12 @@ Handles crash recovery using iOS significant location monitoring -- a system-man
 flowchart TD
     CRASH["App terminated<br/>(crash or system kill)"] --> SIG["Significant location change<br/>(iOS relaunches app)"]
     SIG --> RM["RecoveryManager"]
-    RM --> TOKEN{Stop token<br/>in UserDefaults?}
+    RM --> TOKEN{"Stop token<br/>in UserDefaults?"}
     TOKEN -->|Set| ABORT["Do not recover"]
-    TOKEN -->|Clear| RATE{Recovery count<br/>< 5 this hour?}
+    TOKEN -->|Clear| RATE{"Recovery count<br/>< 5 this hour?"}
     RATE -->|No| SKIP["Skip recovery<br/>(rate limited)"]
     RATE -->|Yes| READ["Read TrackingState<br/>from Core Data"]
-    READ --> ACTIVE{Was tracking<br/>active?}
+    READ --> ACTIVE{"Was tracking<br/>active?"}
     ACTIVE -->|No| NOOP["No action needed"]
     ACTIVE -->|Yes| RESUME["Resume CLLocationManager<br/>with saved TrackingOptions"]
     RESUME --> INC["Increment recovery counter"]
@@ -293,6 +293,7 @@ When tracking starts, `LocationManagerWrapper` also calls `startMonitoringSignif
 | Bridge Field | iOS Property | Notes |
 |-------------|-------------|-------|
 | `accuracy` (string) | `CLLocationAccuracy` | Mapped via `LocationAccuracy.swift` |
+| `activityType` (string) | `CLActivityType` | Mapped via `LocationActivityType.swift`. Defaults to `.other`. Unknown values fall back to `.other` and log a guard warning. |
 | `distanceFilter` (number) | `CLLocationDistance` | `0` maps to `kCLDistanceFilterNone` |
 | `updateInterval` | Not used | iOS does not support interval-based updates |
 | `fastestInterval` | Not used | iOS does not support interval-based updates |

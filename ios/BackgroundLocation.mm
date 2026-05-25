@@ -115,15 +115,20 @@
   }
 }
 
-// MARK: - Options Parsing
+// MARK: - Codegen Transport
 
-- (NSDictionary *)optionsDictionaryFrom:(JS::NativeBackgroundLocation::TrackingOptionsSpec &)options
+- (NSDictionary *)transportDictFromCodegenSpec:(JS::NativeBackgroundLocation::TrackingOptionsSpec &)options
 {
   NSMutableDictionary *dict = [NSMutableDictionary new];
 
   NSString *accuracy = options.accuracy();
   if (accuracy) {
     dict[@"accuracy"] = accuracy;
+  }
+
+  NSString *activityType = options.activityType();
+  if (activityType) {
+    dict[@"activityType"] = activityType;
   }
 
   auto distanceFilter = options.distanceFilter();
@@ -146,8 +151,6 @@
     dict[@"waitForAccurateLocation"] = @(waitForAccurateLocation.value());
   }
 
-  // Notification options — no-op on iOS (no foreground service notification concept)
-  // Passed through as JSON string to avoid crashes when consumers pass Android notification options
   NSString *notificationOptions = options.notificationOptions();
   if (notificationOptions) {
     dict[@"notificationOptions"] = notificationOptions;
@@ -199,8 +202,7 @@
 
     [self configureEventEmitters];
 
-    NSDictionary *optionsDict = [self optionsDictionaryFrom:options];
-    TrackingOptions *trackingOptions = [[TrackingOptions alloc] initWithDictionary:optionsDict];
+    NSDictionary *transportDict = [self transportDictFromCodegenSpec:options];
 
     // Register for app lifecycle notifications (foregroundOnly mode support)
     __weak __typeof(self) weakSelf = self;
@@ -209,7 +211,7 @@
     });
 
     NSString *resultTripId = [[LocationManagerWrapper shared] startTrackingWithTripId:tripId
-                                                                              options:trackingOptions];
+                                                                           rawOptions:transportDict];
     resolve(resultTripId);
   } @catch (NSException *exception) {
     reject(@"START_TRACKING_ERROR", [NSString stringWithFormat:@"Failed to start tracking: %@", exception.reason], nil);

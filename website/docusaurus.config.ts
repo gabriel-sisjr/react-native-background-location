@@ -18,6 +18,7 @@ const config: Config = {
   onBrokenLinks: 'throw',
 
   markdown: {
+    mermaid: true,
     hooks: {
       onBrokenMarkdownLinks: 'warn',
     },
@@ -78,6 +79,7 @@ const config: Config = {
         explicitSearchResultPath: true,
       },
     ],
+    '@docusaurus/theme-mermaid',
   ],
 
   themeConfig: {

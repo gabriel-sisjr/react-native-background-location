@@ -252,6 +252,7 @@ interface TrackingOptions {
   fastestInterval?: number;
   maxWaitTime?: number;
   accuracy?: LocationAccuracy;
+  activityType?: LocationActivityType;
   waitForAccurateLocation?: boolean;
   distanceFilter?: number;
   notificationOptions?: NotificationOptions;
@@ -260,17 +261,18 @@ interface TrackingOptions {
 }
 ```
 
-| Property                  | Type                  | Default         | Platform | Description                                                                                                                    |
-| ------------------------- | --------------------- | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `updateInterval`          | `number`              | `5000`          | Both     | Interval between location updates in milliseconds                                                                              |
-| `fastestInterval`         | `number`              | `3000`          | Both     | Fastest interval between updates in milliseconds. The system never updates faster than this.                                   |
-| `maxWaitTime`             | `number`              | `10000`         | Both     | Maximum wait time in milliseconds before delivering batched updates                                                            |
-| `accuracy`                | `LocationAccuracy`    | `HIGH_ACCURACY` | Both     | Location accuracy priority level                                                                                               |
-| `waitForAccurateLocation` | `boolean`             | `false`         | Both     | Whether to delay updates until accurate location is available                                                                  |
-| `distanceFilter`          | `number`              | `0`             | Android  | Minimum distance in meters between updates. `0` = no filter.                                                                   |
-| `notificationOptions`     | `NotificationOptions` | —               | Both     | Foreground service notification configuration                                                                                  |
-| `foregroundOnly`          | `boolean`             | `false`         | Android  | Foreground-only mode. Does not require background location permission.                                                         |
-| `onUpdateInterval`        | `number`              | `undefined`     | Both     | Throttle interval for the `onLocationUpdate` callback in milliseconds. Locations are still collected at `updateInterval` rate. |
+| Property                  | Type                                                        | Default                       | Platform | Description                                                                                                                                          |
+| ------------------------- | ----------------------------------------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updateInterval`          | `number`                                                    | `5000`                        | Android  | Interval between location updates in milliseconds                                                                                                    |
+| `fastestInterval`         | `number`                                                    | `3000`                        | Android  | Fastest interval between updates in milliseconds. The system never updates faster than this.                                                         |
+| `maxWaitTime`             | `number`                                                    | `10000`                       | Android  | Maximum wait time in milliseconds before delivering batched updates                                                                                  |
+| `accuracy`                | `LocationAccuracy`                                          | `HIGH_ACCURACY`               | Both     | Location accuracy priority level                                                                                                                     |
+| `activityType`            | [`LocationActivityType`](./enums.md#locationactivitytype)   | `LocationActivityType.OTHER`  | iOS      | Maps to `CLLocationManager.activityType`. Controls how iOS treats the tracking activity (e.g., pausing on inactivity for `AUTOMOTIVE_NAVIGATION`).   |
+| `waitForAccurateLocation` | `boolean`                                                   | `false`                       | Android  | Whether to delay updates until accurate location is available                                                                                        |
+| `distanceFilter`          | `number`                                                    | `0`                           | Android  | Minimum distance in meters between updates. `0` = no filter.                                                                                         |
+| `notificationOptions`     | `NotificationOptions`                                       | —                             | Both     | Foreground service notification configuration                                                                                                        |
+| `foregroundOnly`          | `boolean`                                                   | `false`                       | Android  | Foreground-only mode. Does not require background location permission.                                                                               |
+| `onUpdateInterval`        | `number`                                                    | `undefined`                   | Both     | Throttle interval for the `onLocationUpdate` callback in milliseconds. Locations are still collected at `updateInterval` rate.                       |
 
 ---
 
@@ -524,7 +526,7 @@ interface UseLocationPermissionsResult {
 | Property             | Type                                                        | Description                                                                                                                                                             |
 | -------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `permissionStatus`   | `PermissionState`                                           | Current permission state                                                                                                                                                |
-| `requestPermissions` | `(options?: RequestPermissionsOptions) => Promise<boolean>` | Request all permissions. Returns `true` if location is granted. Accepts an optional [`RequestPermissionsOptions`](#requestpermissionsoptions) argument (since v0.15.0). |
+| `requestPermissions` | `(options?: RequestPermissionsOptions) => Promise<boolean>` | Request all permissions. Returns `true` if location is granted. Accepts an optional [`RequestPermissionsOptions`](#requestpermissionsoptions) argument. |
 | `checkPermissions`   | `() => Promise<boolean>`                                    | Check permissions without requesting. Returns `true` if location is granted.                                                                                            |
 | `isRequesting`       | `boolean`                                                   | Whether a permission request is in progress                                                                                                                             |
 

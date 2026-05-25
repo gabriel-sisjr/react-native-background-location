@@ -1,5 +1,9 @@
 import { toTrackingOptionsSpec } from '../../utils/trackingOptionsMapper';
-import { LocationAccuracy, NotificationPriority } from '../../types/enums';
+import {
+  LocationAccuracy,
+  LocationActivityType,
+  NotificationPriority,
+} from '../../types/enums';
 import type { TrackingOptions } from '../../types';
 
 describe('trackingOptionsMapper', () => {
@@ -119,6 +123,52 @@ describe('trackingOptionsMapper', () => {
       const result = toTrackingOptionsSpec({ distanceFilter: 0 });
 
       expect(result.distanceFilter).toBe(0);
+    });
+  });
+
+  describe('activityType mapping', () => {
+    it('leaves activityType undefined when omitted from options', () => {
+      const result = toTrackingOptionsSpec({});
+
+      expect(result.activityType).toBeUndefined();
+    });
+
+    it('maps LocationActivityType.OTHER to the string "OTHER"', () => {
+      const result = toTrackingOptionsSpec({
+        activityType: LocationActivityType.OTHER,
+      });
+
+      expect(result.activityType).toBe('OTHER');
+      expect(typeof result.activityType).toBe('string');
+    });
+
+    it('maps LocationActivityType.AUTOMOTIVE_NAVIGATION to the string "AUTOMOTIVE_NAVIGATION"', () => {
+      const result = toTrackingOptionsSpec({
+        activityType: LocationActivityType.AUTOMOTIVE_NAVIGATION,
+      });
+
+      expect(result.activityType).toBe('AUTOMOTIVE_NAVIGATION');
+      expect(typeof result.activityType).toBe('string');
+    });
+
+    it('leaves activityType undefined when explicitly set to undefined', () => {
+      const result = toTrackingOptionsSpec({ activityType: undefined });
+
+      expect(result.activityType).toBeUndefined();
+    });
+
+    it('maps accuracy, distanceFilter, and activityType together when all are provided', () => {
+      const options: TrackingOptions = {
+        accuracy: LocationAccuracy.HIGH_ACCURACY,
+        distanceFilter: 10,
+        activityType: LocationActivityType.FITNESS,
+      };
+
+      const result = toTrackingOptionsSpec(options);
+
+      expect(result.accuracy).toBe('HIGH_ACCURACY');
+      expect(result.distanceFilter).toBe(10);
+      expect(result.activityType).toBe('FITNESS');
     });
   });
 });

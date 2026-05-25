@@ -3,6 +3,7 @@ import CoreLocation
 
 @objc public class TrackingOptions: NSObject {
   @objc public let accuracy: String?
+  @objc public let activityType: String?
   @objc public let distanceFilter: NSNumber?
   @objc public let updateInterval: NSNumber?
   @objc public let foregroundOnly: NSNumber?
@@ -15,6 +16,7 @@ import CoreLocation
   @objc public init(dictionary: NSDictionary?) {
     guard let dict = dictionary else {
       self.accuracy = nil
+      self.activityType = nil
       self.distanceFilter = nil
       self.updateInterval = nil
       self.foregroundOnly = nil
@@ -25,6 +27,7 @@ import CoreLocation
     }
 
     self.accuracy = dict["accuracy"] as? String
+    self.activityType = dict["activityType"] as? String
     self.distanceFilter = dict["distanceFilter"] as? NSNumber
     self.updateInterval = dict["updateInterval"] as? NSNumber
     self.foregroundOnly = dict["foregroundOnly"] as? NSNumber
@@ -35,8 +38,101 @@ import CoreLocation
     super.init()
   }
 
+  @objc public static func from(rawOptions: Any?, methodName: String) -> TrackingOptions {
+    guard let unwrapped = rawOptions else {
+      guardLogger("[BackgroundLocation] \(methodName) received nil options dictionary; falling back to defaults")
+      return TrackingOptions(dictionary: nil)
+    }
+
+    if unwrapped is NSNull {
+      guardLogger("[BackgroundLocation] \(methodName) received nil options dictionary; falling back to defaults")
+      return TrackingOptions(dictionary: nil)
+    }
+    guard let dict = unwrapped as? NSDictionary else {
+      guardLogger("[BackgroundLocation] \(methodName) received non-dictionary options; falling back to defaults")
+      return TrackingOptions(dictionary: nil)
+    }
+
+    var sanitized = NSMutableDictionary()
+    var wrongTypeKeys: [String] = []
+
+    // accuracy: NSString
+    if let raw = dict["accuracy"] {
+      if let value = raw as? String {
+        sanitized["accuracy"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'accuracy' (expected NSString)")
+      }
+    }
+
+    // activityType: NSString
+    if let raw = dict["activityType"] {
+      if let value = raw as? String {
+        sanitized["activityType"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'activityType' (expected NSString)")
+      }
+    }
+
+    // distanceFilter: NSNumber
+    if let raw = dict["distanceFilter"] {
+      if let value = raw as? NSNumber, !(raw is NSNull) {
+        sanitized["distanceFilter"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'distanceFilter' (expected NSNumber)")
+      }
+    }
+
+    // updateInterval: NSNumber
+    if let raw = dict["updateInterval"] {
+      if let value = raw as? NSNumber, !(raw is NSNull) {
+        sanitized["updateInterval"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'updateInterval' (expected NSNumber)")
+      }
+    }
+
+    // foregroundOnly: NSNumber (bool-bridged)
+    if let raw = dict["foregroundOnly"] {
+      if let value = raw as? NSNumber, !(raw is NSNull) {
+        sanitized["foregroundOnly"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'foregroundOnly' (expected NSNumber)")
+      }
+    }
+
+    // waitForAccurateLocation: NSNumber (bool-bridged)
+    if let raw = dict["waitForAccurateLocation"] {
+      if let value = raw as? NSNumber, !(raw is NSNull) {
+        sanitized["waitForAccurateLocation"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'waitForAccurateLocation' (expected NSNumber)")
+      }
+    }
+
+    // notificationOptions: NSString (JSON-serialized; iOS no-op)
+    if let raw = dict["notificationOptions"] {
+      if let value = raw as? String {
+        sanitized["notificationOptions"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'notificationOptions' (expected NSString)")
+      }
+    }
+
+    if !wrongTypeKeys.isEmpty {
+      let joined = wrongTypeKeys.joined(separator: ", ")
+      guardLogger("[BackgroundLocation] \(methodName) received wrong type for key(s) \(joined); falling back to defaults")
+    }
+
+    return TrackingOptions(dictionary: sanitized)
+  }
+
   @objc public var clAccuracy: CLLocationAccuracy {
     return LocationAccuracy.clAccuracy(from: accuracy)
+  }
+
+  @objc public func clActivityType(methodName: String) -> CLActivityType {
+    return LocationActivityType.clActivityType(from: activityType, methodName: methodName)
   }
 
   @objc public var clDistanceFilter: CLLocationDistance {

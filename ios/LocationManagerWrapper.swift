@@ -47,7 +47,6 @@ import CoreLocation
       _currentOptions = options
       _isTracking = true
 
-      // Save recovered state
       LocationStorage.shared.saveTrackingState(tripId: effectiveTripId, isActive: true, options: options)
 
       configureAndStart(options: options)
@@ -62,6 +61,11 @@ import CoreLocation
   }
 
   // MARK: - Public API
+
+  @objc public func startTracking(tripId: String?, rawOptions: Any?) -> String {
+    let opts = TrackingOptions.from(rawOptions: rawOptions, methodName: "startTracking")
+    return startTracking(tripId: tripId, options: opts)
+  }
 
   @objc public func startTracking(tripId: String?, options: TrackingOptions?) -> String {
     return queue.sync {
@@ -295,6 +299,17 @@ import CoreLocation
       }
       self.onLocationWarning?(eventData)
       NSLog("[BackgroundLocation] Location updates paused by system")
+
+      // Auto-resume guard: only auto-resume if tracking is active and configured for background updates
+      guard self._currentOptions?.isForegroundOnly == false else { return }
+
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self,
+              self._isTracking,
+              let manager = self.locationManager else { return }
+        manager.startUpdatingLocation()
+        NSLog("[BackgroundLocation] Auto-resumed location updates after system pause")
+      }
     }
   }
 
@@ -441,7 +456,11 @@ import CoreLocation
         manager.distanceFilter = self.defaultDistanceFilter(for: options.accuracy)
       }
 
-      manager.activityType = .automotiveNavigation
+      manager.activityType = options.clActivityType(methodName: "startTracking")
+      // `pausesLocationUpdatesAutomatically = false` reduces — but does not
+      // eliminate — system-initiated pauses. iOS may still pause when its
+      // motion classifier decides the configured `activityType` disagrees
+      // with the observed motion. The `didPauseLocationUpdates` delegate
       manager.pausesLocationUpdatesAutomatically = false
       manager.allowsBackgroundLocationUpdates = !options.isForegroundOnly
       manager.showsBackgroundLocationIndicator = !options.isForegroundOnly
