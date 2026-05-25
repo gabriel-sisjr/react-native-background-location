@@ -77,6 +77,12 @@ jobs:
       - name: Build package
         run: yarn prepare
 
+      - name: Verify tarball contents
+        run: |
+          npm pack --dry-run --json > /tmp/pack.json
+          jq -e '.[0].files | map(.path) | any(. == "app.plugin.js")' /tmp/pack.json
+          jq -e '.[0].files | map(.path) | any(startswith("plugin/build/"))' /tmp/pack.json
+
       - name: Run tests
         run: yarn test --coverage --maxWorkers=2
 

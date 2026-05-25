@@ -174,3 +174,34 @@ jobs:
       - name: Build example for iOS
         run: |
           yarn turbo run build:ios --cache-dir="${{ env.TURBO_CACHE_DIR }}"
+
+  expo-prebuild:
+    name: expo prebuild (${{ matrix.platform }})
+    needs: build-library
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, platform: android }
+          - { os: macos-latest, platform: ios }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build the plugin
+        run: yarn build:plugin
+
+      - name: Link library into example-expo
+        working-directory: example-expo
+        run: yarn link:library
+
+      - name: Run expo prebuild
+        working-directory: example-expo
+        run: yarn expo prebuild --platform ${{ matrix.platform }} --clean --no-install
+
+      - name: Assert prebuild output
+        run: ./scripts/assert-expo-prebuild-output.sh ${{ matrix.platform }}

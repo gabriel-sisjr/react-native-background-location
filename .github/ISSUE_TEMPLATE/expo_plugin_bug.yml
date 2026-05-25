@@ -1,0 +1,59 @@
+name: Expo config plugin bug
+description: Report a bug with the Expo config plugin (`expo prebuild` behavior, manifest/plist output, etc.)
+title: "[expo plugin]: "
+labels: ["bug", "expo-plugin"]
+body:
+  - type: input
+    id: library-version
+    attributes:
+      label: Library version
+      description: Output of `npm ls @gabriel-sisjr/react-native-background-location`
+    validations:
+      required: true
+  - type: input
+    id: expo-sdk
+    attributes:
+      label: Expo SDK version
+      description: From `app.json` or `expo --version`
+    validations:
+      required: true
+  - type: input
+    id: expo-cli
+    attributes:
+      label: Expo CLI version
+      description: Output of `npx expo --version`
+    validations:
+      required: true
+  - type: textarea
+    id: app-config
+    attributes:
+      label: app.config.ts / app.json
+      description: Paste the relevant `plugins` block
+      render: jsonc
+    validations:
+      required: true
+  - type: textarea
+    id: prebuild-output
+    attributes:
+      label: Prebuild output
+      description: Output of `EXPO_DEBUG=true npx expo prebuild --clean`
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: manifest-diff
+    attributes:
+      label: Generated AndroidManifest.xml / Info.plist diff (if relevant)
+      render: diff
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
