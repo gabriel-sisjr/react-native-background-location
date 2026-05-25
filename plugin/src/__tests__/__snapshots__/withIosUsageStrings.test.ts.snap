@@ -1,0 +1,29 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`withIosUsageStrings populates all three usage strings with defaults when props are empty 1`] = `
+{
+  "CFBundleDevelopmentRegion": "en",
+  "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+  "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+  "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location, even when the app is in the background.",
+  "NSLocationAlwaysUsageDescription": "Allow $(PRODUCT_NAME) to access your location at all times.",
+  "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location while you use the app.",
+  "UIBackgroundModes": [
+    "location",
+  ],
+}
+`;
+
+exports[`withIosUsageStrings snapshot of full plist after applying defaults to an empty baseline 1`] = `
+{
+  "CFBundleDevelopmentRegion": "en",
+  "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+  "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+  "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location, even when the app is in the background.",
+  "NSLocationAlwaysUsageDescription": "Allow $(PRODUCT_NAME) to access your location at all times.",
+  "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location while you use the app.",
+  "UIBackgroundModes": [
+    "location",
+  ],
+}
+`;
