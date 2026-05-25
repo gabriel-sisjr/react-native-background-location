@@ -10,6 +10,15 @@ pre-commit:
     types:
       glob: "*.{js,ts,jsx,tsx}"
       run: npx tsc
+    types-plugin:
+      glob: "plugin/**/*.ts"
+      run: npx tsc --project plugin/tsconfig.json --noEmit
+    types-plugin-tests:
+      # plugin/tsconfig.json excludes **/__tests__/** so `types-plugin` silently
+      # skips type-checking staged test files. plugin/tsconfig.tests.json
+      # re-includes them (still noEmit) so commits stay honest.
+      glob: "plugin/**/*.{test,spec}.ts"
+      run: npx tsc --project plugin/tsconfig.tests.json --noEmit
 commit-msg:
   parallel: true
   commands:

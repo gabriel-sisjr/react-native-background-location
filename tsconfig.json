@@ -28,5 +28,5 @@
     "target": "ESNext",
     "verbatimModuleSyntax": true
   },
-  "exclude": ["website"]
+  "exclude": ["website", "plugin"]
 }

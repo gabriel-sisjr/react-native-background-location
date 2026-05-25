@@ -34,4 +34,21 @@ export default defineConfig([
       'website/',
     ],
   },
+  {
+    files: ['plugin/**/*.ts'],
+    rules: {
+      'react-native/no-inline-styles': 'off',
+      'react-hooks/rules-of-hooks': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'react/react-in-jsx-scope': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
+    files: ['app.plugin.js'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      'no-undef': 'off',
+    },
+  },
 ]);

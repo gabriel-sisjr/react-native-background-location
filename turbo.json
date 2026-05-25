@@ -3,6 +3,15 @@
   "globalDependencies": [".nvmrc", ".yarnrc.yml"],
   "globalEnv": ["NODE_ENV"],
   "tasks": {
+    "build:plugin": {
+      "inputs": [
+        "plugin/src/**",
+        "!plugin/src/__tests__/**",
+        "plugin/tsconfig.json",
+        "tsconfig.json"
+      ],
+      "outputs": ["plugin/build/**"]
+    },
     "build:android": {
       "env": ["ANDROID_HOME", "ORG_GRADLE_PROJECT_newArchEnabled"],
       "inputs": [

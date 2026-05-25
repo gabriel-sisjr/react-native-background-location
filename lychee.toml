@@ -23,6 +23,11 @@ exclude_path = [
   "website/node_modules",
   "website/build",
   "website/.docusaurus",
+  "plugin/build",
+  "example-expo/node_modules",
+  "example-expo/.expo",
+  "example-expo/ios",
+  "example-expo/android",
 ]
 
 # --- Network behavior (only applies to the online pass) -----------------------
