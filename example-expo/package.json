@@ -1,0 +1,27 @@
+{
+  "name": "example-expo",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "link:library": "node ./scripts/link-library.js",
+    "prebuild": "yarn link:library && expo prebuild --clean --no-install",
+    "prebuild:android": "yarn link:library && expo prebuild --platform android --clean --no-install",
+    "prebuild:ios": "yarn link:library && expo prebuild --platform ios --clean --no-install",
+    "start": "expo start"
+  },
+  "dependencies": {
+    "@gabriel-sisjr/react-native-background-location": "*",
+    "expo": "~53.0.0",
+    "expo-build-properties": "~0.13.0",
+    "react": "19.0.0",
+    "react-native": "0.81.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@types/react": "~19.0.0",
+    "typescript": "~5.5.0"
+  }
+}
