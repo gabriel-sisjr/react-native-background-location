@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.0] - 2026-MM-DD
+
+### Added
+
+- Expo config plugin (`app.plugin.js` + `plugin/build/`) covering AndroidManifest permission injection, iOS `Info.plist` usage strings, and `UIBackgroundModes`. Forward-compat `temporaryUsageDescriptions` knob for the upcoming C6 (iOS temporary full accuracy) feature.
+- `example-expo/` Yarn workspace exercising the plugin end-to-end via `expo prebuild`.
+- CI smoke jobs `expo-prebuild-android` (Ubuntu) and `expo-prebuild-ios` (macOS).
+
 ## [0.17.0] - 2026-05-24
 
 > ⚠️ **Behavioral change (iOS default activity type):** apps relying on the previous `.automotiveNavigation` default may observe pause/auto-resume timing differences. See the [Migrating from v0.16.0 to v0.17.0](README.md#migrating-from-v0160-to-v0170) section in the README. No API or type changes.

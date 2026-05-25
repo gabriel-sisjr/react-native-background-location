@@ -94,6 +94,20 @@ Add the required permissions to `android/app/src/main/AndroidManifest.xml`:
 
 > **iOS:** Unlike Android, iOS does not use a foreground notification for background tracking. Instead, the system shows a blue status bar indicator when the app is using location in the background. See the [iOS Setup Guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details and App Store compliance requirements.
 
+## Expo support
+
+This library ships a config plugin that lets Expo managed-workflow apps integrate without ejecting:
+
+```json
+{
+  "expo": {
+    "plugins": ["@gabriel-sisjr/react-native-background-location"]
+  }
+}
+```
+
+Run `expo prebuild` and the plugin will inject the required Android permissions, iOS usage strings, and `UIBackgroundModes`. See the [Expo config plugin guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin) for the full options reference.
+
 ## Quick Start
 
 ```typescript

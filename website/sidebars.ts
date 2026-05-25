@@ -26,6 +26,7 @@ const sidebars: SidebarsConfig = {
         'guides/permission-handling',
         'guides/crash-recovery',
         'guides/battery-optimization',
+        'guides/expo-config-plugin',
       ],
     },
     {

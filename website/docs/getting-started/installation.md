@@ -121,6 +121,10 @@ If you are using Expo with a development build:
 
 > **Note:** The library includes native Kotlin (Android) and Swift (iOS) code that requires compilation. Expo Go does not support custom native modules.
 
+:::tip Using Expo?
+If you are on the Expo managed workflow, install via `expo install` and add the plugin to your `app.json`. See [Expo config plugin](../guides/expo-config-plugin.md).
+:::
+
 ## Verifying the Installation
 
 After installation and setup, verify the library is linked correctly:

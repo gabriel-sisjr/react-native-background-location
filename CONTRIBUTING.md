@@ -73,6 +73,7 @@ yarn example ios
 ```
 
 The iOS native source files are located at:
+
 - `ios/BackgroundLocation.mm` -- TurboModule bridge (Objective-C++)
 - `ios/*.swift` -- Swift implementation (LocationManagerWrapper, LocationStorage, RecoveryManager, etc.)
 
@@ -155,3 +156,30 @@ When you're sending a pull request:
 - Follow the pull request template when opening a pull request.
 - For pull requests that change the API or implementation, discuss with maintainers first by opening an issue.
 - For platform-specific changes, clearly indicate which platform is affected in the PR title (e.g., `feat(ios): ...` or `fix(android): ...`).
+
+## Working on the Expo config plugin
+
+The plugin source lives in `plugin/src/` and compiles to `plugin/build/` via plain `tsc`. To iterate locally:
+
+**Terminal 1**: watch-compile the plugin:
+
+```bash
+yarn watch:plugin
+```
+
+**Terminal 2**: link the library into the example-expo workspace and re-run prebuild on demand:
+
+```bash
+cd example-expo
+yarn expo prebuild --clean --no-install
+# inspect example-expo/android/app/src/main/AndroidManifest.xml
+# inspect example-expo/ios/<name>/Info.plist
+```
+
+**Terminal 3**: run the snapshot suite while you iterate:
+
+```bash
+yarn test --watch --selectProjects plugin
+```
+
+Snapshot updates: `yarn test --selectProjects plugin -u`. Snapshots must be committed.

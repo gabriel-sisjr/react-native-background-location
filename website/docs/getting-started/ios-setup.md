@@ -107,6 +107,8 @@ complete and accurate trip records for fleet management.</string>
 CoreLocation framework.</string>
 ```
 
+> Using Expo? The [Expo config plugin](../guides/expo-config-plugin.md) handles all of the `Info.plist` and `UIBackgroundModes` steps automatically.
+
 ## Step 3: Enable Background Modes in Xcode
 
 1. Open your `.xcworkspace` file in Xcode (not `.xcodeproj`)

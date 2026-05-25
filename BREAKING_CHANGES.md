@@ -1,5 +1,9 @@
 # Breaking Changes
 
+## 0.18.0 (2026-MM-DD) - Expo config plugin (additive, no breaking changes)
+
+No breaking changes. The Expo config plugin is purely additive — bare-workflow consumers are unaffected, and the new `app.plugin.js` entry has no impact on existing imports.
+
 ## 0.14.0 (2026-04-15) - Public API Surface Cleanup
 
 > **Upgrade path:** v0.13.x --> v0.14.0

@@ -125,6 +125,8 @@ These must be declared in `AndroidManifest.xml` (see [Installation](./installati
 | `FOREGROUND_SERVICE_LOCATION` | Android 14+ (API 34+) | Foreground service type declaration  |
 | `POST_NOTIFICATIONS`          | Android 13+ (API 33+) | Show foreground service notification |
 
+> Using Expo? The [Expo config plugin](../guides/expo-config-plugin.md) injects all 7 required permissions for you.
+
 ### Runtime Permission Flow
 
 The correct order for requesting permissions on Android is critical. Requesting background and foreground permissions together will **silently fail** on Android 11+.
