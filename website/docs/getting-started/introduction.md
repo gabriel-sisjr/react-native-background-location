@@ -45,7 +45,7 @@ keywords:
 | Persistent storage | Room Database (SQLite) | Core Data (SQLite) |
 | Crash recovery | WorkManager | Significant location monitoring |
 | Location provider | Fused Location (Google Play Services) + Android Location fallback | CLLocationManager |
-| Min SDK / OS version | API 24 (Android 7.0) | iOS 13+ |
+| Min SDK / OS version | API 24 (Android 7.0) | iOS 16+ |
 | Target SDK | 34 (Android 14) | Latest Xcode SDK |
 | Notification customization | Full (icon, color, actions, dynamic updates) | N/A (system blue bar) |
 | Geofencing | Google Geofencing API | CLCircularRegion |

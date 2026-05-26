@@ -1,13 +1,13 @@
 # @gabriel-sisjr/react-native-background-location — Expo Config Plugin
 
 Contributor-facing notes. End-user documentation lands in Phase 6 at
-`website/docs/guides/expo-config-plugin.md` — that guide does not exist yet.
+`website/docs/guides/expo-config-plugin.md` that guide does not exist yet.
 
 ## Status
 
 Phase 1 scaffolding only. `withBackgroundLocation` is a no-op stub. Phases 2-4
 will add the real `withAndroidManifest` / `withInfoPlist` / options-validation
-modifiers; see `docs/plans/C2-expo-config-plugin.md` for the phased plan.
+modifiers.
 
 ## Layout
 
@@ -25,5 +25,4 @@ modifiers; see `docs/plans/C2-expo-config-plugin.md` for the phased plan.
 
 ## Further reading
 
-- `docs/plans/C2-expo-config-plugin.md` — full phased implementation plan.
-- `website/docs/guides/expo-config-plugin.md` — user guide (coming in Phase 6).
+- [Expo Config Plugin guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin) for end-user documentation.

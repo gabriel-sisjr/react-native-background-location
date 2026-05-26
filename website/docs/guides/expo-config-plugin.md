@@ -23,7 +23,7 @@ The plugin is a thin, declarative wrapper around the native module's manifest an
 - Injecting the seven Android permissions the library needs into `AndroidManifest.xml`.
 - Writing the three `NSLocation*UsageDescription` keys into `Info.plist`.
 - Adding `"location"` to the `UIBackgroundModes` array.
-- Optionally merging a `NSLocationTemporaryUsageDescriptionDictionary` for the forward-compat C6 feature.
+- Optionally merging a `NSLocationTemporaryUsageDescriptionDictionary` for a forward-compat precise-location feature.
 
 The plugin is **consumer-scoped**: it touches only files inside the consumer's generated `android/` and `ios/` directories. It does not patch the library itself, register services or receivers, edit Gradle scripts, or modify the podspec — autolinking handles all of that.
 
@@ -75,7 +75,7 @@ The library plugin and `expo-build-properties` are independent — order does no
 
 iOS App Review is strict about location usage strings. The library ships sensible defaults that pass automated checks, but you should override them with copy that reflects **your** app's purpose. Pass the plugin a config object instead of the bare string entry:
 
-```jsonc
+```json
 {
   "expo": {
     "plugins": [
@@ -86,12 +86,12 @@ iOS App Review is strict about location usage strings. The library ships sensibl
           "locationAlwaysAndWhenInUseUsageDescription": "We need background location to record your route during shifts.",
           "locationAlwaysUsageDescription": "We use your location even when the app is closed to support clock-out reminders.",
           "temporaryUsageDescriptions": {
-            "AccurateFix": "We need precise location for in-app navigation.",
-          },
-        },
-      ],
-    ],
-  },
+            "AccurateFix": "We need precise location for in-app navigation."
+          }
+        }
+      ]
+    ]
+  }
 }
 ```
 
@@ -204,7 +204,7 @@ All props are optional. Pass them in the second position of the plugin tuple: `[
 | `locationWhenInUseUsageDescription` | `string` | App-Review-safe generic string mentioning `$(PRODUCT_NAME)` | Writes the iOS `NSLocationWhenInUseUsageDescription` key in `Info.plist`. Must be a non-empty, non-whitespace string. |
 | `locationAlwaysAndWhenInUseUsageDescription` | `string` | App-Review-safe generic background-location string mentioning `$(PRODUCT_NAME)` | Writes the iOS `NSLocationAlwaysAndWhenInUseUsageDescription` key in `Info.plist`. Must be a non-empty, non-whitespace string. |
 | `locationAlwaysUsageDescription` | `string` | App-Review-safe generic always-on string mentioning `$(PRODUCT_NAME)` | Writes the iOS `NSLocationAlwaysUsageDescription` key (legacy, iOS < 11 compatibility). Must be a non-empty, non-whitespace string. |
-| `temporaryUsageDescriptions` | `Record<string, string>` | _(omitted)_ | Shallow-merged into `NSLocationTemporaryUsageDescriptionDictionary`. Keys are purpose strings referenced by the upcoming `requestTemporaryFullAccuracy(purposeKey:)` API (C6); values must be non-empty App-Review-safe strings. |
+| `temporaryUsageDescriptions` | `Record<string, string>` | _(omitted)_ | Shallow-merged into `NSLocationTemporaryUsageDescriptionDictionary`. Keys are purpose strings referenced by a future `requestTemporaryFullAccuracy(purposeKey:)` API; values must be non-empty App-Review-safe strings. |
 
 The typed export lives in [`plugin/src/options/types.ts`](https://github.com/gabriel-sisjr/react-native-background-location/blob/develop/plugin/src/options/types.ts) — pull it into TypeScript-authored Expo configs with:
 
@@ -212,17 +212,17 @@ The typed export lives in [`plugin/src/options/types.ts`](https://github.com/gab
 import type { BackgroundLocationPluginProps } from '@gabriel-sisjr/react-native-background-location/plugin/build/options/types';
 ```
 
-## Forward-Compat: `temporaryUsageDescriptions` and C6
+## Forward-Compat: `temporaryUsageDescriptions`
 
-`temporaryUsageDescriptions` exists today as a **forward-compat hook** for the upcoming C6 roadmap item ([ROADMAP.md](https://github.com/gabriel-sisjr/react-native-background-location/blob/develop/ROADMAP.md)), which adds `requestTemporaryFullAccuracy(purposeKey:)` for short-lived precise-location requests on iOS 14+.
+`temporaryUsageDescriptions` exists today as a **forward-compat hook** for an upcoming iOS 14+ temporary full accuracy API, which will add `requestTemporaryFullAccuracy(purposeKey:)` for short-lived precise-location requests.
 
 Setting `temporaryUsageDescriptions` in v0.18.x:
 
 - **Does** write the `NSLocationTemporaryUsageDescriptionDictionary` into `Info.plist`.
 - **Does** survive future plugin upgrades — the schema is stable.
-- **Does not** wire any runtime API yet. The matching `requestTemporaryFullAccuracy` method ships in C6.
+- **Does not** wire any runtime API yet. The matching `requestTemporaryFullAccuracy` method ships in a future release.
 
-You can safely declare your purpose keys now so that when C6 lands, no `Info.plist` edit is needed — only a code-side method call.
+You can safely declare your purpose keys now so that when the runtime API lands, no `Info.plist` edit is needed — only a code-side method call.
 
 ## Caveats and Known Limitations
 

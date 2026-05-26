@@ -81,7 +81,7 @@ To work on the iOS native code, you need:
 
 - **Xcode 15+** (from the Mac App Store)
 - **CocoaPods** (`sudo gem install cocoapods` or via Homebrew)
-- An iOS simulator or physical device running iOS 13+
+- An iOS simulator or physical device running iOS 16+
 
 After modifying Swift or Objective-C files in `ios/`, rebuild the example app:
 
