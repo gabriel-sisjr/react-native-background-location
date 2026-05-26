@@ -5365,19 +5365,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@gabriel-sisjr/react-native-background-location@portal:..::locator=example-expo%40workspace%3Aexample-expo":
-  version: 0.0.0-use.local
-  resolution: "@gabriel-sisjr/react-native-background-location@portal:..::locator=example-expo%40workspace%3Aexample-expo"
-  peerDependencies:
-    "@expo/config-plugins": ">=7.0.0 <11.0.0"
-    react: ">=18.2.0"
-    react-native: ">=0.73.0"
-  peerDependenciesMeta:
-    "@expo/config-plugins":
-      optional: true
-  languageName: node
-  linkType: soft
-
 "@hapi/hoek@npm:^9.0.0, @hapi/hoek@npm:^9.3.0":
   version: 9.3.0
   resolution: "@hapi/hoek@npm:9.3.0"
@@ -14300,7 +14287,7 @@ __metadata:
   resolution: "example-expo@workspace:example-expo"
   dependencies:
     "@babel/core": ^7.25.0
-    "@gabriel-sisjr/react-native-background-location": "portal:.."
+    "@gabriel-sisjr/react-native-background-location": "*"
     "@types/react": ~19.0.0
     expo: ~53.0.0
     expo-build-properties: ~0.13.0
