@@ -17,7 +17,7 @@
 
 ## [0.17.0] - 2026-05-24
 
-> ⚠️ **Behavioral change (iOS default activity type):** apps relying on the previous `.automotiveNavigation` default may observe pause/auto-resume timing differences. See the [Migrating from v0.16.0 to v0.17.0](README.md#migrating-from-v0160-to-v0170) section in the README. No API or type changes.
+> ⚠️ **Behavioral change (iOS default activity type):** apps relying on the previous `.automotiveNavigation` default may observe pause/auto-resume timing differences. See the [Migrating from v0.16.0 to v0.17.0](https://gabriel-sisjr.github.io/react-native-background-location/docs/migration/v0-17-0) section in the DOCS. No API or type changes.
 
 ### Added
 
