@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.0-rc] - 2026-05-27
+
+> **First release candidate for the 1.x line.** From `1.0.0` forward, the library follows strict semver: breaking changes ship only on a major version bump. Three surfaces are explicitly frozen for the 1.x line: (1) the public TypeScript surface (named exports from `src/index.tsx`), (2) the TurboModule Codegen spec (`src/NativeBackgroundLocation.ts`), and (3) the native event names emitted via `NativeEventEmitter` (`onLocationUpdate`, `onLocationError`, `onLocationWarning`, `onNotificationAction`, `onGeofenceTransition`). No native (Android/iOS) code changes and no public TypeScript API changes since `0.17.0` this release candidate exists to declare API stability, not to introduce behavior.
+
+### Changed
+
+- README rewritten for the 1.0 launch: leaner top-level navigation, clearer install/setup path, and consolidated examples. No content was removed in a way that affects behavior; the deep-dive material remains addressable via [documentation](https://gabriel-sisjr.github.io/react-native-background-location) referenced from the README.
+- `package.json` version bumped from `0.17.0` to `1.0.0-rc`. No dependency, peer-dependency, or build-config changes.
+
+### Notes
+
+- **No public API or native behavior changed since `0.17.0`.** This RC is a stability declaration only -- consumers on `0.17.0` can upgrade with zero code changes.
+- For migration context from earlier pre-1.0 versions, see the breaking-change history already documented in this file: `0.17.0` (iOS default `LocationActivityType` changed from `.automotiveNavigation` to `.other`; auto-resume in `didPauseLocationUpdates`), `0.14.0` (default export removed from `src/index.tsx`; named exports only), and `0.12.0` (`PermissionState` restructured to the granular shape; flat `notification*` fields on `TrackingOptions` consolidated into `notificationOptions`).
+- The 1.x line will continue to maintain backward compatibility within the major; any breaking change requires a `2.0.0` bump.
+
 ## [0.17.0] - 2026-05-24
 
 > ⚠️ **Behavioral change (iOS default activity type):** apps relying on the previous `.automotiveNavigation` default may observe pause/auto-resume timing differences. See the [Migrating from v0.16.0 to v0.17.0](README.md#migrating-from-v0160-to-v0170) section in the README. No API or type changes.
