@@ -4517,17 +4517,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@gabriel-sisjr/react-native-background-location@npm:*":
-  version: 0.17.0
-  resolution: "@gabriel-sisjr/react-native-background-location@npm:0.17.0"
-  peerDependencies:
-    react: ">=18.2.0"
-    react-native: ">=0.73.0"
-  checksum: 950550d9b29cb8d5bb8ee5688ad5a6bc4f77cd1959d2c551c1ab5516294ceb3ffe4efd8e886e8c3f13fdf43ab9e0d564a0dfe49b6fa983c1e684a7968fc0269c
-  languageName: node
-  linkType: hard
-
-"@gabriel-sisjr/react-native-background-location@workspace:.":
+"@gabriel-sisjr/react-native-background-location@*, @gabriel-sisjr/react-native-background-location@workspace:.":
   version: 0.0.0-use.local
   resolution: "@gabriel-sisjr/react-native-background-location@workspace:."
   dependencies:
