@@ -49,31 +49,6 @@ cd ios && pod install
 
 Autolinking handles Android manifest merging and iOS pod registration. Bare iOS apps must still add `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`, and a `UIBackgroundModes` entry containing `location` to their `Info.plist`. See the [iOS setup guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details.
 
-### Expo
-
-```bash
-npx expo install @gabriel-sisjr/react-native-background-location expo-build-properties
-```
-
-Then add to your `app.json` plugins array:
-
-```json
-{
-  "expo": {
-    "plugins": [
-      "@gabriel-sisjr/react-native-background-location",
-      ["expo-build-properties", { "ios": { "deploymentTarget": "16.0" } }]
-    ]
-  }
-}
-```
-
-```bash
-npx expo prebuild --clean
-```
-
-The plugin injects Android permissions, iOS `Info.plist` usage strings, and `UIBackgroundModes` automatically.
-
 ## Quick Start
 
 ```tsx
