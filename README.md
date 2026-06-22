@@ -27,6 +27,7 @@ A TurboModule for the React Native New Architecture. Drives a foreground service
 - Native geofencing (GeofencingClient on Android, CLCircularRegion on iOS)
 - Persistent location storage (Room on Android, Core Data on iOS)
 - Crash recovery via WorkManager and significant location monitoring
+- **Battery-efficient Activity Recognition** — pauses GPS when device is `STILL`, resumes on motion (Android: Play Services `ActivityRecognitionClient`; iOS: `CoreMotion CMMotionActivityManager`)
 - React hooks: `useBackgroundLocation`, `useLocationPermissions`, `useLocationUpdates`, `useLocationTracking`
 - Expo config plugin for managed workflows
 
@@ -49,6 +50,15 @@ cd ios && pod install
 
 Autolinking handles Android manifest merging and iOS pod registration. Bare iOS apps must still add `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`, and a `UIBackgroundModes` entry containing `location` to their `Info.plist`. See the [iOS setup guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details.
 
+> **Activity Recognition on iOS:** If you enable `activityTrackingEnabled: true`, you must also add `NSMotionUsageDescription` to your `Info.plist`, otherwise the app will crash on launch.
+>
+> ```xml
+> <key>NSMotionUsageDescription</key>
+> <string>This app requires motion data to optimize location tracking battery usage.</string>
+> ```
+
+> **Activity Recognition on Android:** `ACTIVITY_RECOGNITION` permission is automatically merged into your app's manifest by this library. On Android 10+ (API 29), you must request it at runtime before enabling activity tracking.
+
 ## Quick Start
 
 ```tsx
@@ -63,7 +73,13 @@ function App() {
   return (
     <Button
       title="Start"
-      onPress={() => startTracking({ tripId: 'trip-1', distanceFilter: 10 })}
+      onPress={() =>
+        startTracking({
+          distanceFilter: 10,
+          activityTrackingEnabled: true,  // Enable motion detection
+          pauseLocationWhenStill: true,   // Pause GPS when stationary
+        })
+      }
     />
   );
 }

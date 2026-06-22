@@ -1,7 +1,7 @@
 {
   "name": "@gabriel-sisjr/react-native-background-location",
-  "version": "1.0.0",
-  "description": "React Native library for background location tracking using TurboModules. Track user location even when the app is minimized or in the background.",
+  "version": "1.1.0",
+  "description": "React Native library for background location tracking using TurboModules. Track user location even when the app is minimized or in the background. Includes battery-efficient Activity Recognition for dynamic GPS throttling.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -73,7 +73,12 @@
     "event-driven",
     "location-updates",
     "persistent-storage",
-    "location-permissions"
+    "location-permissions",
+    "activity-recognition",
+    "motion-detection",
+    "battery-optimization",
+    "still-detection",
+    "gps-throttling"
   ],
   "repository": {
     "type": "git",
