@@ -30,6 +30,9 @@ export interface TrackingOptionsSpec {
   waitForAccurateLocation?: boolean;
   foregroundOnly?: boolean;
   distanceFilter?: number;
+  activityTrackingEnabled?: boolean;
+  pauseLocationWhenStill?: boolean;
+  activityUpdateInterval?: number;
   notificationOptions?: string; // JSON-serialized NotificationOptions - Codegen does not support complex objects
 }
 

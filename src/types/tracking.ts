@@ -300,6 +300,25 @@ export interface TrackingOptions {
   foregroundOnly?: boolean;
 
   /**
+   * Whether to actively monitor physical activity (STILL, WALKING, etc.)
+   * @default false
+   */
+  activityTrackingEnabled?: boolean;
+
+  /**
+   * Whether to pause GPS updates when the device is detected as STILL
+   * Requires activityTrackingEnabled to be true
+   * @default false
+   */
+  pauseLocationWhenStill?: boolean;
+
+  /**
+   * The interval at which to poll for activity updates
+   * @default 60000 (60 seconds)
+   */
+  activityUpdateInterval?: number;
+
+  /**
    * Interval in milliseconds to throttle the onLocationUpdate callback execution
    * Locations are still collected at the updateInterval rate, but the callback
    * is only executed at this interval. Useful for syncing to servers without

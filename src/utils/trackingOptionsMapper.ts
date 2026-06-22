@@ -27,6 +27,9 @@ export function toTrackingOptionsSpec(
     waitForAccurateLocation: options.waitForAccurateLocation,
     foregroundOnly: options.foregroundOnly,
     distanceFilter: options.distanceFilter,
+    activityTrackingEnabled: options.activityTrackingEnabled,
+    pauseLocationWhenStill: options.pauseLocationWhenStill,
+    activityUpdateInterval: options.activityUpdateInterval,
     notificationOptions: options.notificationOptions
       ? JSON.stringify(options.notificationOptions)
       : undefined,

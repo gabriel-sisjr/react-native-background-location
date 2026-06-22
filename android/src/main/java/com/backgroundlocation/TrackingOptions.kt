@@ -11,7 +11,10 @@ data class TrackingOptions(
   val waitForAccurateLocation: Boolean? = null,
   val foregroundOnly: Boolean? = null,
   val distanceFilter: Float? = null,
-  val notificationOptions: NotificationOptions? = null
+  val notificationOptions: NotificationOptions? = null,
+  val activityTrackingEnabled: Boolean? = null,
+  val pauseLocationWhenStill: Boolean? = null,
+  val activityUpdateInterval: Long? = null
 ) {
   companion object {
     // Default values
@@ -26,6 +29,9 @@ data class TrackingOptions(
     const val DEFAULT_FOREGROUND_ONLY = false
     const val DEFAULT_DISTANCE_FILTER = 0f // No distance filter
     const val DEFAULT_NOTIFICATION_SHOW_TIMESTAMP = false
+    const val DEFAULT_ACTIVITY_TRACKING_ENABLED = false
+    const val DEFAULT_PAUSE_LOCATION_WHEN_STILL = false
+    const val DEFAULT_ACTIVITY_UPDATE_INTERVAL = 60000L // 60 seconds
   }
 
   // --- Computed property accessors for fields that LocationService.kt accesses directly ---
@@ -98,4 +104,19 @@ data class TrackingOptions(
    * Gets notificationShowTimestamp with default fallback
    */
   fun getNotificationShowTimestampOrDefault(): Boolean = notificationOptions?.showTimestamp ?: DEFAULT_NOTIFICATION_SHOW_TIMESTAMP
+
+  /**
+   * Gets activityTrackingEnabled with default fallback
+   */
+  fun getActivityTrackingEnabledOrDefault(): Boolean = activityTrackingEnabled ?: DEFAULT_ACTIVITY_TRACKING_ENABLED
+
+  /**
+   * Gets pauseLocationWhenStill with default fallback
+   */
+  fun getPauseLocationWhenStillOrDefault(): Boolean = pauseLocationWhenStill ?: DEFAULT_PAUSE_LOCATION_WHEN_STILL
+
+  /**
+   * Gets the activityUpdateInterval with default fallback
+   */
+  fun getActivityUpdateIntervalOrDefault(): Long = activityUpdateInterval ?: DEFAULT_ACTIVITY_UPDATE_INTERVAL
 }

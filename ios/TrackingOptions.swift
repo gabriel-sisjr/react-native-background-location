@@ -8,6 +8,9 @@ import CoreLocation
   @objc public let updateInterval: NSNumber?
   @objc public let foregroundOnly: NSNumber?
   @objc public let waitForAccurateLocation: NSNumber?
+  @objc public let activityTrackingEnabled: NSNumber?
+  @objc public let pauseLocationWhenStill: NSNumber?
+  @objc public let activityUpdateInterval: NSNumber?
 
   // Notification options — no-op on iOS (no foreground service notification concept)
   // Stored as JSON string to allow cross-platform TrackingOptions without crashes
@@ -32,6 +35,9 @@ import CoreLocation
     self.updateInterval = dict["updateInterval"] as? NSNumber
     self.foregroundOnly = dict["foregroundOnly"] as? NSNumber
     self.waitForAccurateLocation = dict["waitForAccurateLocation"] as? NSNumber
+    self.activityTrackingEnabled = dict["activityTrackingEnabled"] as? NSNumber
+    self.pauseLocationWhenStill = dict["pauseLocationWhenStill"] as? NSNumber
+    self.activityUpdateInterval = dict["activityUpdateInterval"] as? NSNumber
 
     // Notification options — parsed without error, unused on iOS
     self.notificationOptions = dict["notificationOptions"] as? String
@@ -119,6 +125,33 @@ import CoreLocation
       }
     }
 
+    // activityTrackingEnabled: NSNumber (bool-bridged)
+    if let raw = dict["activityTrackingEnabled"] {
+      if let value = raw as? NSNumber, !(raw is NSNull) {
+        sanitized["activityTrackingEnabled"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'activityTrackingEnabled' (expected NSNumber)")
+      }
+    }
+
+    // pauseLocationWhenStill: NSNumber (bool-bridged)
+    if let raw = dict["pauseLocationWhenStill"] {
+      if let value = raw as? NSNumber, !(raw is NSNull) {
+        sanitized["pauseLocationWhenStill"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'pauseLocationWhenStill' (expected NSNumber)")
+      }
+    }
+
+    // activityUpdateInterval: NSNumber
+    if let raw = dict["activityUpdateInterval"] {
+      if let value = raw as? NSNumber, !(raw is NSNull) {
+        sanitized["activityUpdateInterval"] = value
+      } else if !(raw is NSNull) {
+        wrongTypeKeys.append("'activityUpdateInterval' (expected NSNumber)")
+      }
+    }
+
     if !wrongTypeKeys.isEmpty {
       let joined = wrongTypeKeys.joined(separator: ", ")
       guardLogger("[BackgroundLocation] \(methodName) received wrong type for key(s) \(joined); falling back to defaults")
@@ -144,5 +177,13 @@ import CoreLocation
 
   @objc public var isForegroundOnly: Bool {
     return foregroundOnly?.boolValue ?? false
+  }
+
+  @objc public var isActivityTrackingEnabled: Bool {
+    return activityTrackingEnabled?.boolValue ?? false
+  }
+
+  @objc public var shouldPauseLocationWhenStill: Bool {
+    return pauseLocationWhenStill?.boolValue ?? false
   }
 }

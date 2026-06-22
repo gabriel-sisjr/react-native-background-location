@@ -397,7 +397,10 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       waitForAccurateLocation = if (options.hasKey("waitForAccurateLocation")) options.getBoolean("waitForAccurateLocation") else null,
       foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null,
       distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null,
-      notificationOptions = notificationOptions
+      notificationOptions = notificationOptions,
+      activityTrackingEnabled = if (options.hasKey("activityTrackingEnabled")) options.getBoolean("activityTrackingEnabled") else null,
+      pauseLocationWhenStill = if (options.hasKey("pauseLocationWhenStill")) options.getBoolean("pauseLocationWhenStill") else null,
+      activityUpdateInterval = if (options.hasKey("activityUpdateInterval")) options.getDouble("activityUpdateInterval").toLong() else null
     )
   }
 

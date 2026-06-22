@@ -1,7 +1,7 @@
 import Foundation
 import CoreLocation
 
-@objc public class LocationManagerWrapper: NSObject, LocationManagerDelegateCallback {
+@objc public class LocationManagerWrapper: NSObject, LocationManagerDelegateCallback, ActivityProviderDelegate {
   @objc public static let shared = LocationManagerWrapper()
 
   private var locationManager: CLLocationManager?
@@ -11,6 +11,9 @@ import CoreLocation
   private var _isTracking = false
   private var _currentTripId: String?
   private var _currentOptions: TrackingOptions?
+
+  private var activityProvider: ActivityProvider?
+  private var isLocationPausedDueToActivity = false
 
   // MARK: - Event Emission Closures
   @objc public var onLocationUpdate: (([String: Any]) -> Void)?
@@ -87,6 +90,18 @@ import CoreLocation
 
       configureAndStart(options: opts)
 
+      // Initialize and start Activity Tracking if requested
+      if opts.isActivityTrackingEnabled {
+        if activityProvider == nil {
+          activityProvider = ActivityProvider()
+          activityProvider?.delegate = self
+        }
+        activityProvider?.startTracking()
+      } else {
+        activityProvider?.stopTracking()
+        activityProvider = nil
+      }
+
       // Start significant location monitoring for crash recovery
       if !opts.isForegroundOnly {
         startSignificantLocationMonitoring()
@@ -112,6 +127,10 @@ import CoreLocation
         self?.locationManager?.stopUpdatingLocation()
         self?.locationManager?.stopMonitoringSignificantLocationChanges()
         self?.locationManager = nil
+        
+        self?.activityProvider?.stopTracking()
+        self?.activityProvider = nil
+        self?.isLocationPausedDueToActivity = false
       }
     }
   }
@@ -405,8 +424,6 @@ import CoreLocation
     }
   }
 
-  // MARK: - Significant Location Monitoring
-
   private func startSignificantLocationMonitoring() {
     DispatchQueue.main.async { [weak self] in
       guard let self = self else { return }
@@ -416,6 +433,33 @@ import CoreLocation
       }
       self.locationManager?.startMonitoringSignificantLocationChanges()
       NSLog("[BackgroundLocation] Significant location monitoring started (crash recovery wake-up)")
+    }
+  }
+
+  // MARK: - ActivityProviderDelegate
+
+  public func onActivityStateChanged(isStationary: Bool, activityDescription: String) {
+    queue.async { [weak self] in
+      guard let self = self, self._isTracking, let options = self._currentOptions else { return }
+      
+      let shouldPause = isStationary && options.shouldPauseLocationWhenStill
+      
+      if shouldPause && !self.isLocationPausedDueToActivity {
+        NSLog("[BackgroundLocation] User is stationary (\(activityDescription)). Pausing GPS updates to save battery.")
+        DispatchQueue.main.async {
+          self.locationManager?.stopUpdatingLocation()
+        }
+        self.isLocationPausedDueToActivity = true
+      } else if !shouldPause && self.isLocationPausedDueToActivity {
+        NSLog("[BackgroundLocation] User is moving again (\(activityDescription)). Resuming GPS updates.")
+        DispatchQueue.main.async {
+          // If the original accuracy requested wasn't passive, restart it
+          if options.accuracy != "PASSIVE" && options.accuracy != "NO_POWER" {
+            self.locationManager?.startUpdatingLocation()
+          }
+        }
+        self.isLocationPausedDueToActivity = false
+      }
     }
   }
 

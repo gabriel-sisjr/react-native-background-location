@@ -18,6 +18,8 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import com.backgroundlocation.provider.LocationProvider
 import com.backgroundlocation.provider.LocationProviderFactory
+import com.backgroundlocation.provider.ActivityProvider
+import com.backgroundlocation.provider.ActivityProviderFactory
 import com.backgroundlocation.provider.LocationUpdateCallback
 import com.backgroundlocation.processor.LocationProcessor
 import com.backgroundlocation.processor.DefaultLocationProcessor
@@ -30,10 +32,14 @@ import kotlinx.coroutines.runBlocking
 class LocationService : Service() {
 
   private lateinit var locationProvider: LocationProvider
+  private lateinit var activityProvider: ActivityProvider
   private var locationProcessor: LocationProcessor = DefaultLocationProcessor()
   private lateinit var storage: LocationStorage
   private var currentTripId: String? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
+  
+  private var isLocationPausedDueToActivity = false
+  private var activityPendingIntent: PendingIntent? = null
 
   // Flag to prevent location events after stop is requested
   @Volatile
@@ -53,6 +59,7 @@ class LocationService : Service() {
 
     // Use factory to get best available provider
     locationProvider = LocationProviderFactory.create(this)
+    activityProvider = ActivityProviderFactory.create(this)
     android.util.Log.d("LocationService", "Location provider initialized")
   }
 
@@ -123,6 +130,11 @@ class LocationService : Service() {
 
     // Check last known location to verify GPS is working
     checkLastKnownLocation()
+
+    // Configure Activity recognition constraints if enabled
+    if (trackingOptions.getActivityTrackingEnabledOrDefault()) {
+      startActivityUpdates()
+    }
 
     // Start location updates
     startLocationUpdates()
@@ -328,6 +340,46 @@ class LocationService : Service() {
     } catch (e: Exception) {
       android.util.Log.e("LocationService", "Exception when requesting location updates", e)
       e.printStackTrace()
+    }
+  }
+
+  private fun startActivityUpdates() {
+    val intent = Intent(this, ActivityReceiver::class.java).apply {
+      action = ActivityReceiver.ACTION_PROCESS_ACTIVITY_UPDATES
+    }
+
+    val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+    } else {
+      PendingIntent.FLAG_UPDATE_CURRENT
+    }
+
+    activityPendingIntent = PendingIntent.getBroadcast(this, 0, intent, flags)
+
+    activityPendingIntent?.let {
+      android.util.Log.d("LocationService", "Starting continuous activity updates")
+      activityProvider.requestActivityUpdates(
+        trackingOptions.getActivityUpdateIntervalOrDefault(),
+        it
+      )
+    }
+  }
+
+  fun onActivityStateChanged(activityType: Int) {
+    if (!trackingOptions.getActivityTrackingEnabledOrDefault()) return
+    if (isStopRequested) return
+
+    val isStill = (activityType == DetectedActivity.STILL)
+    val shouldPause = isStill && trackingOptions.getPauseLocationWhenStillOrDefault()
+
+    if (shouldPause && !isLocationPausedDueToActivity) {
+      android.util.Log.d("LocationService", "User is stationary. Pausing GPS updates to save battery.")
+      locationProvider.removeLocationUpdates()
+      isLocationPausedDueToActivity = true
+    } else if (!shouldPause && isLocationPausedDueToActivity) {
+      android.util.Log.d("LocationService", "User is moving again. Resuming GPS updates.")
+      startLocationUpdates()
+      isLocationPausedDueToActivity = false
     }
   }
 
@@ -624,6 +676,14 @@ class LocationService : Service() {
     // Cleanup location provider
     locationProvider.cleanup()
     android.util.Log.d("LocationService", "Location provider cleaned up")
+      
+    // Cleanup activity provider
+    activityPendingIntent?.let {
+      activityProvider.removeActivityUpdates(it)
+      activityPendingIntent = null
+    }
+    activityProvider.cleanup()
+    android.util.Log.d("LocationService", "Activity provider cleaned up")
   }
 
   /**
@@ -729,6 +789,15 @@ class LocationService : Service() {
     private val instanceLock = Any()
     @Volatile
     private var activeInstance: LocationService? = null
+
+    /**
+     * Routes activity state changes to the active instance securely
+     */
+    fun handleActivityStateChanged(activityType: Int) {
+      synchronized(instanceLock) {
+        activeInstance?.onActivityStateChanged(activityType)
+      }
+    }
 
     /**
      * Sets a stop token to prevent RecoveryWorker from restarting tracking
