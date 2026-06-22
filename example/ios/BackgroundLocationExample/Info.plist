@@ -37,6 +37,8 @@
 	<string>This app needs access to your location in the background to continue tracking trips.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs access to your location to track trips while in use.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>This app requires motion data to optimize location tracking battery usage.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIBackgroundModes</key>

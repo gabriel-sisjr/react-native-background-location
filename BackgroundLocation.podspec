@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   s.source_files = "ios/**/*.{h,m,mm,cpp,swift}"
   s.private_header_files = "ios/**/*.h"
 
-  s.frameworks = "CoreLocation", "CoreData"
+  s.frameworks = "CoreLocation", "CoreData", "CoreMotion"
 
   s.resource_bundles = {
     'BackgroundLocationPrivacy' => ['ios/PrivacyInfo.xcprivacy'],
