@@ -23,6 +23,13 @@ import CoreMotion
       NSLog("[BackgroundLocation] CoreMotion Activity is not available on this device.")
       return
     }
+
+    // Safety check: iOS requires NSMotionUsageDescription in Info.plist
+    // If it's missing, the app will crash instantly when starting updates
+    guard Bundle.main.object(forInfoDictionaryKey: "NSMotionUsageDescription") != nil else {
+      NSLog("[BackgroundLocation] CRITICAL WARNING: Cannot start Activity Tracking because NSMotionUsageDescription is missing from Info.plist. GPS will not be paused when stationary.")
+      return
+    }
     
     NSLog("[BackgroundLocation] Starting CoreMotion Activity tracking...")
     
