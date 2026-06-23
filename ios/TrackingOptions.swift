@@ -24,6 +24,9 @@ import CoreLocation
       self.updateInterval = nil
       self.foregroundOnly = nil
       self.waitForAccurateLocation = nil
+      self.activityTrackingEnabled = nil
+      self.pauseLocationWhenStill = nil
+      self.activityUpdateInterval = nil
       self.notificationOptions = nil
       super.init()
       return
