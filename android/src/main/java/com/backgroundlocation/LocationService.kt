@@ -168,7 +168,10 @@ class LocationService : Service() {
       waitForAccurateLocation = if (bundle.containsKey("waitForAccurateLocation")) bundle.getBoolean("waitForAccurateLocation") else null,
       foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
       distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null,
-      notificationOptions = notificationOptions
+      notificationOptions = notificationOptions,
+      activityTrackingEnabled = if (bundle.containsKey("activityTrackingEnabled")) bundle.getBoolean("activityTrackingEnabled") else null,
+      pauseLocationWhenStill = if (bundle.containsKey("pauseLocationWhenStill")) bundle.getBoolean("pauseLocationWhenStill") else null,
+      activityUpdateInterval = if (bundle.containsKey("activityUpdateInterval")) bundle.getLong("activityUpdateInterval") else null
     )
   }
 
