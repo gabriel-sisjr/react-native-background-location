@@ -16,7 +16,7 @@ import androidx.room.RoomDatabase
     GeofenceEntity::class,
     GeofenceTransitionEntity::class
   ],
-  version = 1,
+  version = 2,
   exportSchema = true
 )
 abstract class LocationDatabase : RoomDatabase() {

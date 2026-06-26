@@ -372,7 +372,13 @@ class LocationService : Service() {
     if (!trackingOptions.getActivityTrackingEnabledOrDefault()) return
     if (isStopRequested) return
 
-    val isStill = (activityType == DetectedActivity.STILL)
+    // Treat STILL, TILTING, and UNKNOWN as stationary:
+    //  - STILL:   device is not moving at all
+    //  - TILTING: device angle changed (put on desk, picked up) — not locomotion
+    //  - UNKNOWN: GMS cannot classify activity — safe to assume stationary
+    val isStill = (activityType == DetectedActivity.STILL
+        || activityType == DetectedActivity.TILTING
+        || activityType == DetectedActivity.UNKNOWN)
     val shouldPause = isStill && trackingOptions.getPauseLocationWhenStillOrDefault()
 
     if (shouldPause && !isLocationPausedDueToActivity) {
@@ -888,6 +894,9 @@ class LocationService : Service() {
         if (options.waitForAccurateLocation != null) putBoolean("waitForAccurateLocation", options.waitForAccurateLocation)
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
         if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
+        if (options.activityTrackingEnabled != null) putBoolean("activityTrackingEnabled", options.activityTrackingEnabled)
+        if (options.pauseLocationWhenStill != null) putBoolean("pauseLocationWhenStill", options.pauseLocationWhenStill)
+        if (options.activityUpdateInterval != null) putLong("activityUpdateInterval", options.activityUpdateInterval)
         options.notificationOptions?.let { putString("notificationOptions", it.toJsonString()) }
       }
 
