@@ -53,18 +53,6 @@
         android:exported="false"
         tools:node="merge" />
 
-      <!--
-        ActivityReceiver: Receives Google Play Services Activity Recognition broadcasts.
-        MUST be registered here so the OS can deliver the PendingIntent even when
-        the app is backgrounded. Without this, STILL/WALKING events are never
-        received and GPS is never paused when stationary.
-      -->
-      <receiver
-        android:name="com.backgroundlocation.ActivityReceiver"
-        android:exported="false">
-        <intent-filter>
-          <action android:name="com.backgroundlocation.ACTION_PROCESS_ACTIVITY_UPDATES" />
-        </intent-filter>
-      </receiver>
+
     </application>
 </manifest>

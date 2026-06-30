@@ -315,6 +315,7 @@ export interface TrackingOptions {
   /**
    * The interval at which to poll for activity updates
    * @default 60000 (60 seconds)
+   * @platform Android
    */
   activityUpdateInterval?: number;
 

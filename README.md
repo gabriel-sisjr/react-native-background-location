@@ -50,7 +50,7 @@ cd ios && pod install
 
 Autolinking handles Android manifest merging and iOS pod registration. Bare iOS apps must still add `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`, and a `UIBackgroundModes` entry containing `location` to their `Info.plist`. See the [iOS setup guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details.
 
-> **Activity Recognition on iOS:** If you enable `activityTrackingEnabled: true`, you must also add `NSMotionUsageDescription` to your `Info.plist`, otherwise the app will crash on launch.
+> **Activity Recognition on iOS:** If you enable `activityTrackingEnabled: true`, you must also add `NSMotionUsageDescription` to your `Info.plist`. Without it, activity tracking will gracefully fall back to standard GPS (no battery optimization) instead of crashing.
 >
 > ```xml
 > <key>NSMotionUsageDescription</key>
@@ -74,10 +74,8 @@ function App() {
     <Button
       title="Start"
       onPress={() =>
-        startTracking({
+        startTracking('my-trip', {
           distanceFilter: 10,
-          activityTrackingEnabled: true,  // Enable motion detection
-          pauseLocationWhenStill: true,   // Pause GPS when stationary
         })
       }
     />

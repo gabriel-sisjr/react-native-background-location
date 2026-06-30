@@ -16,6 +16,13 @@ export function toTrackingOptionsSpec(
     return {};
   }
 
+  if (options.pauseLocationWhenStill && !options.activityTrackingEnabled) {
+    console.warn(
+      '[react-native-background-location] pauseLocationWhenStill requires activityTrackingEnabled to be true. ' +
+      'Without activityTrackingEnabled, pauseLocationWhenStill has no effect.'
+    );
+  }
+
   return {
     updateInterval: options.updateInterval,
     fastestInterval: options.fastestInterval,

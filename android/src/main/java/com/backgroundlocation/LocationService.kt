@@ -37,7 +37,7 @@ class LocationService : Service() {
   private lateinit var storage: LocationStorage
   private var currentTripId: String? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
-  
+
   private var isLocationPausedDueToActivity = false
   private var activityPendingIntent: PendingIntent? = null
 
@@ -278,7 +278,7 @@ class LocationService : Service() {
       android.util.Log.e("LocationService", "Exception checking last known location", e)
     }
   }
-  
+
   @SuppressLint("MissingPermission")
   private fun startLocationUpdates() {
     val priority = when (trackingOptions.getAccuracyOrDefault()) {
@@ -473,28 +473,28 @@ class LocationService : Service() {
       val altitude = if (location.hasAltitude()) location.altitude else null
       val speed = if (location.hasSpeed()) location.speed else null
       val bearing = if (location.hasBearing()) location.bearing else null
-      
+
       // API 26+ fields - check if values are valid (not NaN)
       val verticalAccuracyMeters = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val value = location.verticalAccuracyMeters
         if (!value.isNaN()) value else null
       } else null
-      
+
       val speedAccuracyMetersPerSecond = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val value = location.speedAccuracyMetersPerSecond
         if (!value.isNaN()) value else null
       } else null
-      
+
       val bearingAccuracyDegrees = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val value = location.bearingAccuracyDegrees
         if (!value.isNaN()) value else null
       } else null
-      
+
       val elapsedRealtimeNanos = location.elapsedRealtimeNanos
       val provider = location.provider
-      
+
       val isFromMockProvider = location.isMockLocation()
-      
+
       storage.saveLocation(
         tripId = tripId,
         latitude = location.latitude,
@@ -511,12 +511,12 @@ class LocationService : Service() {
         provider = provider,
         isFromMockProvider = isFromMockProvider
       )
-      
+
       // Emit location update event to React Native
       sendLocationUpdateEvent(tripId, location)
     }
   }
-  
+
   /**
    * Sends a location update event via SharedFlow
    */
@@ -525,7 +525,7 @@ class LocationService : Service() {
     LocationEventEmitter.emitLocationUpdate(tripId, locationBundle)
     android.util.Log.d("LocationService", "Location event emitted for tripId: $tripId")
   }
-  
+
 
   /**
    * Creates a minimal notification for immediate startForeground() call
@@ -685,7 +685,7 @@ class LocationService : Service() {
     // Cleanup location provider
     locationProvider.cleanup()
     android.util.Log.d("LocationService", "Location provider cleaned up")
-      
+
     // Cleanup activity provider
     activityPendingIntent?.let {
       activityProvider.removeActivityUpdates(it)
