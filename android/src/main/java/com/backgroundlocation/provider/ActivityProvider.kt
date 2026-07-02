@@ -2,7 +2,6 @@ package com.backgroundlocation.provider
 
 import android.app.PendingIntent
 import android.content.Context
-import com.google.android.gms.location.ActivityTransitionRequest
 
 /**
  * Abstract interface for activity recognition providers.
@@ -27,19 +26,6 @@ interface ActivityProvider {
    * Stop periodic activity updates.
    */
   fun removeActivityUpdates(pendingIntent: PendingIntent)
-
-  /**
-   * Request notifications only when there is a transition in the user's activity.
-   * Event-based and more battery-efficient.
-   * @param request Contains the list of ActivityTransitions.
-   * @param pendingIntent The intent that receives the transition events.
-   */
-  fun requestActivityTransitionUpdates(request: ActivityTransitionRequest, pendingIntent: PendingIntent)
-
-  /**
-   * Stop activity transition updates.
-   */
-  fun removeActivityTransitionUpdates(pendingIntent: PendingIntent)
 
   /**
    * Check if this provider is available on the device.

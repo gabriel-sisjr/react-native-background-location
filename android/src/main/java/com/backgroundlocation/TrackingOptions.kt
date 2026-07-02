@@ -2,6 +2,12 @@ package com.backgroundlocation
 
 /**
  * Data class representing tracking configuration options.
+ *
+ * Default values are inlined as safety-net fallbacks in `get*OrDefault()`
+ * methods. The authoritative source of defaults is
+ * `src/utils/trackingOptionsDefaults.ts` — the JS mapper always sends
+ * every field explicitly, so the `?:` branch here is only reached during
+ * recovery/storage paths where the field was not persisted.
  */
 data class TrackingOptions(
   val updateInterval: Long? = null,
@@ -16,24 +22,6 @@ data class TrackingOptions(
   val pauseLocationWhenStill: Boolean? = null,
   val activityUpdateInterval: Long? = null
 ) {
-  companion object {
-    // Default values
-    const val DEFAULT_UPDATE_INTERVAL = 5000L // 5 seconds
-    const val DEFAULT_FASTEST_INTERVAL = 3000L // 3 seconds
-    const val DEFAULT_MAX_WAIT_TIME = 10000L // 10 seconds
-    const val DEFAULT_WAIT_FOR_ACCURATE_LOCATION = false
-    const val DEFAULT_NOTIFICATION_TITLE = "Location Tracking"
-    const val DEFAULT_NOTIFICATION_TEXT = "Tracking your location in background"
-    const val DEFAULT_NOTIFICATION_CHANNEL_NAME = "Background Location"
-    const val DEFAULT_NOTIFICATION_PRIORITY = "LOW"
-    const val DEFAULT_FOREGROUND_ONLY = false
-    const val DEFAULT_DISTANCE_FILTER = 0f // No distance filter
-    const val DEFAULT_NOTIFICATION_SHOW_TIMESTAMP = false
-    const val DEFAULT_ACTIVITY_TRACKING_ENABLED = false
-    const val DEFAULT_PAUSE_LOCATION_WHEN_STILL = false
-    const val DEFAULT_ACTIVITY_UPDATE_INTERVAL = 60000L // 60 seconds
-  }
-
   // --- Computed property accessors for fields that LocationService.kt accesses directly ---
 
   val notificationSmallIcon: String? get() = notificationOptions?.smallIcon
@@ -43,80 +31,22 @@ data class TrackingOptions(
   val notificationActions: String? get() = notificationOptions?.actions
   val notificationChannelId: String? get() = notificationOptions?.channelId
 
-  // --- Default-fallback accessors ---
+  // --- Safety-net default-fallback accessors ---
+  // (Authoritative defaults live in src/utils/trackingOptionsDefaults.ts)
 
-  /**
-   * Gets the update interval with default fallback
-   */
-  fun getUpdateIntervalOrDefault(): Long = updateInterval ?: DEFAULT_UPDATE_INTERVAL
-
-  /**
-   * Gets the fastest interval with default fallback
-   */
-  fun getFastestIntervalOrDefault(): Long = fastestInterval ?: DEFAULT_FASTEST_INTERVAL
-
-  /**
-   * Gets the max wait time with default fallback
-   */
-  fun getMaxWaitTimeOrDefault(): Long = maxWaitTime ?: DEFAULT_MAX_WAIT_TIME
-
-  /**
-   * Gets the accuracy with default fallback
-   */
+  fun getUpdateIntervalOrDefault(): Long = updateInterval ?: 5000L
+  fun getFastestIntervalOrDefault(): Long = fastestInterval ?: 3000L
+  fun getMaxWaitTimeOrDefault(): Long = maxWaitTime ?: 10000L
   fun getAccuracyOrDefault(): LocationAccuracy = accuracy ?: LocationAccuracy.HIGH_ACCURACY
-
-  /**
-   * Gets waitForAccurateLocation with default fallback
-   */
-  fun getWaitForAccurateLocationOrDefault(): Boolean = waitForAccurateLocation ?: DEFAULT_WAIT_FOR_ACCURATE_LOCATION
-
-  /**
-   * Gets the notification title with default fallback
-   */
-  fun getNotificationTitleOrDefault(): String = notificationOptions?.title ?: DEFAULT_NOTIFICATION_TITLE
-
-  /**
-   * Gets the notification text with default fallback
-   */
-  fun getNotificationTextOrDefault(): String = notificationOptions?.text ?: DEFAULT_NOTIFICATION_TEXT
-
-  /**
-   * Gets the notification channel name with default fallback
-   */
-  fun getNotificationChannelNameOrDefault(): String = notificationOptions?.channelName ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
-
-  /**
-   * Gets the notification priority with default fallback
-   */
-  fun getNotificationPriorityOrDefault(): String = notificationOptions?.priority ?: DEFAULT_NOTIFICATION_PRIORITY
-
-  /**
-   * Gets foregroundOnly with default fallback
-   */
-  fun getForegroundOnlyOrDefault(): Boolean = foregroundOnly ?: DEFAULT_FOREGROUND_ONLY
-
-  /**
-   * Gets the distance filter with default fallback
-   */
-  fun getDistanceFilterOrDefault(): Float = distanceFilter ?: DEFAULT_DISTANCE_FILTER
-
-  /**
-   * Gets notificationShowTimestamp with default fallback
-   */
-  fun getNotificationShowTimestampOrDefault(): Boolean = notificationOptions?.showTimestamp ?: DEFAULT_NOTIFICATION_SHOW_TIMESTAMP
-
-  /**
-   * Gets activityTrackingEnabled with default fallback
-   */
-  fun getActivityTrackingEnabledOrDefault(): Boolean = activityTrackingEnabled ?: DEFAULT_ACTIVITY_TRACKING_ENABLED
-
-  /**
-   * Gets pauseLocationWhenStill with default fallback
-   */
-  fun getPauseLocationWhenStillOrDefault(): Boolean = pauseLocationWhenStill ?: DEFAULT_PAUSE_LOCATION_WHEN_STILL
-
-  /**
-   * Gets the activityUpdateInterval with default fallback
-   */
-  fun getActivityUpdateIntervalOrDefault(): Long = activityUpdateInterval ?: DEFAULT_ACTIVITY_UPDATE_INTERVAL
+  fun getWaitForAccurateLocationOrDefault(): Boolean = waitForAccurateLocation ?: false
+  fun getNotificationTitleOrDefault(): String = notificationOptions?.title ?: "Location Tracking"
+  fun getNotificationTextOrDefault(): String = notificationOptions?.text ?: "Tracking your location in background"
+  fun getNotificationChannelNameOrDefault(): String = notificationOptions?.channelName ?: "Background Location"
+  fun getNotificationPriorityOrDefault(): String = notificationOptions?.priority ?: "LOW"
+  fun getForegroundOnlyOrDefault(): Boolean = foregroundOnly ?: false
+  fun getDistanceFilterOrDefault(): Float = distanceFilter ?: 0f
+  fun getNotificationShowTimestampOrDefault(): Boolean = notificationOptions?.showTimestamp ?: false
+  fun getActivityTrackingEnabledOrDefault(): Boolean = activityTrackingEnabled ?: false
+  fun getPauseLocationWhenStillOrDefault(): Boolean = pauseLocationWhenStill ?: false
+  fun getActivityUpdateIntervalOrDefault(): Long = activityUpdateInterval ?: 60000L
 }

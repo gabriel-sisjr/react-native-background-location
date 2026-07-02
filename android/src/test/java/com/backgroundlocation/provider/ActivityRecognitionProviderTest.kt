@@ -4,7 +4,6 @@ import android.app.PendingIntent
 import android.content.Context
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
-import com.google.android.gms.location.ActivityTransitionRequest
 import com.google.android.gms.tasks.Task
 import io.mockk.every
 import io.mockk.mockk
@@ -34,9 +33,6 @@ class ActivityRecognitionProviderTest {
         // Mock Task return types for the Play Services methods
         every { activityClient.requestActivityUpdates(any<Long>(), any<PendingIntent>()) } returns mockk<Task<Void>>(relaxed = true)
         every { activityClient.removeActivityUpdates(any<PendingIntent>()) } returns mockk<Task<Void>>(relaxed = true)
-        every { activityClient.requestActivityTransitionUpdates(any<ActivityTransitionRequest>(), any<PendingIntent>()) } returns mockk<Task<Void>>(relaxed = true)
-        every { activityClient.removeActivityTransitionUpdates(any<PendingIntent>()) } returns mockk<Task<Void>>(relaxed = true)
-
         provider = ActivityRecognitionProvider()
         provider.initialize(context)
     }
@@ -63,26 +59,6 @@ class ActivityRecognitionProviderTest {
 
         verify(exactly = 1) {
             activityClient.removeActivityUpdates(pendingIntent)
-        }
-    }
-
-    @Test
-    fun `requestActivityTransitionUpdates passes request and pending intent to client`() {
-        val transitionRequest = mockk<ActivityTransitionRequest>()
-
-        provider.requestActivityTransitionUpdates(transitionRequest, pendingIntent)
-
-        verify(exactly = 1) {
-            activityClient.requestActivityTransitionUpdates(transitionRequest, pendingIntent)
-        }
-    }
-
-    @Test
-    fun `removeActivityTransitionUpdates passes pending intent to client`() {
-        provider.removeActivityTransitionUpdates(pendingIntent)
-
-        verify(exactly = 1) {
-            activityClient.removeActivityTransitionUpdates(pendingIntent)
         }
     }
 

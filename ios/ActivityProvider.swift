@@ -2,7 +2,7 @@ import Foundation
 import CoreMotion
 
 @objc public protocol ActivityProviderDelegate: AnyObject {
-  func onActivityStateChanged(isStationary: Bool, activityDescription: String)
+  func onActivityStateChanged(isStationary: Bool, activityDescription: String, confidence: CMMotionActivityConfidence)
 }
 
 @objc public class ActivityProvider: NSObject {
@@ -24,10 +24,14 @@ import CoreMotion
       return
     }
 
-    // Safety check: iOS requires NSMotionUsageDescription in Info.plist
-    // If it's missing, the app will crash instantly when starting updates
     guard Bundle.main.object(forInfoDictionaryKey: "NSMotionUsageDescription") != nil else {
       NSLog("[BackgroundLocation] CRITICAL WARNING: Cannot start Activity Tracking because NSMotionUsageDescription is missing from Info.plist. GPS will not be paused when stationary.")
+      return
+    }
+
+    let authStatus = CMMotionActivityManager.authorizationStatus()
+    if authStatus == .denied || authStatus == .restricted {
+      NSLog("[BackgroundLocation] Motion activity authorization denied or restricted. Activity recognition will not work. Please grant Motion & Fitness permission in Settings.")
       return
     }
     
@@ -42,7 +46,7 @@ import CoreMotion
       NSLog("[BackgroundLocation] Detected Activity: \(desc) (Stationary: \(isStationary)) Confidence: \(activity.confidence.rawValue)")
       
       // Notify delegate about the state change
-      self?.delegate?.onActivityStateChanged(isStationary: isStationary, activityDescription: desc)
+      self?.delegate?.onActivityStateChanged(isStationary: isStationary, activityDescription: desc, confidence: activity.confidence)
     }
   }
   

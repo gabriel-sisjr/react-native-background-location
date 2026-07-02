@@ -20,10 +20,6 @@
   <!-- Boot completed permission for geofence recovery after reboot -->
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-  <!-- Activity Recognition Permissions -->
-  <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" />
-  <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
-
   <application>
     <!-- Location tracking foreground service -->
     <service

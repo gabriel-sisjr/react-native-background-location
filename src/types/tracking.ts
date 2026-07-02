@@ -159,7 +159,9 @@ export interface LocationUpdateEvent {
 export type LocationWarningType =
   | 'SERVICE_TIMEOUT'
   | 'TASK_REMOVED'
-  | 'LOCATION_UNAVAILABLE';
+  | 'LOCATION_UNAVAILABLE'
+  | 'LOCATION_PAUSED_STILL'
+  | 'LOCATION_RESUMED';
 
 /**
  * Warning event emitted by the location service
@@ -175,6 +177,8 @@ export interface LocationWarningEvent {
    * - SERVICE_TIMEOUT: Android 15+ foreground service timeout reached, service is restarting
    * - TASK_REMOVED: App was swiped from recents, tracking continues in background
    * - LOCATION_UNAVAILABLE: GPS signal lost or location services disabled
+   * - LOCATION_PAUSED_STILL: Activity recognition paused GPS because device is stationary
+   * - LOCATION_RESUMED: Activity recognition resumed GPS because device is moving again
    */
   type: LocationWarningType;
   /**

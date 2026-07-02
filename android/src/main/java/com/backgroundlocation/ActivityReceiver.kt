@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.google.android.gms.location.ActivityRecognitionResult
-import com.google.android.gms.location.ActivityTransitionResult
 import com.google.android.gms.location.DetectedActivity
 
 /**
@@ -24,18 +23,9 @@ class ActivityReceiver : BroadcastReceiver() {
       val result = ActivityRecognitionResult.extractResult(intent)
       result?.mostProbableActivity?.let { activity ->
         android.util.Log.d("ActivityReceiver", "Received Activity Update: ${getActivityString(activity.type)} (${activity.confidence}%)")
-        LocationService.handleActivityStateChanged(activity.type)
+        LocationService.handleActivityStateChanged(activity.type, activity.confidence)
       }
       return
-    }
-
-    // Handle Transition Updates
-    if (ActivityTransitionResult.hasResult(intent)) {
-      val result = ActivityTransitionResult.extractResult(intent)
-      result?.transitionEvents?.lastOrNull()?.let { event ->
-        android.util.Log.d("ActivityReceiver", "Received Activity Transition: ${getActivityString(event.activityType)}")
-        LocationService.handleActivityStateChanged(event.activityType)
-      }
     }
   }
 

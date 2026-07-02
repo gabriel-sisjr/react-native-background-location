@@ -4,10 +4,10 @@
 
 ### Added
 
-- **Activity Recognition — Android** (`ActivityProvider.kt`, `ActivityProviderFactory.kt`, `ActivityRecognitionProvider.kt`): Implemented a battery-efficient activity recognition architecture using Google Play Services `ActivityRecognitionClient`. Supports both event-based `requestActivityTransitionUpdates` (STILL ↔ MOVING transitions) and polling-based `requestActivityUpdates`.
-- **Activity Recognition — iOS** (`ActivityProvider.swift`): Equivalent `CMMotionActivityManager` wrapper for iOS. Detects `stationary`, `walking`, `running`, `automotive`, and `cycling` states via `CoreMotion` framework. Runs on a dedicated background `OperationQueue`.
-- **`ActivityReceiver.kt`**: Manifest-registered `BroadcastReceiver` that captures activity transition `PendingIntent` events from Play Services and routes them safely to the `LocationService` singleton via a thread-safe `handleActivityStateChanged` method.
-- **Dynamic GPS throttling**: `LocationService.kt` now pauses `requestLocationUpdates` when the device is detected as `STILL` (if `pauseLocationWhenStill` is enabled) and resumes immediately on any movement transition, cutting GPS battery drain to near-zero while stationary.
+- **Activity Recognition — Android** (`ActivityProvider.kt`, `ActivityProviderFactory.kt`, `ActivityRecognitionProvider.kt`): Implemented a battery-efficient activity recognition architecture using Google Play Services `ActivityRecognitionClient`. Uses polling-based `requestActivityUpdates` with confidence-based filtering.
+- **Activity Recognition — iOS** (`ActivityProvider.swift`): Equivalent `CMMotionActivityManager` wrapper for iOS. Detects `stationary`, `walking`, `running`, `automotive`, and `cycling` states via `CoreMotion` framework. Runs on a dedicated serial queue with confidence-based filtering.
+- **`ActivityReceiver.kt`**: Manifest-registered `BroadcastReceiver` that captures activity recognition `PendingIntent` events from Play Services and routes them safely to the `LocationService` singleton via a thread-safe `handleActivityStateChanged` method.
+- **Dynamic GPS throttling**: `LocationService.kt` now pauses `requestLocationUpdates` when the device is detected as `STILL` with high confidence (if `pauseLocationWhenStill` is enabled) and resumes when polling indicates movement, cutting GPS battery drain to near-zero while stationary.
 - **iOS dynamic GPS throttling**: `LocationManagerWrapper.swift` implements the same pause/resume logic driven by `ActivityProvider`'s `onActivityStateChanged` delegate callback.
 - **Three new `TrackingOptions` fields** (Android, iOS, TypeScript — all platforms):
   - `activityTrackingEnabled: boolean` — opt-in to activity recognition (default: `false`).
