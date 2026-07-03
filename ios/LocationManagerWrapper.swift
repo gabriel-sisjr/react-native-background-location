@@ -100,7 +100,7 @@ import CoreMotion
           "type": "INVALID_CONFIG",
           "message": "pauseLocationWhenStill requires activityTrackingEnabled to be true. GPS pausing is disabled.",
         ]
-        if let tripId = effectiveTripId { warningData["tripId"] = tripId }
+        warningData["tripId"] = effectiveTripId
         self.onLocationWarning?(warningData)
       }
 
