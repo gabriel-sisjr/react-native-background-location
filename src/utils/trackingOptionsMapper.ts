@@ -41,19 +41,33 @@ export function toTrackingOptionsSpec(
   }
 
   return {
-    updateInterval: options.updateInterval ?? TRACKING_OPTIONS_DEFAULTS.updateInterval,
-    fastestInterval: options.fastestInterval ?? TRACKING_OPTIONS_DEFAULTS.fastestInterval,
+    updateInterval:
+      options.updateInterval ?? TRACKING_OPTIONS_DEFAULTS.updateInterval,
+    fastestInterval:
+      options.fastestInterval ?? TRACKING_OPTIONS_DEFAULTS.fastestInterval,
     maxWaitTime: options.maxWaitTime ?? TRACKING_OPTIONS_DEFAULTS.maxWaitTime,
-    accuracy: options.accuracy ? String(options.accuracy) : TRACKING_OPTIONS_DEFAULTS.accuracy,
+    accuracy: options.accuracy
+      ? String(options.accuracy)
+      : TRACKING_OPTIONS_DEFAULTS.accuracy,
     activityType: options.activityType
       ? String(options.activityType)
       : TRACKING_OPTIONS_DEFAULTS.activityType,
-    waitForAccurateLocation: options.waitForAccurateLocation ?? TRACKING_OPTIONS_DEFAULTS.waitForAccurateLocation,
-    foregroundOnly: options.foregroundOnly ?? TRACKING_OPTIONS_DEFAULTS.foregroundOnly,
-    distanceFilter: options.distanceFilter ?? TRACKING_OPTIONS_DEFAULTS.distanceFilter,
-    activityTrackingEnabled: options.activityTrackingEnabled ?? TRACKING_OPTIONS_DEFAULTS.activityTrackingEnabled,
-    pauseLocationWhenStill: options.pauseLocationWhenStill ?? TRACKING_OPTIONS_DEFAULTS.pauseLocationWhenStill,
-    activityUpdateInterval: options.activityUpdateInterval ?? TRACKING_OPTIONS_DEFAULTS.activityUpdateInterval,
+    waitForAccurateLocation:
+      options.waitForAccurateLocation ??
+      TRACKING_OPTIONS_DEFAULTS.waitForAccurateLocation,
+    foregroundOnly:
+      options.foregroundOnly ?? TRACKING_OPTIONS_DEFAULTS.foregroundOnly,
+    distanceFilter:
+      options.distanceFilter ?? TRACKING_OPTIONS_DEFAULTS.distanceFilter,
+    activityTrackingEnabled:
+      options.activityTrackingEnabled ??
+      TRACKING_OPTIONS_DEFAULTS.activityTrackingEnabled,
+    pauseLocationWhenStill:
+      options.pauseLocationWhenStill ??
+      TRACKING_OPTIONS_DEFAULTS.pauseLocationWhenStill,
+    activityUpdateInterval:
+      options.activityUpdateInterval ??
+      TRACKING_OPTIONS_DEFAULTS.activityUpdateInterval,
     notificationOptions: options.notificationOptions
       ? JSON.stringify(options.notificationOptions)
       : undefined,
