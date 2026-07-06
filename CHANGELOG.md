@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.1.0] - 2026-06-22
+
+### Added
+
+- **Activity Recognition — Android** (`ActivityProvider.kt`, `ActivityProviderFactory.kt`, `ActivityRecognitionProvider.kt`): Implemented a battery-efficient activity recognition architecture using Google Play Services `ActivityRecognitionClient`. Uses polling-based `requestActivityUpdates` with confidence-based filtering.
+- **Activity Recognition — iOS** (`ActivityProvider.swift`): Equivalent `CMMotionActivityManager` wrapper for iOS. Detects `stationary`, `walking`, `running`, `automotive`, and `cycling` states via `CoreMotion` framework. Runs on a dedicated serial queue with confidence-based filtering.
+- **`ActivityReceiver.kt`**: Manifest-registered `BroadcastReceiver` that captures activity recognition `PendingIntent` events from Play Services and routes them safely to the `LocationService` singleton via a thread-safe `handleActivityStateChanged` method.
+- **Dynamic GPS throttling**: `LocationService.kt` now pauses `requestLocationUpdates` when the device is detected as `STILL` with high confidence (if `pauseLocationWhenStill` is enabled) and resumes when polling indicates movement, cutting GPS battery drain to near-zero while stationary.
+- **iOS dynamic GPS throttling**: `LocationManagerWrapper.swift` implements the same pause/resume logic driven by `ActivityProvider`'s `onActivityStateChanged` delegate callback.
+- **Three new `TrackingOptions` fields** (Android, iOS, TypeScript — all platforms):
+  - `activityTrackingEnabled: boolean` — opt-in to activity recognition (default: `false`).
+  - `pauseLocationWhenStill: boolean` — pause GPS when device is stationary (requires `activityTrackingEnabled`, default: `false`).
+  - `activityUpdateInterval: number` — polling interval in milliseconds for Android `requestActivityUpdates` (default: `60000`).
+- **TurboModule Codegen spec** (`src/NativeBackgroundLocation.ts`): Added the three new fields to `TrackingOptionsSpec` so Codegen generates the correct C++ struct accessors on both platforms.
+- **TypeScript types** (`src/types/tracking.ts`): Full JSDoc-annotated `TrackingOptions` fields with platform tags.
+- **TS options mapper** (`src/utils/trackingOptionsMapper.ts`): `toTrackingOptionsSpec()` now forwards the three new fields across the TurboModule bridge.
+- **`BackgroundLocation.mm`** (iOS Objective-C++ bridge): `transportDictFromCodegenSpec:` maps `activityTrackingEnabled`, `pauseLocationWhenStill`, and `activityUpdateInterval` from the C++ struct into the `NSDictionary` delivered to Swift.
+- **`CoreMotion` framework** added to `BackgroundLocation.podspec` (`s.frameworks`): CocoaPods now auto-links `CoreMotion` for consumers without any manual Xcode project changes.
+- **Manifest permissions** (`android/src/main/AndroidManifest.xml`): Added `android.permission.ACTIVITY_RECOGNITION` (API 29+) and `com.google.android.gms.permission.ACTIVITY_RECOGNITION` (legacy Play Services).
+- **Example app permissions** (`example/android/app/src/main/AndroidManifest.xml`): Mirrored same permissions for the bundled demo application.
+- **Example app `Info.plist`** (`example/ios/BackgroundLocationExample/Info.plist`): Added `NSMotionUsageDescription` so the demo app can request CoreMotion access without crashing.
+- **Android unit tests**:
+  - `ActivityRecognitionProviderTest.kt` — MockK-based tests validating client registration, `PendingIntent` delivery, and `cleanup()` resource release.
+  - `TrackingOptionsTest.kt` — Validates all new option fields parse correctly with expected defaults and custom values.
+
+### Changed
+
+- `LocationService.kt`: Integrated `ActivityProvider` lifecycle (start on `onStartCommand`, cleanup on `onDestroy`). Added `instanceLock`-guarded `handleActivityStateChanged` for safe cross-thread state transitions.
+- `LocationManagerWrapper.swift`: Conforms to `ActivityProviderDelegate`; mounts/unmounts `ActivityProvider` alongside the `CLLocationManager` session.
+- `BackgroundLocationModule.kt`: Parses `activityTrackingEnabled`, `pauseLocationWhenStill`, and `activityUpdateInterval` from the incoming `ReadableMap`.
+- `TrackingOptions.kt` / `TrackingOptions.swift`: Extended with new fields, safe defaults, and computed boolean accessors (`isActivityTrackingEnabled`, `shouldPauseLocationWhenStill`).
+
+### Notes
+
+- **Non-breaking release.** All new `TrackingOptions` fields are optional and default to `false`/`0`, so existing call sites compile and behave identically without changes.
+- **No new Android dependency required.** `ActivityRecognitionClient` is included in the existing `com.google.android.gms:play-services-location:21.3.0` dependency.
+- **iOS requires `NSMotionUsageDescription`** in the host app's `Info.plist` when `activityTrackingEnabled: true` is used. Omitting it causes a runtime crash on iOS.
+- Runtime permission for `ACTIVITY_RECOGNITION` must be requested on Android 10+ (API 29) before enabling activity tracking. The library manifest declares the permission; the host app is responsible for requesting it at runtime.
+
 ## [1.0.0-rc] - 2026-05-27
 
 > **First release candidate for the 1.x line.** From `1.0.0` forward, the library follows strict semver: breaking changes ship only on a major version bump. Three surfaces are explicitly frozen for the 1.x line: (1) the public TypeScript surface (named exports from `src/index.tsx`), (2) the TurboModule Codegen spec (`src/NativeBackgroundLocation.ts`), and (3) the native event names emitted via `NativeEventEmitter` (`onLocationUpdate`, `onLocationError`, `onLocationWarning`, `onNotificationAction`, `onGeofenceTransition`). No native (Android/iOS) code changes and no public TypeScript API changes since `0.17.0` this release candidate exists to declare API stability, not to introduce behavior.

@@ -27,6 +27,7 @@ A TurboModule for the React Native New Architecture. Drives a foreground service
 - Native geofencing (GeofencingClient on Android, CLCircularRegion on iOS)
 - Persistent location storage (Room on Android, Core Data on iOS)
 - Crash recovery via WorkManager and significant location monitoring
+- **Battery-efficient Activity Recognition** — pauses GPS when device is `STILL` (high confidence), resumes on motion (Android: Play Services `ActivityRecognitionClient`; iOS: `CoreMotion CMMotionActivityManager`)
 - React hooks: `useBackgroundLocation`, `useLocationPermissions`, `useLocationUpdates`, `useLocationTracking`
 - Expo config plugin for managed workflows
 
@@ -49,6 +50,22 @@ cd ios && pod install
 
 Autolinking handles Android manifest merging and iOS pod registration. Bare iOS apps must still add `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`, and a `UIBackgroundModes` entry containing `location` to their `Info.plist`. See the [iOS setup guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details.
 
+> **Activity Recognition on iOS:** If you enable `activityTrackingEnabled: true`, you must also add `NSMotionUsageDescription` to your `Info.plist`. Without it, activity tracking will gracefully fall back to standard GPS (no battery optimization) instead of crashing.
+>
+> ```xml
+> <key>NSMotionUsageDescription</key>
+> <string>This app requires motion data to optimize location tracking battery usage.</string>
+> ```
+>
+> **App Store disclosure:** Apps using CoreMotion must disclose motion data collection in their App Store privacy nutrition labels. This library does not persist motion data — it is processed in-memory only — but the consuming app is responsible for accurate privacy disclosure.
+
+> **Activity Recognition on Android:** On Android 10+ (API 29), you must add `android.permission.ACTIVITY_RECOGNITION` to your app's `AndroidManifest.xml` and request it at runtime before enabling activity tracking:
+> ```xml
+> <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+> ```
+
+> **Note:** On iOS, activity tracking state is not persisted across crash recovery. If the app is killed and restarted by the system, activity-based GPS pausing will be re-enabled only if `activityTrackingEnabled: true` is passed again. On Android, this state is persisted in Room and survives crash recovery automatically.
+
 ## Quick Start
 
 ```tsx
@@ -63,7 +80,11 @@ function App() {
   return (
     <Button
       title="Start"
-      onPress={() => startTracking({ tripId: 'trip-1', distanceFilter: 10 })}
+      onPress={() =>
+        startTracking('my-trip', {
+          distanceFilter: 10,
+        })
+      }
     />
   );
 }

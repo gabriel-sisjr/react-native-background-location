@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * Room database for location storage and tracking state
@@ -16,7 +18,7 @@ import androidx.room.RoomDatabase
     GeofenceEntity::class,
     GeofenceTransitionEntity::class
   ],
-  version = 1,
+  version = 2,
   exportSchema = true
 )
 abstract class LocationDatabase : RoomDatabase() {
@@ -32,8 +34,18 @@ abstract class LocationDatabase : RoomDatabase() {
     private const val DATABASE_NAME = "background_location_db"
 
     /**
+     * Migration from v1 to v2: add activity-tracking columns to tracking_state.
+     * All columns are nullable so existing rows are preserved.
+     */
+    private val MIGRATION_1_2 = Migration(1, 2) { database ->
+      database.execSQL("ALTER TABLE tracking_state ADD COLUMN activityTrackingEnabled INTEGER")
+      database.execSQL("ALTER TABLE tracking_state ADD COLUMN pauseLocationWhenStill INTEGER")
+      database.execSQL("ALTER TABLE tracking_state ADD COLUMN activityUpdateInterval INTEGER")
+    }
+
+    /**
      * Get database instance (singleton)
-     * Uses destructive migration since DB data is transient and rebuilt at runtime
+     * Uses destructive migration only as last-resort safety net.
      */
     fun getInstance(context: Context): LocationDatabase {
       return INSTANCE ?: synchronized(this) {
@@ -49,6 +61,7 @@ abstract class LocationDatabase : RoomDatabase() {
         LocationDatabase::class.java,
         DATABASE_NAME
       )
+        .addMigrations(MIGRATION_1_2)
         .fallbackToDestructiveMigration()
         .build()
     }

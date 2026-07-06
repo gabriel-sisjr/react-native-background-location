@@ -146,6 +146,21 @@
     dict[@"foregroundOnly"] = @(foregroundOnly.value());
   }
 
+  auto activityTrackingEnabled = options.activityTrackingEnabled();
+  if (activityTrackingEnabled.has_value()) {
+    dict[@"activityTrackingEnabled"] = @(activityTrackingEnabled.value());
+  }
+
+  auto pauseLocationWhenStill = options.pauseLocationWhenStill();
+  if (pauseLocationWhenStill.has_value()) {
+    dict[@"pauseLocationWhenStill"] = @(pauseLocationWhenStill.value());
+  }
+
+  auto activityUpdateInterval = options.activityUpdateInterval();
+  if (activityUpdateInterval.has_value()) {
+    dict[@"activityUpdateInterval"] = @(activityUpdateInterval.value());
+  }
+
   auto waitForAccurateLocation = options.waitForAccurateLocation();
   if (waitForAccurateLocation.has_value()) {
     dict[@"waitForAccurateLocation"] = @(waitForAccurateLocation.value());

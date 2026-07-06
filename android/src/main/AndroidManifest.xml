@@ -29,6 +29,12 @@
       android:foregroundServiceType="location"
       android:stopWithTask="false" />
 
+    <!-- Receiver for activity transition events -->
+    <receiver
+      android:name=".ActivityReceiver"
+      android:enabled="true"
+      android:exported="false" />
+
     <!-- Receiver for notification action button clicks -->
     <receiver
       android:name=".NotificationActionReceiver"

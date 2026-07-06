@@ -1,7 +1,8 @@
 import Foundation
 import CoreLocation
+import CoreMotion
 
-@objc public class LocationManagerWrapper: NSObject, LocationManagerDelegateCallback {
+@objc public class LocationManagerWrapper: NSObject, LocationManagerDelegateCallback, ActivityProviderDelegate {
   @objc public static let shared = LocationManagerWrapper()
 
   private var locationManager: CLLocationManager?
@@ -11,6 +12,12 @@ import CoreLocation
   private var _isTracking = false
   private var _currentTripId: String?
   private var _currentOptions: TrackingOptions?
+
+  private var activityProvider: ActivityProvider?
+  private var isLocationPausedDueToActivity = false
+  private let activityQueue = DispatchQueue(label: "com.backgroundlocation.activity", qos: .userInitiated)
+  private var lastResumeTimestamp: Date?
+  private let resumeGracePeriodSeconds: TimeInterval = 30
 
   // MARK: - Event Emission Closures
   @objc public var onLocationUpdate: (([String: Any]) -> Void)?
@@ -87,6 +94,27 @@ import CoreLocation
 
       configureAndStart(options: opts)
 
+      if opts.shouldPauseLocationWhenStill && !opts.isActivityTrackingEnabled {
+        NSLog("[BackgroundLocation] WARNING: pauseLocationWhenStill is enabled but activityTrackingEnabled is false. GPS will NOT pause when stationary.")
+        var warningData: [String: Any] = [
+          "type": "INVALID_CONFIG",
+          "message": "pauseLocationWhenStill requires activityTrackingEnabled to be true. GPS pausing is disabled.",
+        ]
+        warningData["tripId"] = effectiveTripId
+        self.onLocationWarning?(warningData)
+      }
+
+      if opts.isActivityTrackingEnabled {
+        if activityProvider == nil {
+          activityProvider = ActivityProvider()
+          activityProvider?.delegate = self
+        }
+        activityProvider?.startTracking()
+      } else {
+        activityProvider?.stopTracking()
+        activityProvider = nil
+      }
+
       // Start significant location monitoring for crash recovery
       if !opts.isForegroundOnly {
         startSignificantLocationMonitoring()
@@ -108,6 +136,11 @@ import CoreLocation
       LocationStorage.shared.setStopToken()
       LocationStorage.shared.saveTrackingStateSync(tripId: nil, isActive: false, options: nil)
 
+      // Stop activity provider on serial queue (not main)
+      activityProvider?.stopTracking()
+      activityProvider = nil
+      isLocationPausedDueToActivity = false
+      
       DispatchQueue.main.async { [weak self] in
         self?.locationManager?.stopUpdatingLocation()
         self?.locationManager?.stopMonitoringSignificantLocationChanges()
@@ -416,6 +449,67 @@ import CoreLocation
       }
       self.locationManager?.startMonitoringSignificantLocationChanges()
       NSLog("[BackgroundLocation] Significant location monitoring started (crash recovery wake-up)")
+    }
+  }
+
+  // MARK: - ActivityProviderDelegate
+
+  public func onActivityStateChanged(isStationary: Bool, activityDescription: String, confidence: CMMotionActivityConfidence) {
+    queue.async { [weak self] in
+      guard let self = self, self._isTracking, let options = self._currentOptions else { return }
+      
+      let shouldPause = isStationary && options.shouldPauseLocationWhenStill
+      
+      // Only stationary with medium or high confidence counts
+      let isConfident = confidence != .low
+      let effectiveIsStationary = isStationary && isConfident
+      
+      // Early return if state hasn't changed
+      if effectiveIsStationary && self.isLocationPausedDueToActivity { return }
+      if !effectiveIsStationary && !self.isLocationPausedDueToActivity { return }
+      
+      // Resume grace period: if we recently resumed, don't pause again
+      if effectiveIsStationary && !self.isLocationPausedDueToActivity {
+        if let lastResume = self.lastResumeTimestamp {
+          let elapsed = Date().timeIntervalSince(lastResume)
+          if elapsed < self.resumeGracePeriodSeconds { return }
+        }
+      }
+      
+      if shouldPause && !self.isLocationPausedDueToActivity {
+        NSLog("[BackgroundLocation] User is stationary (\(activityDescription), confidence=\(confidence.rawValue)). Pausing GPS updates.")
+        
+        // Emit warning
+        var eventData: [String: Any] = [
+          "type": "LOCATION_PAUSED_STILL",
+          "message": "Device is stationary. GPS paused to save battery.",
+        ]
+        if let tripId = self._currentTripId { eventData["tripId"] = tripId }
+        self.onLocationWarning?(eventData)
+        
+        DispatchQueue.main.async {
+          self.locationManager?.stopUpdatingLocation()
+        }
+        self.isLocationPausedDueToActivity = true
+      } else if !shouldPause && self.isLocationPausedDueToActivity {
+        NSLog("[BackgroundLocation] User is moving again (\(activityDescription)). Resuming GPS updates.")
+        self.lastResumeTimestamp = Date()
+        
+        // Emit warning
+        var eventData: [String: Any] = [
+          "type": "LOCATION_RESUMED",
+          "message": "Device is moving again. GPS resumed.",
+        ]
+        if let tripId = self._currentTripId { eventData["tripId"] = tripId }
+        self.onLocationWarning?(eventData)
+        
+        DispatchQueue.main.async {
+          if options.accuracy != "PASSIVE" && options.accuracy != "NO_POWER" {
+            self.locationManager?.startUpdatingLocation()
+          }
+        }
+        self.isLocationPausedDueToActivity = false
+      }
     }
   }
 

@@ -18,6 +18,8 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
 import com.backgroundlocation.provider.LocationProvider
 import com.backgroundlocation.provider.LocationProviderFactory
+import com.backgroundlocation.provider.ActivityProvider
+import com.backgroundlocation.provider.ActivityProviderFactory
 import com.backgroundlocation.provider.LocationUpdateCallback
 import com.backgroundlocation.processor.LocationProcessor
 import com.backgroundlocation.processor.DefaultLocationProcessor
@@ -30,10 +32,16 @@ import kotlinx.coroutines.runBlocking
 class LocationService : Service() {
 
   private lateinit var locationProvider: LocationProvider
+  private lateinit var activityProvider: ActivityProvider
   private var locationProcessor: LocationProcessor = DefaultLocationProcessor()
   private lateinit var storage: LocationStorage
   private var currentTripId: String? = null
   private var trackingOptions: TrackingOptions = TrackingOptions()
+
+  private var isLocationPausedDueToActivity = false
+  private val activityResumeGracePeriodMs = 30_000L  // 30s grace after resume
+  private var lastResumeTimestampMs: Long = 0L
+  private var activityPendingIntent: PendingIntent? = null
 
   // Flag to prevent location events after stop is requested
   @Volatile
@@ -53,6 +61,7 @@ class LocationService : Service() {
 
     // Use factory to get best available provider
     locationProvider = LocationProviderFactory.create(this)
+    activityProvider = ActivityProviderFactory.create(this)
     android.util.Log.d("LocationService", "Location provider initialized")
   }
 
@@ -124,6 +133,20 @@ class LocationService : Service() {
     // Check last known location to verify GPS is working
     checkLastKnownLocation()
 
+    if (trackingOptions.getPauseLocationWhenStillOrDefault() && !trackingOptions.getActivityTrackingEnabledOrDefault()) {
+      android.util.Log.w("LocationService", "pauseLocationWhenStill is enabled but activityTrackingEnabled is false. GPS will NOT pause when stationary. Enable activityTrackingEnabled to use this feature.")
+      emitServiceWarning(currentTripId ?: "", "INVALID_CONFIG", "pauseLocationWhenStill requires activityTrackingEnabled to be true. GPS pausing is disabled.")
+    }
+
+    if (trackingOptions.getActivityTrackingEnabledOrDefault()) {
+      if (activityProvider.isAvailable()) {
+        startActivityUpdates()
+      } else {
+        android.util.Log.w("LocationService", "Activity recognition not available on this device (Play Services missing or outdated). GPS pausing when stationary will not work.")
+        emitServiceWarning(currentTripId ?: "", "ACTIVITY_RECOGNITION_UNAVAILABLE", "Activity recognition not available. GPS pausing when stationary is disabled.")
+      }
+    }
+
     // Start location updates
     startLocationUpdates()
 
@@ -156,7 +179,10 @@ class LocationService : Service() {
       waitForAccurateLocation = if (bundle.containsKey("waitForAccurateLocation")) bundle.getBoolean("waitForAccurateLocation") else null,
       foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
       distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null,
-      notificationOptions = notificationOptions
+      notificationOptions = notificationOptions,
+      activityTrackingEnabled = if (bundle.containsKey("activityTrackingEnabled")) bundle.getBoolean("activityTrackingEnabled") else null,
+      pauseLocationWhenStill = if (bundle.containsKey("pauseLocationWhenStill")) bundle.getBoolean("pauseLocationWhenStill") else null,
+      activityUpdateInterval = if (bundle.containsKey("activityUpdateInterval")) bundle.getLong("activityUpdateInterval") else null
     )
   }
 
@@ -263,7 +289,7 @@ class LocationService : Service() {
       android.util.Log.e("LocationService", "Exception checking last known location", e)
     }
   }
-  
+
   @SuppressLint("MissingPermission")
   private fun startLocationUpdates() {
     val priority = when (trackingOptions.getAccuracyOrDefault()) {
@@ -328,6 +354,59 @@ class LocationService : Service() {
     } catch (e: Exception) {
       android.util.Log.e("LocationService", "Exception when requesting location updates", e)
       e.printStackTrace()
+    }
+  }
+
+  private fun startActivityUpdates() {
+    val intent = Intent(this, ActivityReceiver::class.java).apply {
+      action = ActivityReceiver.ACTION_PROCESS_ACTIVITY_UPDATES
+    }
+
+    val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+    } else {
+      PendingIntent.FLAG_UPDATE_CURRENT
+    }
+
+    activityPendingIntent = PendingIntent.getBroadcast(this, 0, intent, flags)
+
+    activityPendingIntent?.let {
+      android.util.Log.d("LocationService", "Starting continuous activity updates")
+      activityProvider.requestActivityUpdates(
+        trackingOptions.getActivityUpdateIntervalOrDefault(),
+        it
+      )
+    }
+  }
+
+  fun onActivityStateChanged(activityType: Int, confidence: Int = 0) {
+    if (!trackingOptions.getActivityTrackingEnabledOrDefault()) return
+    if (isStopRequested) return
+
+    val state = ActivityState(
+      activityType = activityType,
+      confidence = confidence,
+      isCurrentlyPaused = isLocationPausedDueToActivity,
+      isPauseEnabled = trackingOptions.getPauseLocationWhenStillOrDefault(),
+      lastResumeTimestampMs = lastResumeTimestampMs,
+      currentTimeMs = System.currentTimeMillis()
+    )
+
+    when (decidePauseResume(state)) {
+      PauseDecision.PAUSE -> {
+        android.util.Log.d("LocationService", "User is stationary. Pausing GPS updates to save battery.")
+        emitServiceWarning(currentTripId ?: "", "LOCATION_PAUSED_STILL", "Device is stationary. GPS paused to save battery.")
+        locationProvider.removeLocationUpdates()
+        isLocationPausedDueToActivity = true
+      }
+      PauseDecision.RESUME -> {
+        android.util.Log.d("LocationService", "User is moving again. Resuming GPS updates.")
+        emitServiceWarning(currentTripId ?: "", "LOCATION_RESUMED", "Device is moving again. GPS resumed.")
+        lastResumeTimestampMs = System.currentTimeMillis()
+        startLocationUpdates()
+        isLocationPausedDueToActivity = false
+      }
+      PauseDecision.NO_CHANGE -> {}
     }
   }
 
@@ -412,28 +491,28 @@ class LocationService : Service() {
       val altitude = if (location.hasAltitude()) location.altitude else null
       val speed = if (location.hasSpeed()) location.speed else null
       val bearing = if (location.hasBearing()) location.bearing else null
-      
+
       // API 26+ fields - check if values are valid (not NaN)
       val verticalAccuracyMeters = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val value = location.verticalAccuracyMeters
         if (!value.isNaN()) value else null
       } else null
-      
+
       val speedAccuracyMetersPerSecond = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val value = location.speedAccuracyMetersPerSecond
         if (!value.isNaN()) value else null
       } else null
-      
+
       val bearingAccuracyDegrees = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val value = location.bearingAccuracyDegrees
         if (!value.isNaN()) value else null
       } else null
-      
+
       val elapsedRealtimeNanos = location.elapsedRealtimeNanos
       val provider = location.provider
-      
+
       val isFromMockProvider = location.isMockLocation()
-      
+
       storage.saveLocation(
         tripId = tripId,
         latitude = location.latitude,
@@ -450,12 +529,12 @@ class LocationService : Service() {
         provider = provider,
         isFromMockProvider = isFromMockProvider
       )
-      
+
       // Emit location update event to React Native
       sendLocationUpdateEvent(tripId, location)
     }
   }
-  
+
   /**
    * Sends a location update event via SharedFlow
    */
@@ -464,7 +543,7 @@ class LocationService : Service() {
     LocationEventEmitter.emitLocationUpdate(tripId, locationBundle)
     android.util.Log.d("LocationService", "Location event emitted for tripId: $tripId")
   }
-  
+
 
   /**
    * Creates a minimal notification for immediate startForeground() call
@@ -624,6 +703,14 @@ class LocationService : Service() {
     // Cleanup location provider
     locationProvider.cleanup()
     android.util.Log.d("LocationService", "Location provider cleaned up")
+
+    // Cleanup activity provider
+    activityPendingIntent?.let {
+      activityProvider.removeActivityUpdates(it)
+      activityPendingIntent = null
+    }
+    activityProvider.cleanup()
+    android.util.Log.d("LocationService", "Activity provider cleaned up")
   }
 
   /**
@@ -731,6 +818,15 @@ class LocationService : Service() {
     private var activeInstance: LocationService? = null
 
     /**
+     * Routes activity state changes to the active instance securely
+     */
+    fun handleActivityStateChanged(activityType: Int, confidence: Int = 0) {
+      synchronized(instanceLock) {
+        activeInstance?.onActivityStateChanged(activityType, confidence)
+      }
+    }
+
+    /**
      * Sets a stop token to prevent RecoveryWorker from restarting tracking
      * Uses SharedPreferences for synchronous, cross-process communication
      */
@@ -812,10 +908,13 @@ class LocationService : Service() {
         if (options.updateInterval != null) putLong("updateInterval", options.updateInterval)
         if (options.fastestInterval != null) putLong("fastestInterval", options.fastestInterval)
         if (options.maxWaitTime != null) putLong("maxWaitTime", options.maxWaitTime)
-        if (options.accuracy != null) putString("accuracy", options.accuracy.value)
+        if (options.accuracy != null) putString("accuracy", options.accuracy.name)
         if (options.waitForAccurateLocation != null) putBoolean("waitForAccurateLocation", options.waitForAccurateLocation)
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
         if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
+        if (options.activityTrackingEnabled != null) putBoolean("activityTrackingEnabled", options.activityTrackingEnabled)
+        if (options.pauseLocationWhenStill != null) putBoolean("pauseLocationWhenStill", options.pauseLocationWhenStill)
+        if (options.activityUpdateInterval != null) putLong("activityUpdateInterval", options.activityUpdateInterval)
         options.notificationOptions?.let { putString("notificationOptions", it.toJsonString()) }
       }
 
@@ -837,6 +936,62 @@ class LocationService : Service() {
     fun stopService(context: Context) {
       val intent = Intent(context, LocationService::class.java)
       context.stopService(intent)
+    }
+
+    enum class PauseDecision {
+      PAUSE,
+      RESUME,
+      NO_CHANGE
+    }
+
+    data class ActivityState(
+      val activityType: Int,
+      val confidence: Int,
+      val isCurrentlyPaused: Boolean,
+      val isPauseEnabled: Boolean,
+      val lastResumeTimestampMs: Long,
+      val currentTimeMs: Long
+    ) {
+      companion object {
+        const val CONFIDENCE_THRESHOLD = 70
+        const val RESUME_GRACE_PERIOD_MS = 30_000L
+      }
+    }
+
+    fun decidePauseResume(state: ActivityState): PauseDecision {
+      // Never pause while automotive
+      if (state.activityType == DetectedActivity.IN_VEHICLE) return PauseDecision.NO_CHANGE
+
+      // Only STILL with high confidence counts as stationary
+      val isStationary = state.activityType == DetectedActivity.STILL
+        && state.confidence >= ActivityState.CONFIDENCE_THRESHOLD
+
+      // Exclude TILTING and UNKNOWN from pause trigger
+      val isExcludedType = state.activityType == DetectedActivity.TILTING
+        || state.activityType == DetectedActivity.UNKNOWN
+
+      val shouldPause = isStationary && state.isPauseEnabled
+
+      // Already paused and stationary -> no change
+      if (isStationary && state.isCurrentlyPaused) return PauseDecision.NO_CHANGE
+      // Already paused and excluded type -> no change
+      if (isExcludedType && state.isCurrentlyPaused) return PauseDecision.NO_CHANGE
+
+      // Not paused and not stationary -> no change
+      if (!isStationary && !state.isCurrentlyPaused) return PauseDecision.NO_CHANGE
+      // Not paused and excluded type -> no change
+      if (isExcludedType && !state.isCurrentlyPaused) return PauseDecision.NO_CHANGE
+
+      // Resume grace period: if we recently resumed, don't pause again
+      if (shouldPause && !state.isCurrentlyPaused) {
+        val timeSinceResume = state.currentTimeMs - state.lastResumeTimestampMs
+        if (timeSinceResume < ActivityState.RESUME_GRACE_PERIOD_MS) return PauseDecision.NO_CHANGE
+      }
+
+      if (shouldPause && !state.isCurrentlyPaused) return PauseDecision.PAUSE
+      if (!shouldPause && state.isCurrentlyPaused) return PauseDecision.RESUME
+
+      return PauseDecision.NO_CHANGE
     }
   }
 }

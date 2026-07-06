@@ -22,6 +22,9 @@ data class TrackingStateEntity(
   val accuracy: String? = null,
   val waitForAccurateLocation: Boolean? = null,
   val foregroundOnly: Boolean? = null,
+  val activityTrackingEnabled: Boolean? = null,
+  val pauseLocationWhenStill: Boolean? = null,
+  val activityUpdateInterval: Long? = null,
 
   // Notification options as a single JSON string
   val notificationOptionsJson: String? = null

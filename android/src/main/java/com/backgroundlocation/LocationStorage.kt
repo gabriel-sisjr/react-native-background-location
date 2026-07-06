@@ -202,9 +202,12 @@ class LocationStorage(context: Context) {
           updateInterval = options?.updateInterval,
           fastestInterval = options?.fastestInterval,
           maxWaitTime = options?.maxWaitTime,
-          accuracy = options?.accuracy?.value,
+          accuracy = options?.accuracy?.name,
           waitForAccurateLocation = options?.waitForAccurateLocation,
           foregroundOnly = options?.foregroundOnly,
+          activityTrackingEnabled = options?.activityTrackingEnabled,
+          pauseLocationWhenStill = options?.pauseLocationWhenStill,
+          activityUpdateInterval = options?.activityUpdateInterval,
           notificationOptionsJson = options?.notificationOptions?.toJsonString()
         )
         trackingStateDao.upsert(entity)
@@ -228,9 +231,12 @@ class LocationStorage(context: Context) {
         updateInterval = options?.updateInterval,
         fastestInterval = options?.fastestInterval,
         maxWaitTime = options?.maxWaitTime,
-        accuracy = options?.accuracy?.value,
+        accuracy = options?.accuracy?.name,
         waitForAccurateLocation = options?.waitForAccurateLocation,
         foregroundOnly = options?.foregroundOnly,
+        activityTrackingEnabled = options?.activityTrackingEnabled,
+        pauseLocationWhenStill = options?.pauseLocationWhenStill,
+        activityUpdateInterval = options?.activityUpdateInterval,
         notificationOptionsJson = options?.notificationOptions?.toJsonString()
       )
       trackingStateDao.upsert(entity)
@@ -272,6 +278,9 @@ class LocationStorage(context: Context) {
             accuracy = entity.accuracy?.let { LocationAccuracy.fromString(it) },
             waitForAccurateLocation = entity.waitForAccurateLocation,
             foregroundOnly = entity.foregroundOnly,
+            activityTrackingEnabled = entity.activityTrackingEnabled,
+            pauseLocationWhenStill = entity.pauseLocationWhenStill,
+            activityUpdateInterval = entity.activityUpdateInterval,
             notificationOptions = notificationOptions
           )
         } else null
