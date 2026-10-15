@@ -1,26 +1,25 @@
-// Yarn 3 workspace-aware Metro config for the Expo managed-workflow demo.
+// Metro config for the Expo demo app inside this Yarn workspace.
 //
-// Mirrors the pattern used by `example/metro.config.js` (which delegates to
-// `react-native-monorepo-config`): tell Metro to watch the entire repo root,
-// resolve modules from both the local workspace and the hoisted root
-// `node_modules/`, and disable the hierarchical lookup so the bundler never
-// climbs above the project root.
+// Since SDK 52, `expo/metro-config` detects the workspace by itself: it sets
+// `watchFolders` for the workspace packages and
+// `resolver.nodeModulesPaths = [<app>/node_modules, <root>/node_modules]`.
+// Two things are specific to this repository, where the library under test
+// is the workspace ROOT package (not a `packages/*` workspace):
 //
-// The Expo CLI defaults are taken via `expo/metro-config` (not
-// `@react-native/metro-config`) because the SDK-53 preset wires up Expo's
-// asset registry and Hermes transformer.
+// 1. The root has to be watched, otherwise Metro cannot resolve the library
+//    that `scripts/link-library.js` symlinks into `node_modules`.
+// 2. The root also owns its own `react` / `react-native` devDependencies
+//    (a different version than the app's). Hierarchical lookup would let the
+//    library resolve those and bundle a second copy of React Native, so it is
+//    disabled to force every import onto the app's copy.
 const { getDefaultConfig } = require('expo/metro-config');
 const path = require('node:path');
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '..');
+const config = getDefaultConfig(__dirname);
 
-const config = getDefaultConfig(projectRoot);
-
-config.watchFolders = [workspaceRoot];
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
+config.watchFolders = [
+  ...(config.watchFolders ?? []),
+  path.resolve(__dirname, '..'),
 ];
 config.resolver.disableHierarchicalLookup = true;
 

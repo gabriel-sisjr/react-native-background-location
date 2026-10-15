@@ -2,7 +2,7 @@ import {
   AndroidConfig,
   withAndroidManifest,
   type ConfigPlugin,
-} from '@expo/config-plugins';
+} from 'expo/config-plugins';
 import type { BackgroundLocationPluginProps } from '../options/types';
 
 /**
@@ -12,8 +12,8 @@ import type { BackgroundLocationPluginProps } from '../options/types';
  * never declares them in their own `app.json` / `AndroidManifest.xml`.
  *
  * Kept module-private on purpose — the list is an implementation detail of
- * the Android side of the plugin. Changing it requires a code review and a
- * Phase 5 snapshot test update.
+ * the Android side of the plugin. Changing it requires updating the snapshot in
+ * `__tests__/__snapshots__/withAndroidPermissions.test.ts.snap`.
  */
 const LIBRARY_PERMISSIONS: ReadonlyArray<string> = [
   'android.permission.ACCESS_FINE_LOCATION',

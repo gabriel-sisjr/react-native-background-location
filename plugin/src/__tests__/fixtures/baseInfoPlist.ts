@@ -1,10 +1,10 @@
-import type { IOSConfig } from '@expo/config-plugins';
+import type { IOSConfig } from 'expo/config-plugins';
 
 type InfoPlist = IOSConfig.InfoPlist;
 
 /**
  * Returns a fresh, minimal `Info.plist` shape used as the baseline input for
- * Phase 5 snapshot tests of the iOS-side plugin modifiers.
+ * the snapshot tests of the iOS-side plugin modifiers.
  *
  * - Three universally-present keys an Xcode-managed Info.plist always ships
  *   with (`CFBundleDevelopmentRegion`, `CFBundleExecutable`,

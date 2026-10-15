@@ -1,7 +1,7 @@
 import { withBackgroundLocation } from '../withBackgroundLocation';
 import { createBaseAndroidManifest } from './fixtures/baseAndroidManifest';
 import { runAndroidManifestMod } from './utils/makeConfig';
-import type { AndroidConfig, ConfigPlugin } from '@expo/config-plugins';
+import type { AndroidConfig, ConfigPlugin } from 'expo/config-plugins';
 
 type AndroidManifest = AndroidConfig.Manifest.AndroidManifest;
 type ExpoConfig = Parameters<ConfigPlugin<unknown>>[0];

@@ -24,13 +24,17 @@ export interface BackgroundLocationPluginProps {
   locationAlwaysUsageDescription?: string;
 
   /**
-   * iOS `NSLocationTemporaryUsageDescriptionDictionary` — purpose-keyed
-   * temporary-full-accuracy descriptions. Shallow-merged into any existing
-   * dictionary in the consumer's `Info.plist`. Forward-compat hook for C6
-   * (`requestTemporaryFullAccuracy`) shipping in v0.18.x — the same train
-   * that now carries this plugin (see decision #13).
+   * iOS `NSLocationTemporaryUsageDescriptionDictionary` — purpose-keyed usage
+   * descriptions that make a purpose string available for temporary
+   * precise-location requests. Shallow-merged into any existing dictionary in
+   * the consumer's `Info.plist`; when omitted, the dictionary is left
+   * untouched.
    *
-   * Keys are purpose strings (referenced by `requestTemporaryFullAccuracy(purposeKey:)`).
+   * The library has no API that requests temporary full accuracy, so these
+   * entries are only used by app code or other libraries that call
+   * `requestTemporaryFullAccuracyAuthorization(withPurposeKey:)`.
+   *
+   * Keys are purpose strings (the `withPurposeKey` argument of that call).
    * Values are App-Review-safe usage strings.
    *
    * @example

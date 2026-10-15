@@ -4,7 +4,7 @@ import type {
   ConfigPlugin,
   ExportedConfigWithProps,
   Mod,
-} from '@expo/config-plugins';
+} from 'expo/config-plugins';
 
 type AndroidManifest = AndroidConfig.Manifest.AndroidManifest;
 type InfoPlist = IOSConfig.InfoPlist;
@@ -12,15 +12,15 @@ type InfoPlist = IOSConfig.InfoPlist;
 /**
  * `ConfigPlugin<unknown>` accepts an `ExpoConfig` as its first argument. We
  * extract that type via `Parameters<...>` to avoid taking a direct dependency
- * on `@expo/config-types` from the test layer — `@expo/config-plugins` already
- * re-exports the shape transitively via its public function signatures.
+ * on `@expo/config-types` from the test layer — `expo/config-plugins` already
+ * exposes the shape through its public function signatures.
  */
 type ExpoConfig = Parameters<ConfigPlugin<unknown>>[0];
 
 /**
  * Test helpers that bridge the gap between `withBackgroundLocation` — a
  * `ConfigPlugin` that only *registers* mods under `config.mods.<platform>.<name>`
- * — and the snapshot/idempotency assertions in Phase 5 tests, which need the
+ * — and the snapshot/idempotency assertions of the tests, which need the
  * actual mutated `modResults` (the parsed `AndroidManifest.xml` / `Info.plist`).
  *
  * At runtime, `expo prebuild` invokes the registered mods with a fully-typed
@@ -50,7 +50,7 @@ const baseExpoConfig = (): ExpoConfig => ({
 
 /**
  * Build a fully-typed `ExportedConfigWithProps<AndroidManifest>` envelope
- * around the supplied `modResults`. Mirrors what the `@expo/config-plugins`
+ * around the supplied `modResults`. Mirrors what the `expo/config-plugins`
  * runtime hands to `withAndroidManifest` mod callbacks during `expo prebuild`.
  */
 export const makeAndroidConfig = (
@@ -74,7 +74,7 @@ export const makeAndroidConfig = (
 
 /**
  * Build a fully-typed `ExportedConfigWithProps<InfoPlist>` envelope
- * around the supplied `modResults`. Mirrors what the `@expo/config-plugins`
+ * around the supplied `modResults`. Mirrors what the `expo/config-plugins`
  * runtime hands to `withInfoPlist` mod callbacks during `expo prebuild`.
  */
 export const makeIosConfig = (
@@ -106,8 +106,14 @@ export const makeIosConfig = (
  */
 type ConfigWithMods = ExpoConfig & {
   mods?: {
-    android?: { manifest?: Mod<AndroidManifest> };
-    ios?: { infoPlist?: Mod<InfoPlist> };
+    android?: { manifest?: Mod<AndroidManifest>; dangerous?: Mod<unknown> };
+    ios?: {
+      infoPlist?: Mod<InfoPlist>;
+      dangerous?: Mod<unknown>;
+      finalized?: Mod<unknown>;
+      podfileProperties?: Mod<unknown>;
+      xcodeproj?: Mod<unknown>;
+    };
   };
 };
 
@@ -149,10 +155,8 @@ export const getRegisteredInfoPlistMod = (
 
 /**
  * Invoke a registered Android manifest mod against a fresh `ExportedConfigWithProps`
- * envelope. Returns the mutated `modResults` synchronously when the mod is sync;
- * otherwise awaits it. The plugin chain in this library is sync end-to-end, so
- * the helper deliberately exposes a `Promise`-aware return type for forward-compat
- * but most callers can `await` it without contortion.
+ * envelope and returns the mutated `modResults`. The helper is `async` so it
+ * works with both synchronous and asynchronous mods.
  */
 export const runAndroidManifestMod = async (
   config: ExpoConfig,
@@ -188,3 +192,93 @@ export const runInfoPlistMod = async (
   });
   return out.modResults;
 };
+
+type ModPlatform = 'android' | 'ios';
+
+/**
+ * `dangerous` and `finalized` mods are the two kinds this library registers
+ * that neither parse a file into `modResults` nor write one back: they receive
+ * an empty `modResults` and do their own work (`withIosDeploymentTarget` edits
+ * the iOS project files, `warnUnsupportedExpoSdk` only prints a warning).
+ */
+type SelfContainedModName = 'dangerous' | 'finalized';
+
+const registeredMod = (
+  config: ExpoConfig,
+  platform: ModPlatform,
+  modName: string
+): Mod<unknown> | undefined =>
+  (
+    (config as ConfigWithMods).mods?.[platform] as
+      | Record<string, Mod<unknown> | undefined>
+      | undefined
+  )?.[modName];
+
+/**
+ * Whether any mod is registered under `config.mods.<platform>.<modName>`.
+ */
+export const hasRegisteredMod = (
+  config: ExpoConfig,
+  platform: ModPlatform,
+  modName: string
+): boolean => Boolean(registeredMod(config, platform, modName));
+
+/**
+ * Whether a mod is registered under `config.mods.ios.<modName>`.
+ */
+export const hasRegisteredIosMod = (
+  config: ExpoConfig,
+  modName: 'infoPlist' | 'podfileProperties' | 'xcodeproj' | 'finalized'
+): boolean => hasRegisteredMod(config, 'ios', modName);
+
+/**
+ * Invoke a registered `dangerous` or `finalized` mod against a project rooted
+ * at `projectRoot` (for example a temp directory holding
+ * `ios/Podfile.properties.json` and `ios/*.xcodeproj`). Throws if the mod is
+ * not registered, which would indicate a regression in the plugin chain.
+ *
+ * `finalized` mods run after every other mod, so the iOS deployment-target
+ * floor holds whatever the plugin order is; `dangerous` mods run before them.
+ */
+export const runRegisteredMod = async (
+  config: ExpoConfig,
+  platform: ModPlatform,
+  modName: SelfContainedModName,
+  {
+    projectRoot = FIXED_PROJECT_ROOT,
+    introspect = false,
+  }: { projectRoot?: string; introspect?: boolean } = {}
+): Promise<void> => {
+  const mod = registeredMod(config, platform, modName);
+  if (!mod) {
+    throw new Error(
+      `Expected config.mods.${platform}.${modName} to be registered after withBackgroundLocation`
+    );
+  }
+  const identityNextMod: Mod<unknown> = (cfg) => cfg;
+  await mod({
+    ...config,
+    modResults: {},
+    modRawConfig: { ...config },
+    modRequest: {
+      projectRoot,
+      platformProjectRoot: `${projectRoot}/${platform}`,
+      modName,
+      platform,
+      introspect,
+      projectName: FIXED_PROJECT_NAME,
+      nextMod: identityNextMod,
+    },
+  });
+};
+
+/**
+ * Invoke the registered iOS finalized mod against a project laid out on disk
+ * (`<projectRoot>/ios/Podfile.properties.json`, `<projectRoot>/ios/*.xcodeproj`).
+ */
+export const runIosFinalizedMod = (
+  config: ExpoConfig,
+  projectRoot: string,
+  { introspect = false }: { introspect?: boolean } = {}
+): Promise<void> =>
+  runRegisteredMod(config, 'ios', 'finalized', { projectRoot, introspect });

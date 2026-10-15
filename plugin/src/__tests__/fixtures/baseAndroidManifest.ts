@@ -1,10 +1,10 @@
-import type { AndroidConfig } from '@expo/config-plugins';
+import type { AndroidConfig } from 'expo/config-plugins';
 
 type AndroidManifest = AndroidConfig.Manifest.AndroidManifest;
 
 /**
  * Returns a fresh, minimal `AndroidManifest` shape used as the baseline
- * input for Phase 5 snapshot tests of the Android-side plugin modifiers.
+ * input for the snapshot tests of the Android-side plugin modifiers.
  *
  * - Bare `<manifest>` root with the standard `xmlns:android` declaration.
  * - Empty `<application/>` child (no activities, services, receivers).

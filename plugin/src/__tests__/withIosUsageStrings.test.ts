@@ -4,7 +4,7 @@ import {
   createPrePopulatedInfoPlist,
 } from './fixtures/baseInfoPlist';
 import { runInfoPlistMod } from './utils/makeConfig';
-import type { ConfigPlugin } from '@expo/config-plugins';
+import type { ConfigPlugin } from 'expo/config-plugins';
 
 type ExpoConfig = Parameters<ConfigPlugin<unknown>>[0];
 

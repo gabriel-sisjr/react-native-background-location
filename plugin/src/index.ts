@@ -1,4 +1,4 @@
-import { createRunOncePlugin, type ConfigPlugin } from '@expo/config-plugins';
+import { createRunOncePlugin, type ConfigPlugin } from 'expo/config-plugins';
 import { withBackgroundLocation } from './withBackgroundLocation';
 import type { BackgroundLocationPluginProps } from './options/types';
 

@@ -6,12 +6,18 @@ import type { ExpoConfig } from 'expo/config';
  *
  * This app is intentionally minimal — its single role is to give CI a
  * project on which to run `expo prebuild` and verify that the plugin
- * correctly mutates AndroidManifest.xml and Info.plist.
+ * correctly mutates AndroidManifest.xml, Info.plist and the iOS
+ * deployment target.
  *
  * Both the default path (the plugin's built-in usage-string defaults)
  * and the override path (`locationWhenInUseUsageDescription` +
- * `temporaryUsageDescriptions`) are exercised so the Phase 5 CI smoke
- * job can prove the precedence chain works end-to-end.
+ * `temporaryUsageDescriptions`) are exercised so the `expo prebuild` CI
+ * jobs can prove the precedence chain works end-to-end.
+ *
+ * There is deliberately no `expo-build-properties` entry and no
+ * `ios.deploymentTarget`: the plugin raises the iOS deployment target to
+ * the library minimum (16.0) by itself, and the same jobs prove that it
+ * does.
  */
 const config: ExpoConfig = {
   name: 'example-expo',
@@ -30,21 +36,10 @@ const config: ExpoConfig = {
         // Exercise the override path for at least one usage string.
         locationWhenInUseUsageDescription:
           'example-expo needs your location while you use the app.',
-        // Forward-compat C6 knob exercised here too.
+        // Exercise the `temporaryUsageDescriptions` merge.
         temporaryUsageDescriptions: {
           AccurateFix:
             'example-expo needs accurate location for the demo screen.',
-        },
-      },
-    ],
-    [
-      'expo-build-properties',
-      {
-        ios: { deploymentTarget: '16.0' },
-        android: {
-          compileSdkVersion: 34,
-          targetSdkVersion: 34,
-          minSdkVersion: 24,
         },
       },
     ],

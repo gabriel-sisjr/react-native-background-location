@@ -1,4 +1,4 @@
-import { withInfoPlist, type ConfigPlugin } from '@expo/config-plugins';
+import { withInfoPlist, type ConfigPlugin } from 'expo/config-plugins';
 import type { BackgroundLocationPluginProps } from '../options/types';
 
 /**
@@ -27,10 +27,10 @@ const DEFAULT_ALWAYS =
  *    `app.json#expo.ios.infoPlist` or via another config plugin.
  * 2. Defensively appends `"location"` to `UIBackgroundModes` exactly once,
  *    preserving any modes added by the consumer or other plugins.
- * 3. Forward-compat (C6, v0.18.x): when `temporaryUsageDescriptions` is
- *    provided, shallow-merges it into
- *    `NSLocationTemporaryUsageDescriptionDictionary`. When the prop is omitted,
- *    the dictionary is left untouched.
+ * 3. When `temporaryUsageDescriptions` is provided, shallow-merges it into
+ *    `NSLocationTemporaryUsageDescriptionDictionary`, so a purpose string is
+ *    available for temporary precise-location requests. When the prop is
+ *    omitted, the dictionary is left untouched.
  *
  * The mod is idempotent — calling the plugin chain twice produces a
  * byte-identical plist.
@@ -66,7 +66,7 @@ export const withIosUsageStrings: ConfigPlugin<
       plist.UIBackgroundModes = [...existingModes, 'location'];
     }
 
-    // 3. C6 forward-compat — shallow-merge into the temporary-usage dictionary.
+    // 3. Shallow-merge into the temporary-usage dictionary.
     if (props.temporaryUsageDescriptions) {
       const existing =
         (plist.NSLocationTemporaryUsageDescriptionDictionary as
