@@ -129,7 +129,19 @@ jobs:
     runs-on: macos-latest
 
     env:
-      XCODE_VERSION: 16.4
+      # Deliberately NOT an exact version pin.
+      #
+      # `macos-latest` was remapped from macOS 15 to macOS 26 (rollout
+      # 2026-06-15 -> 2026-07-15). The macOS 26 image ships only Xcode 26.x, so
+      # the previous `16.4` pin became unresolvable and every cache-miss run
+      # failed with "Could not find Xcode version that satisfied version spec".
+      # That pin was also a no-op: 16.4 was already the macOS 15 image default.
+      #
+      # `latest-stable` resolves against whatever the current image provides and
+      # excludes betas, so runner-image rotation cannot break this job again.
+      # To see what a given image actually ships, check its manifest:
+      # https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md
+      XCODE_VERSION: 'latest-stable'
       TURBO_CACHE_DIR: .turbo/ios
       RCT_USE_RN_DEP: 1
       RCT_USE_PREBUILT_RNCORE: 1
@@ -162,6 +174,16 @@ jobs:
         uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
+
+      # Records the toolchain actually in use. If Xcode selection ever breaks
+      # again, the log shows what WAS available instead of only what wasn't.
+      - name: Report selected Xcode toolchain
+        if: env.turbo_cache_hit != 1
+        run: |
+          echo "DEVELOPER_DIR=${DEVELOPER_DIR:-<unset>}"
+          xcodebuild -version
+          echo "Xcode versions available on this runner:"
+          ls -1 /Applications | grep -i '^Xcode' || echo "  (none found)"
 
       - name: Install cocoapods
         if: env.turbo_cache_hit != 1 && steps.cocoapods-cache.outputs.cache-hit != 'true'
