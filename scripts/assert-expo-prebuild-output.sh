@@ -2,16 +2,49 @@
 #
 # assert-expo-prebuild-output.sh
 #
-# Verifies that `expo prebuild` produced the expected native project files for
-# the `example-expo/` Yarn workspace. Used by the `expo-prebuild` matrix job in
-# .github/workflows/ci.yml to assert that the Expo config plugin emitted the
-# correct AndroidManifest permissions, Info.plist usage descriptions, and
-# UIBackgroundModes entries. Also asserts that no library service / receiver
-# class names are duplicated (a duplicate would indicate the plugin merged
-# something the bare autolinking config already provides).
+# Value-level assertions on the native projects that `expo prebuild` generated
+# for an Expo app using the @gabriel-sisjr/react-native-background-location
+# config plugin. Used by:
+#   - the `expo prebuild (android|ios)` jobs in .github/workflows/ci.yml
+#     (target: the example-expo/ Yarn workspace),
+#   - the `expo android build` job (merged manifest, after Gradle),
+#   - scripts/verify-expo-tarball.sh (target: a scratch app that installed the
+#     npm tarball).
+#
+# The assertions live in scripts/assert-expo-prebuild-output.mjs (Node >= 18, no
+# dependencies); this wrapper only resolves paths and forwards the arguments.
 #
 # Usage:
-#   ./scripts/assert-expo-prebuild-output.sh <android|ios>
+#   ./scripts/assert-expo-prebuild-output.sh <android|android-merged|ios> \
+#       [--project-dir <dir>] [--props-json <json> | --props-file <file>] [--verbose]
+#
+#   android         app AndroidManifest.xml right after `expo prebuild`:
+#                   the 7 library permissions each declared exactly once, no
+#                   duplicated <uses-permission>, no unexpected location
+#                   permission, and newArchEnabled is not false.
+#   android-merged  the manifest Gradle produced (after `./gradlew
+#                   :app:assembleDebug`): the 7 permissions once each, the
+#                   library service/receivers merged exactly once. The library
+#                   manifest is merged by Gradle, never at prebuild time, so this
+#                   is the only place those components can be asserted.
+#   ios             Info.plist usage strings (expected value = plugin prop, else
+#                   the app's ios.infoPlist value, else the library default),
+#                   NSLocationTemporaryUsageDescriptionDictionary, UIBackgroundModes
+#                   containing "location" exactly once, CocoaPods deployment target
+#                   >= 16.0 and never lowered below the SDK default
+#                   (Podfile.properties.json / Podfile fallback), app target
+#                   IPHONEOS_DEPLOYMENT_TARGET >= 16.0 in project.pbxproj, and
+#                   newArchEnabled is not false.
+#
+# Options:
+#   --project-dir <dir>  Expo project root. Default: $EXPO_PROJECT_DIR, else
+#                        <repo>/example-expo.
+#   --props-json <json>  Expected plugin props as JSON (ios only). Default: read
+#                        from the project's own config via `expo config --json
+#                        --type prebuild`, so the expectation follows app.json /
+#                        app.config.ts and never drifts from it.
+#   --props-file <file>  Same as --props-json, read from a file.
+#   --verbose            Print every passed check, not only failures.
 #
 # Exit codes:
 #   0  All assertions passed.
@@ -19,105 +52,64 @@
 
 set -euo pipefail
 
-if [[ "${1-}" == "" ]]; then
-  echo "Usage: $0 <android|ios>" >&2
+usage() {
+  # Print the leading comment block (everything after the shebang up to the
+  # first non-comment line) without the "# " prefix.
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
+    "${BASH_SOURCE[0]}" >&2
+}
+
+if [[ $# -ge 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -lt 1 ]]; then
+  usage
   exit 1
 fi
 
 PLATFORM="$1"
-
-# Resolve EXAMPLE_DIR relative to this script's location so the assertion works
-# regardless of the caller's cwd (CI runs from repo root; humans may run from
-# anywhere).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-EXAMPLE_DIR="$REPO_ROOT/example-expo"
-
-assert_contains() {
-  local file="$1"
-  local needle="$2"
-  if ! grep -qF "$needle" "$file"; then
-    echo "FAIL: expected '$needle' in $file" >&2
-    exit 1
-  fi
-}
-
-assert_count_exact() {
-  local file="$1"
-  local needle="$2"
-  local expected="$3"
-  local actual
-  actual=$(grep -cF "$needle" "$file" || true)
-  if [[ "$actual" != "$expected" ]]; then
-    echo "FAIL: expected '$needle' to appear exactly $expected time(s) in $file, found $actual" >&2
-    exit 1
-  fi
-}
-
-assert_no_duplicate_class() {
-  local file="$1"
-  local class_name="$2"
-  local count
-  count=$(grep -cF "$class_name" "$file" || true)
-  if (( count > 1 )); then
-    echo "FAIL: class '$class_name' appears $count times in $file (expected at most 1)" >&2
-    exit 1
-  fi
-}
+shift
 
 case "$PLATFORM" in
-  android)
-    MANIFEST="$EXAMPLE_DIR/android/app/src/main/AndroidManifest.xml"
-
-    if [[ ! -f "$MANIFEST" ]]; then
-      echo "FAIL: AndroidManifest.xml not found at $MANIFEST" >&2
-      echo "Hint: run 'yarn expo prebuild --platform android --clean --no-install' inside example-expo/ first." >&2
-      exit 1
-    fi
-
-    # Required permissions (one assertion per line for readability)
-    assert_contains "$MANIFEST" "android.permission.ACCESS_FINE_LOCATION"
-    assert_contains "$MANIFEST" "android.permission.ACCESS_COARSE_LOCATION"
-    assert_contains "$MANIFEST" "android.permission.ACCESS_BACKGROUND_LOCATION"
-    assert_contains "$MANIFEST" "android.permission.FOREGROUND_SERVICE"
-    assert_contains "$MANIFEST" "android.permission.FOREGROUND_SERVICE_LOCATION"
-    assert_contains "$MANIFEST" "android.permission.POST_NOTIFICATIONS"
-    assert_contains "$MANIFEST" "android.permission.RECEIVE_BOOT_COMPLETED"
-
-    # No library service / receiver class names should be duplicated. Autolinking
-    # already merges the library AndroidManifest into the app manifest, so the
-    # plugin must NOT add these again.
-    assert_no_duplicate_class "$MANIFEST" "LocationService"
-    assert_no_duplicate_class "$MANIFEST" "NotificationActionReceiver"
-    assert_no_duplicate_class "$MANIFEST" "GeofenceBroadcastReceiver"
-    assert_no_duplicate_class "$MANIFEST" "BootCompletedReceiver"
-
-    echo "OK ($PLATFORM)"
-    ;;
-
-  ios)
-    INFO_PLIST=$(find "$EXAMPLE_DIR/ios" -name 'Info.plist' -not -path '*/Pods/*' 2>/dev/null | head -n 1 || true)
-
-    if [[ -z "$INFO_PLIST" || ! -f "$INFO_PLIST" ]]; then
-      echo "FAIL: Info.plist not found under $EXAMPLE_DIR/ios" >&2
-      echo "Hint: run 'yarn expo prebuild --platform ios --clean --no-install' inside example-expo/ first." >&2
-      exit 1
-    fi
-
-    # Required location usage description keys
-    assert_contains "$INFO_PLIST" "NSLocationWhenInUseUsageDescription"
-    assert_contains "$INFO_PLIST" "NSLocationAlwaysAndWhenInUseUsageDescription"
-    assert_contains "$INFO_PLIST" "NSLocationAlwaysUsageDescription"
-
-    # UIBackgroundModes must contain `location` exactly once (the plugin must
-    # not duplicate it if Expo's default config already declared it).
-    assert_count_exact "$INFO_PLIST" "<string>location</string>" 1
-
-    echo "OK ($PLATFORM)"
-    ;;
-
+  android | android-merged | ios) ;;
   *)
-    echo "ERROR: unknown platform '$PLATFORM' (expected 'android' or 'ios')" >&2
+    echo "ERROR: unknown platform '$PLATFORM' (expected 'android', 'android-merged' or 'ios')" >&2
     exit 1
     ;;
 esac
+
+# Resolve paths relative to this script so the assertion works regardless of the
+# caller's cwd (CI runs from the repo root; humans may run from anywhere).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="${EXPO_PROJECT_DIR:-$REPO_ROOT/example-expo}"
+
+if ! command -v node > /dev/null 2>&1; then
+  echo "ERROR: node is required to run the assertions" >&2
+  exit 1
+fi
+
+# --project-dir given on the command line wins over the environment default.
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --project-dir)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --project-dir requires a value" >&2
+        exit 1
+      fi
+      PROJECT_DIR="$2"
+      shift 2
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# "${ARGS[@]+...}" keeps `set -u` happy on bash 3.2 when ARGS is empty.
+exec node "$SCRIPT_DIR/assert-expo-prebuild-output.mjs" "$PLATFORM" \
+  --project-dir "$PROJECT_DIR" ${ARGS[@]+"${ARGS[@]}"}

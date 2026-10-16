@@ -11,6 +11,12 @@ on:
   merge_group:
     types:
       - checks_requested
+  workflow_dispatch:
+
+# Least privilege, independent of the repository's default token setting: no job
+# here pushes, comments or publishes (Codecov uses its own token).
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,6 +39,11 @@ jobs:
       - name: Typecheck files
         run: yarn typecheck
 
+      # plugin/tsconfig.json excludes **/__tests__/**, so the root typecheck and
+      # `yarn prepare` never look at the plugin tests. This one does (noEmit).
+      - name: Typecheck plugin sources and tests
+        run: yarn typecheck:plugin:tests
+
   test:
     runs-on: ubuntu-latest
 
@@ -42,6 +53,14 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+
+      # `yarn test` is plain `jest`; package.json `jest.projects` runs `lib` and
+      # `plugin` together. Fail loudly if the plugin project ever stops being
+      # collected (e.g. someone narrows the projects list).
+      - name: Assert the plugin test project is collected
+        run: |
+          yarn jest --listTests > "$RUNNER_TEMP/jest-tests.txt"
+          grep -q 'plugin/src/__tests__/' "$RUNNER_TEMP/jest-tests.txt"
 
       - name: Run unit tests
         run: yarn test --maxWorkers=2 --coverage
@@ -66,6 +85,27 @@ jobs:
 
       - name: Build package
         run: yarn prepare
+
+      # Packed once; every `expo tarball (sdk-N)` job installs exactly this file,
+      # and the artifact lets you download what CI tested.
+      - name: Pack tarball
+        run: |
+          mkdir -p "$RUNNER_TEMP/tarball"
+          npm pack --ignore-scripts --loglevel=warn --pack-destination "$RUNNER_TEMP/tarball"
+
+      - name: Verify tarball contents
+        run: |
+          tarballs=("$RUNNER_TEMP"/tarball/*.tgz)
+          bash ./scripts/verify-expo-tarball.sh contents "${tarballs[0]}"
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/tarball/*.tgz
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
 
   build-android:
     runs-on: ubuntu-latest
@@ -197,16 +237,36 @@ jobs:
         run: |
           yarn turbo run build:ios --cache-dir="${{ env.TURBO_CACHE_DIR }}"
 
+  # ---------------------------------------------------------------------------
+  # Expo config plugin
+  #
+  #   expo prebuild (android|ios)  quick gate: example-expo workspace, config
+  #                                plugin only, no native toolchain (~2-3 min)
+  #   expo android build           ./gradlew :app:assembleDebug on the prebuilt
+  #                                example-expo (one ABI) + merged-manifest check
+  #   expo ios build               pod install + xcodebuild for the iOS Simulator
+  #   expo tarball (sdk-N)         the packed npm tarball installed with plain
+  #                                npm into a fresh Expo SDK N app, then prebuild
+  #                                + value-level assertions
+  #
+  # Reproduce locally: "Working on the Expo config plugin" in CONTRIBUTING.md.
+  # ---------------------------------------------------------------------------
   expo-prebuild:
     name: expo prebuild (${{ matrix.platform }})
     needs: build-library
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { os: ubuntu-latest, platform: android }
-          - { os: macos-latest, platform: ios }
-    runs-on: ${{ matrix.os }}
+        platform: [android, ios]
+    # `expo prebuild --no-install` renders the templates and runs the config
+    # plugins; it needs neither CocoaPods nor Xcode, so the iOS leg stays on
+    # Linux and macOS minutes are spent only on `expo ios build`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_NO_GIT_STATUS: '1'
+
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -226,4 +286,198 @@ jobs:
         run: yarn expo prebuild --platform ${{ matrix.platform }} --clean --no-install
 
       - name: Assert prebuild output
-        run: ./scripts/assert-expo-prebuild-output.sh ${{ matrix.platform }}
+        run: bash ./scripts/assert-expo-prebuild-output.sh ${{ matrix.platform }}
+
+  expo-android-build:
+    name: expo android build
+    needs: [build-library, expo-prebuild]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_NO_GIT_STATUS: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Install JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Build the library
+        run: yarn prepare
+
+      - name: Link library into example-expo
+        working-directory: example-expo
+        run: yarn link:library
+
+      - name: Run expo prebuild
+        working-directory: example-expo
+        run: yarn expo prebuild --platform android --clean --no-install
+
+      - name: Assert prebuild output
+        run: bash ./scripts/assert-expo-prebuild-output.sh android
+
+      - name: Finalize Android SDK
+        run: |
+          /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
+
+      # After prebuild on purpose: the wrapper/AGP versions that key the cache
+      # only exist once example-expo/android has been generated.
+      - name: Cache Gradle
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches
+          key: ${{ runner.os }}-expo-gradle-${{ hashFiles('example-expo/android/gradle/wrapper/gradle-wrapper.properties', 'example-expo/android/build.gradle', 'example-expo/android/gradle.properties') }}-${{ hashFiles('example-expo/package.json') }}
+          # The second prefix warms a cold key from the bare build-android cache
+          # (same Gradle 8.14.3, same React Native and AGP artifacts).
+          restore-keys: |
+            ${{ runner.os }}-expo-gradle-
+            ${{ runner.os }}-gradle-
+
+      # One ABI is enough to compile the library's Kotlin and CMake targets
+      # inside an Expo app (same choice as the bare build-android job).
+      - name: Build example-expo for Android
+        working-directory: example-expo/android
+        run: |
+          ./gradlew :app:assembleDebug \
+            --no-daemon --console=plain --stacktrace \
+            -PreactNativeArchitectures=arm64-v8a \
+            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+
+      # The library manifest is merged by Gradle, never at prebuild time, so the
+      # service/receivers can only be asserted on the merged manifest.
+      - name: Assert merged manifest
+        run: bash ./scripts/assert-expo-prebuild-output.sh android-merged
+
+  expo-ios-build:
+    name: expo ios build
+    needs: [build-library, expo-prebuild]
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      # Same rationale as XCODE_VERSION in build-ios: resolve against whatever
+      # the current image ships, betas excluded, so image rotation cannot make
+      # this job unresolvable.
+      XCODE_VERSION: 'latest-stable'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_NO_GIT_STATUS: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Use appropriate Xcode version
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Report selected Xcode toolchain
+        run: |
+          echo "DEVELOPER_DIR=${DEVELOPER_DIR:-<unset>}"
+          xcodebuild -version
+          pod --version
+
+      - name: Build the library
+        run: yarn prepare
+
+      - name: Link library into example-expo
+        working-directory: example-expo
+        run: yarn link:library
+
+      - name: Run expo prebuild
+        working-directory: example-expo
+        run: yarn expo prebuild --platform ios --clean --no-install
+
+      - name: Assert prebuild output
+        run: bash ./scripts/assert-expo-prebuild-output.sh ios
+
+      - name: Cache CocoaPods downloads
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-expo-pods-${{ hashFiles('yarn.lock', 'example-expo/package.json', 'example-expo/ios/Podfile.properties.json') }}
+          restore-keys: |
+            ${{ runner.os }}-expo-pods-
+
+      # The generated Podfile enables the precompiled React Native core and
+      # dependencies by default; CocoaPods downloads them from Maven Central,
+      # hence the retries.
+      - name: Install pods
+        working-directory: example-expo/ios
+        run: |
+          for attempt in 1 2 3; do
+            if pod install; then
+              exit 0
+            fi
+            echo "pod install failed (attempt $attempt of 3)" >&2
+            sleep 20
+          done
+          exit 1
+
+      # Expo derives the project name from app.config.ts (example-expo becomes
+      # exampleexpo), so discover the workspace instead of hard-coding it.
+      - name: Build example-expo for the iOS Simulator
+        working-directory: example-expo/ios
+        run: |
+          workspace="$(find . -maxdepth 1 -name '*.xcworkspace' | head -n 1)"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          echo "workspace=$workspace scheme=$scheme"
+          xcodebuild \
+            -workspace "$workspace" \
+            -scheme "$scheme" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
+            build
+
+  expo-tarball-compat:
+    name: expo tarball (sdk-${{ matrix.sdk }})
+    needs: build-library
+    strategy:
+      fail-fast: false
+      matrix:
+        # 54 is the oldest supported SDK; 55-58 are the releases after it.
+        # Add the next SDK here when it ships (the template tag sdk-N exists
+        # before `expo@latest` moves).
+        sdk: ['54', '55', '56', '57', '58']
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SDK: ${{ matrix.sdk }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # No yarn install: the job consumes the packed artifact like a user would.
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Download tarball
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarball
+          path: ${{ runner.temp }}/tarball
+
+      - name: Verify the tarball as an Expo SDK consumer
+        run: |
+          tarballs=("$RUNNER_TEMP"/tarball/*.tgz)
+          bash ./scripts/verify-expo-tarball.sh consumer --sdk "$SDK" --tarball "${tarballs[0]}"
