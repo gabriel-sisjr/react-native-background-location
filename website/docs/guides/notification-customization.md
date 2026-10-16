@@ -33,7 +33,7 @@ The `NotificationOptions` interface is shared across all notification-producing 
 
 ```typescript
 interface NotificationOptions {
-  enabled?: boolean;          // Show notifications (default: true)
+  enabled?: boolean;          // Geofence notifications only (default: true); the tracking notification cannot be disabled
   title?: string;             // Notification title
   text?: string;              // Notification body text
   channelName?: string;       // Android notification channel name
@@ -56,14 +56,16 @@ interface NotificationOptions {
 
 | Priority | Behavior |
 |----------|----------|
-| `LOW` | Minimal notification, no sound or vibration |
-| `DEFAULT` | Standard notification behavior |
+| `LOW` | Minimal notification, no sound or vibration. Default for the tracking notification |
+| `DEFAULT` | Standard notification behavior. Default for geofence notifications |
 | `HIGH` | More prominent, may make sound |
-| `MAX` | Urgent notification, heads-up display |
+| `MAX` | Highest priority. For the tracking notification it maps to the same importance as `HIGH` on Android 8.0+ |
 
 ```typescript
 import { NotificationPriority } from '@gabriel-sisjr/react-native-background-location';
 ```
+
+On Android 8.0+ (API 26) the priority becomes the importance of the notification channel: for the tracking notification, `LOW`, `DEFAULT` and `HIGH` map to `IMPORTANCE_LOW`, `IMPORTANCE_DEFAULT` and `IMPORTANCE_HIGH`, and `MAX` maps to `IMPORTANCE_HIGH`. Android does not let an app raise the importance of a channel that already exists, so read [Notification Channel](#notification-channel) before relying on a priority above `LOW`.
 
 ## Tracking Notification (Android)
 
@@ -97,26 +99,16 @@ await startTracking({
 
 ### Dynamic Updates
 
-Update the notification while tracking is active using `updateNotification()`. This is useful for showing progress, changing the text based on trip state, or updating after a route change.
+Update the notification text while tracking is active using `updateNotification(title, text)`. This is useful for showing progress or changing the text based on trip state.
 
 ```typescript
 import { updateNotification } from '@gabriel-sisjr/react-native-background-location';
 
 // Update notification text during a trip
-await updateNotification({
-  title: 'Delivery in Progress',
-  text: `Stop 3 of 5 - ETA 10 min`,
-});
-
-// Update with new priority
-await updateNotification({
-  title: 'Almost There',
-  text: 'Arriving at destination',
-  priority: NotificationPriority.HIGH,
-});
+await updateNotification('Delivery in Progress', 'Stop 3 of 5 - ETA 10 min');
 ```
 
-Only the fields you provide are updated. Fields not specified retain their current values.
+Both arguments are required and must not be blank. The call rejects with `INVALID_ARGUMENTS` when either one is blank and with `NO_ACTIVE_SERVICE` when tracking is not running. Updates are transient: they are not persisted and revert to the original values if the service restarts. Only the title and text change; icons, color, priority and actions keep the values passed to `startTracking`. Each call re-posts the notification, so on Android 8.0+ with a `priority` above `LOW` (which only takes effect on a new `channelId`, see [Notification Channel](#notification-channel)) every update can play the channel's sound again, and with `HIGH` or `MAX` show a heads-up again. Keep `LOW` for a notification you update often.
 
 ## Notification Icons
 
@@ -135,25 +127,38 @@ await startTracking({
 
 ### Static Defaults via AndroidManifest
 
-You can set default notification icons via `<meta-data>` in your `AndroidManifest.xml` instead of passing them at runtime. These are used as fallbacks when no icon is specified in `notificationOptions`.
+You can set default notification icons and the accent color via `<meta-data>` in your `AndroidManifest.xml` instead of passing them at runtime. They are used as fallbacks when `notificationOptions` does not provide a value. Each entry must reference a resource (`@drawable/...` or `@color/...`).
 
 ```xml
 <application>
   <meta-data
-    android:name="com.backgroundlocation.notification.small_icon"
+    android:name="com.backgroundlocation.default_notification_icon"
     android:resource="@drawable/ic_notification" />
   <meta-data
-    android:name="com.backgroundlocation.notification.large_icon"
+    android:name="com.backgroundlocation.default_notification_large_icon"
     android:resource="@drawable/ic_notification_large" />
+  <meta-data
+    android:name="com.backgroundlocation.default_notification_color"
+    android:resource="@color/notification_accent" />
 </application>
 ```
 
-### Icon Resolution Order
+Alternatively, add drawables with these conventional names to `res/drawable/` and skip the manifest entries: `bg_location_notification_icon` (small icon) and `bg_location_notification_large_icon` (large icon).
 
-1. `smallIcon` / `largeIcon` from `notificationOptions` (runtime)
-2. `<meta-data>` values from `AndroidManifest.xml`
-3. Convention drawable name (`ic_notification`)
-4. System default icon
+> **Expo:** the Expo config plugin has no option for these defaults, and `expo prebuild --clean` regenerates `android/`, so entries or drawables added there by hand are lost. Use the runtime `notificationOptions` above instead (`color` is a plain hex string; `smallIcon` and `largeIcon` need drawables that already exist in the app). See the [Expo config plugin guide](./expo-config-plugin.md).
+
+### Resolution Order
+
+Small icon:
+
+1. `smallIcon` from `notificationOptions` (runtime). If no drawable with that name exists, a warning is logged and resolution continues.
+2. `com.backgroundlocation.default_notification_icon` meta-data
+3. Convention drawable `bg_location_notification_icon`
+4. System default icon (`android.R.drawable.ic_menu_mylocation`)
+
+The large icon follows the same order with `largeIcon`, `default_notification_large_icon` and `bg_location_notification_large_icon`; when none is found, no large icon is shown. The accent color uses `color` from `notificationOptions` (a hex string such as `#FF5722`; an invalid value is ignored and no accent color is applied) and then `default_notification_color`; when neither is set, no accent color is applied.
+
+These defaults apply to the tracking notification, to the start-up and crash-recovery notifications (small icon only) and to geofence notifications (small icon and color, plus the large icon when `largeIcon` is set).
 
 ## Notification Channel
 
@@ -169,7 +174,9 @@ await startTracking({
 });
 ```
 
-> **Important:** On Android 8.0+ (API 26), notification channels are immutable after creation. If you change `channelId` or `channelName` after the channel already exists on a device, the changes will not take effect for that channel. Use a new `channelId` or instruct users to clear notification settings.
+> **Important:** On Android 8.0+ (API 26), a channel's importance is decided when the channel is first created, and the library derives it from `priority`. The app cannot raise it afterwards -- the user controls it in the system settings -- so a higher `priority` for a `channelId` that already exists on a device is not applied to that channel. Use a new `channelId` to get a different importance. `channelName` can still be updated on an existing channel. On a development device, reinstalling the app or clearing its data also resets its channels.
+
+> **Note:** On Android 8.0+, the library's default channel, used when `channelId` is not set, is created with `IMPORTANCE_LOW` as soon as the tracking service starts, before your `notificationOptions` are read. To use a `priority` above `LOW` for the tracking notification, set your own `channelId` as well.
 
 ## Notification Action Buttons
 
