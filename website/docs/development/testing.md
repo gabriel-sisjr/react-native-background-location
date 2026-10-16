@@ -26,6 +26,15 @@ This document describes the testing structure for `@gabriel-sisjr/react-native-b
 yarn test
 ```
 
+`yarn test` runs two Jest projects: `lib` (the library, `src/__tests__/`) and `plugin` (the Expo config plugin, `plugin/src/__tests__/`).
+
+### One Project
+
+```bash
+yarn test --selectProjects lib
+yarn test --selectProjects plugin
+```
+
 ### With Coverage
 
 ```bash
@@ -48,8 +57,17 @@ yarn test -- src/__tests__/hooks/useBackgroundLocation.test.ts
 
 ```bash
 yarn test -- src/__tests__/hooks/useLocationPermissions.ios.test.ts
-yarn test -- src/__tests__/ios-tracking.test.ts
+yarn test -- src/__tests__/integration/ios-tracking.test.ts
 ```
+
+### Expo Config Plugin Tests Only
+
+```bash
+yarn test --selectProjects plugin
+yarn test --selectProjects plugin -u   # update the snapshots, then commit them
+```
+
+The plugin sources are in `plugin/src/`, and `plugin/tsconfig.json` excludes their tests, so `yarn typecheck` and `yarn prepare` never type-check them. Run `yarn typecheck:plugin:tests` to type-check the plugin together with its tests.
 
 ---
 
@@ -59,8 +77,9 @@ yarn test -- src/__tests__/ios-tracking.test.ts
 
 | File | Purpose |
 | --- | --- |
-| `setup-minimal.ts` | Minimal Jest configuration with basic React Native mocks |
-| `package.json` | Jest configuration with specific test patterns |
+| `setup-minimal.ts` | Minimal Jest configuration with basic React Native mocks (`lib` project) |
+| `package.json` | Jest configuration: the `lib` and `plugin` projects, each with its own test patterns (see [Jest Configuration](#jest-configuration)) |
+| `plugin/tsconfig.tests.json` | Type-checks the plugin sources together with their tests (`yarn typecheck:plugin:tests`) |
 
 ### Test Files
 
@@ -113,32 +132,71 @@ Basic React Native functionality:
 - `PermissionsAndroid` availability and constants
 - `Linking` module availability
 
+#### Expo Config Plugin Tests (`plugin/src/__tests__/`)
+
+The `plugin` project runs in a Node environment. It runs the plugin's modifiers against in-memory Android manifests and `Info.plist` objects, and the iOS deployment-target modifier against a throwaway Expo-style iOS project created in a temporary directory:
+
+| Test file | Covers |
+| --- | --- |
+| `index.test.ts` | The published entry point: props reach the mods, the run-once history entry (name and version) and the `PluginError` re-export |
+| `validate.test.ts` | Plugin props validation and the `PluginError` codes |
+| `withAndroidPermissions.test.ts` | The seven permissions are injected exactly once, unrelated permissions are preserved (snapshot and idempotency) |
+| `withIosUsageStrings.test.ts` | Usage string defaults and overrides, `UIBackgroundModes` and the `temporaryUsageDescriptions` merge (snapshot and idempotency) |
+| `withIosDeploymentTarget.test.ts` | The iOS deployment target is raised to 16.0 in `Podfile.properties.json` and the Xcode project, never lowered, and wins over a lower value written by another plugin's regular mod, such as `expo-build-properties` (plugin order does not matter) |
+| `withIosDeploymentTarget.integration.test.ts` | The deployment target through Expo's real mod compiler, with a stand-in for `expo-build-properties` listed before and after the plugin |
+| `assertNewArchitectureEnabled.test.ts` | The `NEW_ARCHITECTURE_DISABLED` guard: an explicit `false` is rejected on Expo SDK 54 and earlier and ignored from SDK 55 |
+| `warnUnsupportedExpoSdk.test.ts` | The non-fatal warning for Expo SDKs older than 54 |
+| `expoSdk.test.ts` | Parsing of the Expo SDK version |
+
+Shared helpers live in `fixtures/` and `utils/makeConfig.ts`. Snapshots are in `__snapshots__/` and are committed.
+
 ---
 
 ## Jest Configuration
 
+The Jest configuration lives in `package.json` and defines two projects (abridged):
+
 ```json
 {
   "jest": {
-    "preset": "react-native",
-    "setupFilesAfterEnv": ["<rootDir>/src/__tests__/setup-minimal.ts"],
-    "testMatch": [
-      "<rootDir>/src/__tests__/**/*-simple.test.{js,ts,tsx}",
-      "<rootDir>/src/__tests__/**/*-basic.test.{js,ts,tsx}",
-      "<rootDir>/src/__tests__/**/*.ios.test.{js,ts,tsx}",
-      "<rootDir>/src/__tests__/**/*.test.{js,ts,tsx}"
+    "projects": [
+      {
+        "displayName": "lib",
+        "preset": "react-native",
+        "setupFilesAfterEnv": ["<rootDir>/src/__tests__/setup-minimal.ts"],
+        "modulePathIgnorePatterns": [
+          "<rootDir>/example/node_modules",
+          "<rootDir>/website/",
+          "<rootDir>/lib/"
+        ],
+        "testMatch": ["<rootDir>/src/__tests__/**/*.test.{js,ts,tsx}"]
+      },
+      {
+        "displayName": "plugin",
+        "testEnvironment": "node",
+        "clearMocks": true,
+        "testMatch": ["<rootDir>/plugin/src/__tests__/**/*.test.ts"],
+        "transform": {
+          "^.+\\.ts$": [
+            "babel-jest",
+            { "presets": ["module:@babel/preset-typescript"] }
+          ]
+        }
+      }
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{js,ts,tsx}",
+      "!src/__tests__/**",
+      "!src/**/*.d.ts"
     ],
     "coverageThreshold": {
-      "global": {
-        "branches": 0,
-        "functions": 0,
-        "lines": 0,
-        "statements": 0
-      }
+      "global": { "branches": 0, "functions": 0, "lines": 0, "statements": 0 }
     }
   }
 }
 ```
+
+Run only the plugin tests with `yarn test --selectProjects plugin` and update their snapshots with `-u`. `yarn typecheck:plugin:tests` type-checks the test files, which `plugin/tsconfig.json` excludes. Coverage (`--coverage`) is collected for `src/` only.
 
 ---
 
@@ -211,7 +269,7 @@ it('should treat WHEN_IN_USE as hasPermission = true', () => {
 
 ## Adding New Tests
 
-1. Create a file with the suffix `-simple.test.ts`, `-basic.test.ts`, or `.ios.test.ts`
+1. Create a `*.test.ts` (or `.tsx`) file under `src/__tests__/` for the library, or under `plugin/src/__tests__/` for the Expo config plugin
 2. Follow existing naming patterns
 3. Use minimal mocks to avoid configuration problems
 4. Focus on basic functionality and types

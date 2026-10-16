@@ -27,7 +27,7 @@ The library uses GitHub Actions for automated publishing. For complete details o
 
 Three automated workflows handle publishing:
 
-1. **CI** -- Validates code on every PR (lint, test, build)
+1. **CI** -- Validates code on every PR (lint, test, build, Expo config plugin checks)
 2. **Publish** -- Publishes production versions from `main` branch
 3. **Pre-release** -- Publishes beta versions from `develop` branch (manual trigger)
 
@@ -61,10 +61,17 @@ See [CI/CD Pipeline > Setup Guide](./ci-cd.md#setup-guide) for step-by-step inst
    git push origin develop
    ```
 
-2. **Update version for production (when ready):**
+2. **Update version and changelog for production (when ready):**
 
    ```bash
-   npm version patch  # or minor, or major
+   npm version patch --no-git-tag-version  # or minor, or major
+   ```
+
+   `--no-git-tag-version` only edits `package.json`: the publish workflow creates the `vX.Y.Z` tag itself, and it fails if the tag already exists, so do not create or push it. Then update `CHANGELOG.md` (and `BREAKING_CHANGES.md` when the release has breaking changes) by hand, including the release date; neither file is generated. Commit and push:
+
+   ```bash
+   git add package.json CHANGELOG.md BREAKING_CHANGES.md
+   git commit -m "chore(version): bump v1.1.0"
    git push origin develop
    ```
 
@@ -76,11 +83,11 @@ See [CI/CD Pipeline > Setup Guide](./ci-cd.md#setup-guide) for step-by-step inst
 4. **Automatic production release:**
    After merge to `main`, the publish workflow automatically:
    - Checks if version changed
-   - Builds the package
+   - Builds the package (Expo config plugin, then library)
+   - Type-checks the plugin and verifies the contents of the packed tarball
    - Runs tests
-   - Publishes to npm (production tag)
-   - Creates GitHub release with tag
-   - Generates release notes
+   - Publishes to npm (production tag); `npm publish` first runs the `prepublishOnly` hook (library and plugin type checks, lint, tests and a rebuild of `plugin/build/` and `lib/`), and `prepare` runs once more while packing
+   - Creates the git tag and the GitHub release (the notes list the commit subjects since the previous tag; `CHANGELOG.md` is not read)
 
 ---
 
@@ -101,7 +108,8 @@ Beta releases are triggered manually via GitHub Actions UI (not automatic on pus
    - Go to GitHub repository > **Actions** tab
    - Select **"Pre-release to NPM"** workflow
    - Click **"Run workflow"**
-   - Select branch: `develop`
+   - Select branch: `develop` (**Use workflow from**)
+   - Leave **Branch to release from** at `develop`. The version suffix, the release note and the npm provenance record the commit of the branch chosen in **Use workflow from**, not of this input, so when you pre-release another branch, choose it in both fields.
    - (Optional) Provide custom version suffix (e.g., `rc1`, `beta1`)
    - (Optional) Provide description for the pre-release
    - Click **"Run workflow"**
@@ -127,15 +135,19 @@ yarn install
 yarn prepare
 ```
 
-This compiles TypeScript files, generates type definitions, and creates distributable files in `lib/`.
+This compiles the Expo config plugin into `plugin/build/`, then compiles TypeScript files, generates type definitions, and creates distributable files in `lib/`.
 
 ### 2. Verify the Build
 
 ```bash
 yarn typecheck
+yarn typecheck:plugin:tests
 yarn lint
 yarn test
+./scripts/verify-expo-tarball.sh all --sdk 54
 ```
+
+The last command packs the checkout, checks the tarball contents and installs the tarball into a fresh Expo SDK 54 app (see [Verify Package Contents](#verify-package-contents)).
 
 ### 3. Bump the Version
 
@@ -151,6 +163,8 @@ npm version major  # 0.1.0 -> 1.0.0 (breaking changes)
 npm publish --access public
 ```
 
+`npm publish` runs the `prepublishOnly` hook before packing (`yarn typecheck`, `yarn typecheck:plugin:tests`, `yarn lint`, `yarn test`, then `yarn build:plugin` and `bob build`), so step 2 is repeated automatically and a failure there aborts the publish.
+
 ---
 
 ## What Gets Published
@@ -165,24 +179,39 @@ The `files` field in `package.json` controls what gets included in the npm packa
 | `ios/` | Native iOS code |
 | `cpp/` | C++ code (if any) |
 | `*.podspec` | CocoaPods spec |
-| `react-native.config.js` | React Native configuration |
+| `react-native.config.js` | Named in `files`, but the repository has no such file, so no release has ever shipped it |
+| `app.plugin.js` | Expo config plugin entry point |
+| `app.plugin.d.ts` | Type declarations for the `./app.plugin` entry (re-exports `plugin/build`) |
+| `plugin/build/` | Compiled Expo config plugin (JavaScript and type declarations). `files` names `plugin/build` only, so plugin sources, tests, tsconfig files and `plugin/README.md` are not published |
 
 ### Verify Package Contents
 
 ```bash
-npm pack --dry-run
+yarn prepare
+npm pack --dry-run --ignore-scripts
 ```
+
+`yarn prepare` builds `lib/` and `plugin/build/`, which have to exist before packing. With npm 11 or later, `--ignore-scripts` keeps `npm pack` from running `prepare` a second time; npm 10 (bundled with the Node version in `.nvmrc`) runs it anyway, which only rebuilds the same files.
+
+To check the packed tarball against the release contract instead of reading the file list, run the verifier. It packs the checkout, checks the contents (required files such as `app.plugin.js` and `plugin/build/`, no plugin sources, tests or typings of `example-expo` and `website`, the `package.json` exports and optional `expo` peer, and the iOS privacy manifest) and installs the tarball with plain `npm install` into a fresh Expo SDK app, where it runs `expo prebuild` and asserts the output:
+
+```bash
+./scripts/verify-expo-tarball.sh all --sdk 54
+```
+
+The CI/CD workflows run the same content check (`verify-expo-tarball.sh contents`) before they publish.
 
 ---
 
 ## Pre-Publish Checklist
 
 - [ ] All tests pass (`yarn test`)
-- [ ] TypeScript types are correct (`yarn typecheck`)
+- [ ] TypeScript types are correct (`yarn typecheck` and `yarn typecheck:plugin:tests`)
 - [ ] Linting passes (`yarn lint`)
+- [ ] The packed tarball passes `./scripts/verify-expo-tarball.sh all --sdk 54`
 - [ ] Example app builds and runs on Android
 - [ ] Example app builds and runs on iOS
-- [ ] CHANGELOG is updated with latest changes
+- [ ] `CHANGELOG.md` is updated by hand (release-it does not write it); `BREAKING_CHANGES.md` too when the release has breaking changes. The release date in their headings is the day the release pull request is merged: confirm it on that pull request
 - [ ] Version number follows semantic versioning
 - [ ] No uncommitted changes in git
 - [ ] All native code compiles without warnings
@@ -242,11 +271,14 @@ BREAKING CHANGE: Location API has been completely redesigned"  # major
 
 | Script | Description |
 | --- | --- |
-| `yarn prepare` | Build the library |
+| `yarn prepare` | Build the Expo config plugin, then the library |
+| `yarn build:plugin` | Build only the Expo config plugin |
 | `yarn typecheck` | Type check |
+| `yarn typecheck:plugin:tests` | Type check the Expo config plugin, tests included |
 | `yarn lint` | Lint code |
+| `yarn verify:expo-tarball all --sdk 54` | Check the packed tarball; alias for `scripts/verify-expo-tarball.sh`, same arguments (see [Verify Package Contents](#verify-package-contents)) |
 | `yarn clean` | Clean build artifacts |
-| `yarn release` | Publish with versioning (release-it) |
+| `yarn release` | Runs release-it. Not part of the release process: releases are published by the publish workflow, and this script would version, tag and publish from your machine |
 | `yarn example android` | Run example app on Android |
 | `yarn example ios` | Run example app on iOS |
 
@@ -256,7 +288,7 @@ BREAKING CHANGE: Location API has been completely redesigned"  # major
 
 ### "Package already exists"
 
-You are trying to publish a version that already exists on npm. Bump the version first with `npm version patch|minor|major`.
+You are trying to publish a version that already exists on npm. Bump the version first with `npm version patch|minor|major --no-git-tag-version` (see [Production Release](#production-release), step 2: the publish workflow creates the tag itself).
 
 ### "You do not have permission to publish"
 
@@ -273,8 +305,8 @@ yarn prepare
 
 ### Missing Files in Package
 
-Check the `files` field in `package.json` and verify with:
+Check the `files` field in `package.json` and verify with (after `yarn prepare`):
 
 ```bash
-npm pack --dry-run
+npm pack --dry-run --ignore-scripts
 ```

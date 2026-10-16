@@ -1,7 +1,7 @@
 name: Expo config plugin bug
 description: Report a bug with the Expo config plugin (`expo prebuild` behavior, manifest/plist output, etc.)
-title: "[expo plugin]: "
-labels: ["bug", "expo-plugin"]
+title: '[expo plugin]: '
+labels: ['type: bug', 'platform: expo']
 body:
   - type: input
     id: library-version
@@ -14,7 +14,7 @@ body:
     id: expo-sdk
     attributes:
       label: Expo SDK version
-      description: From `app.json` or `expo --version`
+      description: Installed `expo` package version (output of `npm ls expo`)
     validations:
       required: true
   - type: input

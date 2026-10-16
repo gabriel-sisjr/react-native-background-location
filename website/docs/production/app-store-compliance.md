@@ -209,7 +209,7 @@ Starting Spring 2024, Apple requires privacy manifests for all SDKs and apps tha
 
 ### Library-Level Manifest
 
-The library includes `PrivacyInfo.xcprivacy` with these declarations:
+The library includes `PrivacyInfo.xcprivacy` with these declarations. Besides the collected data types, it declares its use of the `UserDefaults` required-reason API with reason `CA92.1` (information that is only accessible to the app itself):
 
 ```xml
 <key>NSPrivacyCollectedDataTypes</key>
@@ -239,7 +239,20 @@ The library includes `PrivacyInfo.xcprivacy` with these declarations:
         </array>
     </dict>
 </array>
+<key>NSPrivacyAccessedAPITypes</key>
+<array>
+    <dict>
+        <key>NSPrivacyAccessedAPIType</key>
+        <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+        <key>NSPrivacyAccessedAPITypeReasons</key>
+        <array>
+            <string>CA92.1</string>
+        </array>
+    </dict>
+</array>
 ```
+
+React Native's CocoaPods privacy aggregation merges the required-reason entries of every pod, including this `UserDefaults` declaration, into your app-level manifest during `pod install`. It is on by default in React Native 0.73.9 and later 0.73 patch releases, 0.74.1 and later 0.74 patch releases, and every release from 0.75 (`privacy_file_aggregation_enabled` in the `use_react_native!` call of your `Podfile`), and in the Expo SDK 54 template (unless `apple.privacyManifestAggregationEnabled` is `"false"`). On React Native 0.73.0 to 0.73.8 and 0.74.0, which predate it, or if you turned the aggregation off, declare `NSPrivacyAccessedAPICategoryUserDefaults` with reason `CA92.1` in your app-level manifest yourself.
 
 ### App-Level Manifest
 

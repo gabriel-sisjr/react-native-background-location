@@ -125,7 +125,7 @@ These must be declared in `AndroidManifest.xml` (see [Installation](./installati
 | `FOREGROUND_SERVICE_LOCATION` | Android 14+ (API 34+) | Foreground service type declaration  |
 | `POST_NOTIFICATIONS`          | Android 13+ (API 33+) | Show foreground service notification |
 
-> Using Expo? The [Expo config plugin](../guides/expo-config-plugin.md) injects all 7 required permissions for you.
+> Using Expo? The [Expo config plugin](../guides/expo-config-plugin.md) injects the six permissions above plus `RECEIVE_BOOT_COMPLETED` (used to restore geofences after a device reboot; the library's own manifest declares it, so bare projects get it through manifest merging).
 
 ### Runtime Permission Flow
 

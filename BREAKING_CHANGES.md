@@ -1,8 +1,20 @@
 # Breaking Changes
 
-## 0.18.0 (2026-MM-DD) - Expo config plugin (additive, no breaking changes)
+## 1.1.0 (2026-10-16) - Expo config plugin (additive, no breaking changes)
 
-No breaking changes. The Expo config plugin is purely additive — bare-workflow consumers are unaffected, and the new `app.plugin.js` entry has no impact on existing imports.
+> **Upgrade path:** v1.0.x --> v1.1.0
+
+No breaking changes. The public TypeScript API, the TurboModule Codegen spec, the native event names and the Android/iOS runtime code are unchanged, so **bare React Native apps need no code changes**. Expo projects get a config plugin (minimum Expo SDK 54) and do not need to change any JavaScript import.
+
+What changed in the package metadata, and when it could matter for a bare project:
+
+- **New optional peer dependency `expo`** (range `*`, marked optional in `peerDependenciesMeta`). It has no install-time effect: projects without the `expo` package are not affected, and a bare project that already has an `expo` release installed (for example through Expo Modules) gets no peer-dependency conflict or warning, whichever Expo SDK it is on. The peer exists so that the Expo config plugin, which imports its helpers from `expo/config-plugins`, resolves against the Expo SDK of the app. No earlier release declared an `expo` or `@expo/config-plugins` peer.
+- **New `exports` entries.** `./app.plugin` (with types) and `./app.plugin.js` were added next to the existing `.` and `./package.json`. Nothing that resolved before resolves differently now. `app.plugin.js` and `plugin/build/` are loaded by Expo's tooling when it evaluates your app config (prebuild, `expo config`, EAS); Metro and your app bundle never import them.
+- **`react-native.config.js` is still not shipped.** The `files` list in `package.json` has always named `react-native.config.js`, but no release of this package has ever contained that file, and this release does not add it either. Autolinking works from the package layout exactly as before.
+- **iOS privacy manifest.** `ios/PrivacyInfo.xcprivacy` now declares `NSPrivacyAccessedAPICategoryUserDefaults` with reason `CA92.1` (the library stores its stop token, recovery counters and geofence notification settings in `UserDefaults`). The previous manifest listed no accessed API types. If you maintain a hand-written aggregate privacy manifest or an App Store privacy report that mirrors the library's manifest, add the new entry.
+- **Package contents.** New files: `app.plugin.js`, `app.plugin.d.ts` (types for the `./app.plugin` entry) and `plugin/build/**`. The `files` list in `package.json` names `plugin/build` only, so the Expo plugin sources, tests, tsconfig files and `plugin/README.md` are not published. `lib/typescript/` no longer contains the declaration files generated from `website/` that every release since `0.14.0`, `1.0.0` included, shipped by mistake.
+
+Expo users: add the plugin to `plugins` and run `expo prebuild --clean`. The plugin raises the iOS deployment target to 16.0 when it is lower, wherever `expo-build-properties` sits in `plugins` (you can drop an `expo-build-properties` entry that only existed for this), and stops the prebuild with a `PluginError` (`NEW_ARCHITECTURE_DISABLED`) if the New Architecture is explicitly disabled, which Expo SDK 55 and later no longer allow. Expo SDK 50-53 are not supported: the plugin prints a warning there and does not block the prebuild. See the [Expo Config Plugin guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin).
 
 ## 0.14.0 (2026-04-15) - Public API Surface Cleanup
 

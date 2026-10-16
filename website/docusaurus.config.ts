@@ -35,7 +35,7 @@ const config: Config = {
       attributes: {
         name: 'keywords',
         content:
-          'react native, background location, location tracking, geofencing, turbomodule, GPS, foreground service, hooks, android, ios, typescript',
+          'react native, background location, location tracking, geofencing, turbomodule, GPS, foreground service, hooks, android, ios, typescript, expo',
       },
     },
     {
@@ -155,7 +155,15 @@ const config: Config = {
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['kotlin', 'swift', 'bash', 'json', 'markup', 'typescript', 'tsx'],
+      additionalLanguages: [
+        'kotlin',
+        'swift',
+        'bash',
+        'json',
+        'markup',
+        'typescript',
+        'tsx',
+      ],
     },
     colorMode: {
       defaultMode: 'dark',

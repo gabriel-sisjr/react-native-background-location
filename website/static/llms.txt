@@ -18,7 +18,8 @@ A React Native library that provides background location tracking using TurboMod
 - React >= 18.2.0
 - TurboModules (New Architecture) enabled
 - Android: min SDK 24, target SDK 34
-- iOS: 13+
+- iOS: 16.0+
+- Expo (optional): SDK 54+ with a development build, see /docs/guides/expo-config-plugin
 
 ## Public API
 
@@ -75,6 +76,7 @@ A React Native library that provides background location tracking using TurboMod
 - Quick Start: /docs/getting-started/quick-start
 - Background Tracking Guide: /docs/guides/background-tracking
 - Geofencing Guide: /docs/guides/geofencing
+- Expo Config Plugin: /docs/guides/expo-config-plugin
 - API Reference: /docs/api-reference/functions
 - Hooks Reference: /docs/api-reference/hooks/useBackgroundLocation
 - Architecture: /docs/architecture/overview

@@ -8,7 +8,4 @@ contact_links:
     about: If this library works as promised but you need help, please ask questions there.
   - name: Expo config plugin docs
     url: https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin
-    about: Installation, options, and troubleshooting for the Expo config plugin.
-  - name: Roadmap (item C2)
-    url: https://github.com/gabriel-sisjr/react-native-background-location/blob/develop/ROADMAP.md
-    about: The roadmap entry tracking this plugin's evolution.
+    about: Installation, options, supported SDK versions, and troubleshooting for the Expo config plugin.

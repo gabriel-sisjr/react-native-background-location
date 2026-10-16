@@ -229,8 +229,8 @@ Building the iOS or Android app fails at the Codegen step, complaining about enu
 **Fix.**
 
 1. Ensure the host app has the New Architecture enabled:
-   - iOS: `RCT_NEW_ARCH_ENABLED=1 pod install` (or set `newArchEnabled=true` in `ios/Podfile.properties.json` for Expo)
-   - Android: `newArchEnabled=true` in `android/gradle.properties`
+   - Bare React Native -- iOS: `RCT_NEW_ARCH_ENABLED=1 pod install`; Android: `newArchEnabled=true` in `android/gradle.properties`
+   - Expo -- it is on by default in SDK 54 and cannot be disabled in SDK 55 and later. Remove `newArchEnabled: false` from your Expo config (top level or under `ios` / `android`, and the `expo-build-properties` options) and run `npx expo prebuild --clean`; the config plugin stops the prebuild (and any other Expo command that loads your config) while the New Architecture is disabled ([`NEW_ARCHITECTURE_DISABLED`](./guides/expo-config-plugin.md#new_architecture_disabled))
 2. Run a clean `pod install` after changing the flag -- Codegen outputs land in `ios/build/generated/ios/` and must be regenerated.
 3. Do **not** modify the library's `NativeBackgroundLocation.ts` spec to use TypeScript enums or typed object arrays -- Codegen will reject them.
 4. If the generated files are stale, run `yarn clean` in the library and `yarn prepare` to regenerate the published artifacts.
