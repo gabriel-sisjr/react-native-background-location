@@ -26,7 +26,8 @@
     "*.podspec",
     "react-native.config.js",
     "app.plugin.js",
-    "plugin",
+    "app.plugin.d.ts",
+    "plugin/build",
     "!ios/build",
     "!android/build",
     "!android/gradle",
@@ -36,12 +37,7 @@
     "!**/__tests__",
     "!**/__fixtures__",
     "!**/__mocks__",
-    "!**/.*",
-    "!plugin/src",
-    "!plugin/tsconfig.json",
-    "!plugin/tsconfig.tests.json",
-    "!plugin/**/__tests__",
-    "!plugin/README.md"
+    "!**/.*"
   ],
   "scripts": {
     "example": "yarn workspace react-native-background-location-example",
@@ -53,7 +49,8 @@
     "build:plugin": "tsc --project plugin/tsconfig.json",
     "watch:plugin": "tsc --project plugin/tsconfig.json --watch",
     "typecheck:plugin:tests": "tsc --project plugin/tsconfig.tests.json --noEmit",
-    "prepublishOnly": "yarn typecheck && yarn lint && yarn test && yarn build:plugin && bob build",
+    "prepublishOnly": "yarn typecheck && yarn typecheck:plugin:tests && yarn lint && yarn test && yarn build:plugin && bob build",
+    "verify:expo-tarball": "bash scripts/verify-expo-tarball.sh",
     "release": "release-it --only-version",
     "docs:dev": "yarn workspace website start",
     "docs:build": "yarn workspace website build",

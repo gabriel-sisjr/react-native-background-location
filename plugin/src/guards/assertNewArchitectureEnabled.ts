@@ -127,14 +127,17 @@ export function assertNewArchitectureEnabled(config: ExpoConfig): void {
     )
     .join('\n');
 
+  // The iOS facts below (the build succeeds, the app crashes at startup) were
+  // verified with a native build and a simulator run, see the comment above;
+  // the evidence stays here and out of the end-user message.
   throw new PluginError(
     'NEW_ARCHITECTURE_DISABLED',
     `@gabriel-sisjr/react-native-background-location requires the React Native ` +
       `New Architecture, but it is disabled in your Expo config:\n${details}\n` +
-      `Without it the native build still succeeds, but the app crashes at ` +
-      `startup: TurboModuleRegistry.getEnforcing('BackgroundLocation') throws ` +
-      `as soon as the package is imported (verified on iOS; the legacy ` +
-      `architecture is not supported on Android either).\n` +
+      `Without it the native build still succeeds, but on iOS the app crashes ` +
+      `at startup: TurboModuleRegistry.getEnforcing('BackgroundLocation') ` +
+      `throws as soon as the package is imported. The legacy architecture is ` +
+      `not supported on Android either.\n` +
       `Fix: remove \`newArchEnabled: false\` (top level, \`ios\` and \`android\` ` +
       `in app.json / app.config.*) and the \`newArchEnabled\` props of ` +
       `expo-build-properties, or set them to \`true\`, then run ` +

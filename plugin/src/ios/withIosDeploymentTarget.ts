@@ -21,6 +21,8 @@ export const PODFILE_DEPLOYMENT_TARGET_KEY = 'ios.deploymentTarget';
  * First Expo SDK whose prebuild template already ships an iOS deployment
  * target (16.4) above {@link MIN_IOS_DEPLOYMENT_TARGET}. SDK 54 and 55 ship
  * 15.1 in the Podfile fallback and in every `IPHONEOS_DEPLOYMENT_TARGET`.
+ * Only a fallback: the generated `ios/Podfile` is read first, and this number
+ * decides only when that file cannot be read or parsed.
  */
 const FIRST_SDK_WITH_DEFAULT_TARGET_ABOVE_MINIMUM = 56;
 
@@ -64,13 +66,50 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * `platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`: the
+ * line of Expo's generated Podfile (identical on SDK 54-58 apart from the
+ * version) that holds the value CocoaPods uses when the key is absent. Anchored
+ * to the start of a line so that a commented-out copy is never read.
+ */
+const PODFILE_FALLBACK_PATTERN =
+  /^[ \t]*platform\s+:ios\s*,\s*podfile_properties\['ios\.deploymentTarget'\]\s*\|\|\s*'([\d.]+)'/m;
+
+/**
+ * The fallback version in `<platformProjectRoot>/Podfile`; `undefined` when the
+ * file cannot be read or does not contain the expected line.
+ */
+export function readPodfileFallback(
+  platformProjectRoot: string
+): string | undefined {
+  try {
+    const podfile = fs.readFileSync(
+      path.join(platformProjectRoot, 'Podfile'),
+      'utf8'
+    );
+    return PODFILE_FALLBACK_PATTERN.exec(podfile)?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Whether the Podfile fallback (the value used when `ios.deploymentTarget` is
  * absent from `Podfile.properties.json`) is below the library minimum.
- * Unknown SDKs answer `false` on purpose: writing 16.0 where the template
- * already defaults to 16.4 would LOWER the target below what Expo itself needs
- * (`Expo.podspec` requires 16.4 from SDK 56) and break `pod install`.
+ *
+ * The generated Podfile is the ground truth, because the template comes from
+ * the installed `expo` package. `config.sdkVersion` (which can be
+ * `UNVERSIONED`, missing or stale) only decides when the Podfile cannot be
+ * parsed. An unknown SDK then answers `false` on purpose: writing 16.0 where
+ * the template already defaults to 16.4 would LOWER the target below what Expo
+ * itself needs (`Expo.podspec` requires 16.4 from SDK 56) and break
+ * `pod install`.
  */
-function templateDefaultIsBelowMinimum(sdkMajor: number | undefined): boolean {
+function templateDefaultIsBelowMinimum(
+  sdkMajor: number | undefined,
+  podfileFallback: string | undefined
+): boolean {
+  const cmp = compareIosVersions(podfileFallback, MIN_IOS_DEPLOYMENT_TARGET);
+  if (cmp !== null) return cmp < 0;
   return (
     sdkMajor !== undefined &&
     sdkMajor < FIRST_SDK_WITH_DEFAULT_TARGET_ABOVE_MINIMUM
@@ -80,8 +119,10 @@ function templateDefaultIsBelowMinimum(sdkMajor: number | undefined): boolean {
 /**
  * Raises `ios.deploymentTarget` in the parsed `Podfile.properties.json`.
  *
- * - absent / `null` / `""`: written as 16.0 only on SDKs whose template default
- *   is below 16.0 (SDK 54/55), otherwise left absent (the default is >= 16.4);
+ * - absent / `null` / `""`: written as 16.0 only when the template default
+ *   (`podfileFallback`, read from the generated Podfile, else inferred from the
+ *   SDK: 54/55) is below 16.0, otherwise left absent (the default is already
+ *   >= 16.0, 16.4 from SDK 56);
  * - present and below 16.0: raised to 16.0 (a higher value is never touched);
  * - present but unparsable: discarded, then handled as absent.
  *
@@ -90,7 +131,8 @@ function templateDefaultIsBelowMinimum(sdkMajor: number | undefined): boolean {
  */
 export function raisePodfileDeploymentTarget(
   podfileProperties: Record<string, unknown>,
-  sdkMajor: number | undefined
+  sdkMajor: number | undefined,
+  podfileFallback?: string
 ): string | null {
   const current = podfileProperties[PODFILE_DEPLOYMENT_TARGET_KEY];
   const isAbsent = current === undefined || current === null || current === '';
@@ -121,7 +163,7 @@ export function raisePodfileDeploymentTarget(
 
   // Absent, or present but unparsable (discard the garbage first).
   if (!isAbsent) delete podfileProperties[PODFILE_DEPLOYMENT_TARGET_KEY];
-  if (templateDefaultIsBelowMinimum(sdkMajor)) {
+  if (templateDefaultIsBelowMinimum(sdkMajor, podfileFallback)) {
     podfileProperties[PODFILE_DEPLOYMENT_TARGET_KEY] =
       MIN_IOS_DEPLOYMENT_TARGET;
   }
@@ -180,7 +222,11 @@ function enforceOnPodfileProperties(
     }
   }
   const before = JSON.stringify(properties);
-  const warning = raisePodfileDeploymentTarget(properties, sdkMajor);
+  const warning = raisePodfileDeploymentTarget(
+    properties,
+    sdkMajor,
+    readPodfileFallback(platformProjectRoot)
+  );
   if (warning) WarningAggregator.addWarningIOS(WARNING_SCOPE, warning);
   if (JSON.stringify(properties) !== before) {
     fs.writeFileSync(file, `${JSON.stringify(properties, null, 2)}\n`);
@@ -212,16 +258,26 @@ function enforceOnXcodeProject(projectRoot: string): void {
  *
  * Runs as a *finalized* mod. Expo runs mods last-registered-first, so a regular
  * mod would be overwritten by `expo-build-properties` whenever this plugin is
- * listed after it; finalized mods run after every other mod, which makes the
- * result independent of plugin order. A value that is already higher is never
- * lowered, and the pass is idempotent (files are rewritten only when they change).
+ * listed after it; finalized mods run after every regular mod, so the result
+ * does not depend on where this plugin sits relative to `expo-build-properties`
+ * or any other plugin that uses regular mods. Finalized mods of different
+ * plugins still run last-registered-first, so a plugin that writes the target
+ * from its own finalized mod and is listed before this one runs after it. A
+ * value that is already higher is never lowered, and the pass is idempotent
+ * (files are rewritten only when they change).
+ *
+ * Whether `ios.deploymentTarget` has to be written at all depends on the
+ * template default, which is read from the generated `ios/Podfile` (the
+ * `|| '15.1'` fallback of the `platform :ios` line) and only inferred from
+ * `config.sdkVersion` when that line cannot be parsed.
  */
 export const withIosDeploymentTarget: ConfigPlugin = (config) =>
   withFinalizedMod(config, [
     'ios',
     async (cfg) => {
       const { introspect, projectRoot, platformProjectRoot } = cfg.modRequest;
-      // Introspection must not touch the file system.
+      // Introspection must not touch the file system. Defensive; Expo drops
+      // finalized mods during introspection.
       if (introspect) return cfg;
       enforceOnPodfileProperties(
         platformProjectRoot,

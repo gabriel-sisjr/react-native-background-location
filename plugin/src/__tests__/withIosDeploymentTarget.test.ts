@@ -1,4 +1,6 @@
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { WarningAggregator } from 'expo/config-plugins';
 import type { ConfigPlugin } from 'expo/config-plugins';
 import {
@@ -8,6 +10,7 @@ import {
   parseIosVersion,
   raisePodfileDeploymentTarget,
   raiseXcodeBuildConfigurations,
+  readPodfileFallback,
   withIosDeploymentTarget,
 } from '../ios/withIosDeploymentTarget';
 import { withBackgroundLocation } from '../withBackgroundLocation';
@@ -16,6 +19,7 @@ import {
   TEMPLATE_56_PLUS,
   createPbxproj,
   createTempIosProject,
+  podfileWithFallback,
   type TempIosProject,
 } from './fixtures/iosProject';
 import { hasRegisteredIosMod, runIosFinalizedMod } from './utils/makeConfig';
@@ -40,13 +44,29 @@ const warn = WarningAggregator.addWarningIOS as unknown as jest.Mock;
 
 const KEY = PODFILE_DEPLOYMENT_TARGET_KEY;
 
-const configForSdk = (sdkMajor: number | undefined): ExpoConfig => ({
+/**
+ * A number becomes `"<n>.0.0"` (how Expo derives `sdkVersion`); a string is used
+ * verbatim (for example `"UNVERSIONED"`); `undefined` leaves it out.
+ */
+const configForSdk = (sdk: number | string | undefined): ExpoConfig => ({
   name: 'app',
   slug: 'app',
   ios: {},
   android: {},
-  ...(sdkMajor === undefined ? {} : { sdkVersion: `${sdkMajor}.0.0` }),
+  ...(sdk === undefined
+    ? {}
+    : { sdkVersion: typeof sdk === 'number' ? `${sdk}.0.0` : sdk }),
 });
+
+/** An excerpt of the Podfile Expo SDK 54 generates, around the `platform` line. */
+const SDK_54_PODFILE = `require 'json'
+podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
+
+ENV['RCT_NEW_ARCH_ENABLED'] ||= '0' if podfile_properties['newArchEnabled'] == 'false'
+platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
+
+prepare_react_native_project!
+`;
 
 describe('parseIosVersion / compareIosVersions', () => {
   it.each([
@@ -99,6 +119,77 @@ describe('parseIosVersion / compareIosVersions', () => {
   it('returns null when either side is unparsable', () => {
     expect(compareIosVersions('latest', '16.0')).toBeNull();
     expect(compareIosVersions('16.0', undefined)).toBeNull();
+  });
+});
+
+describe('readPodfileFallback', () => {
+  let project: TempIosProject;
+
+  afterEach(() => {
+    project?.cleanup();
+  });
+
+  /** Lays out a temp project and returns its `ios` directory. */
+  const iosDirWith = (podfile: string | undefined): string => {
+    project = createTempIosProject({
+      podfileProperties: null,
+      pbxproj: createPbxproj(TEMPLATE_54_55),
+      podfile,
+    });
+    return path.dirname(project.podfilePath);
+  };
+
+  it.each(['15.1', '16.0', '16.4'])(
+    'reads %s from the generated platform line',
+    (version) => {
+      expect(
+        readPodfileFallback(iosDirWith(podfileWithFallback(version)))
+      ).toBe(version);
+    }
+  );
+
+  it('finds the line inside a real Podfile excerpt and ignores the rest', () => {
+    expect(readPodfileFallback(iosDirWith(SDK_54_PODFILE))).toBe('15.1');
+  });
+
+  it('accepts CRLF line endings and extra whitespace', () => {
+    const podfile =
+      "require 'json'\r\n" +
+      "  platform  :ios ,  podfile_properties['ios.deploymentTarget']  ||  '16.4'\r\n";
+    expect(readPodfileFallback(iosDirWith(podfile))).toBe('16.4');
+  });
+
+  it('accepts tab indentation and tabs between the tokens of the line', () => {
+    const podfile =
+      "require 'json'\n" +
+      "\tplatform\t:ios\t,\tpodfile_properties['ios.deploymentTarget']\t||\t'16.4'\n";
+    expect(readPodfileFallback(iosDirWith(podfile))).toBe('16.4');
+  });
+
+  it('ignores a commented-out copy of the line (never read a stale default)', () => {
+    const podfile =
+      "# platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'\n" +
+      podfileWithFallback('16.4');
+    expect(readPodfileFallback(iosDirWith(podfile))).toBe('16.4');
+  });
+
+  it.each([
+    ['a fixed platform version', "platform :ios, '15.1'\n"],
+    ['no platform line', "require 'json'\n"],
+    ['an empty file', ''],
+    [
+      'a non-numeric fallback',
+      "platform :ios, podfile_properties['ios.deploymentTarget'] || 'latest'\n",
+    ],
+  ])('returns undefined for %s', (_label, podfile) => {
+    expect(readPodfileFallback(iosDirWith(podfile))).toBeUndefined();
+  });
+
+  it('returns undefined when there is no Podfile or no directory at all', () => {
+    expect(readPodfileFallback(iosDirWith(undefined))).toBeUndefined();
+    expect(
+      readPodfileFallback(path.join(os.tmpdir(), 'bg-location-does-not-exist'))
+    ).toBeUndefined();
   });
 });
 
@@ -203,6 +294,55 @@ describe('raisePodfileDeploymentTarget', () => {
     });
   });
 
+  describe('the generated Podfile decides whether the template default is below 16.0', () => {
+    const resultFor = (
+      sdk: number | undefined,
+      podfileFallback: string | undefined
+    ): Record<string, unknown> => {
+      const props: Record<string, unknown> = {};
+      expect(
+        raisePodfileDeploymentTarget(props, sdk, podfileFallback)
+      ).toBeNull();
+      return props;
+    };
+
+    it.each([undefined, 54, 56, 58])(
+      'writes 16.0 when the Podfile fallback is 15.1, whatever the SDK number says (sdk %p)',
+      (sdk) => {
+        expect(resultFor(sdk, '15.1')).toEqual({ [KEY]: '16.0' });
+      }
+    );
+
+    it.each([undefined, 54, 55, 56, 58])(
+      'leaves the key absent when the Podfile fallback is 16.4, whatever the SDK number says (sdk %p)',
+      (sdk) => {
+        expect(resultFor(sdk, '16.4')).toEqual({});
+      }
+    );
+
+    it.each(['16.0', '16', '16.0.0', '17.0', '26'])(
+      'never writes 16.0 over a Podfile fallback of %s (already at or above the minimum)',
+      (fallback) => {
+        expect(resultFor(54, fallback)).toEqual({});
+      }
+    );
+
+    it('still raises an explicit value below 16.0 when the template default is already 16.4', () => {
+      const props: Record<string, unknown> = { [KEY]: '15.1' };
+      expect(raisePodfileDeploymentTarget(props, 58, '16.4')).toContain('15.1');
+      expect(props[KEY]).toBe('16.0');
+    });
+
+    it('falls back to the SDK number only when the Podfile value is unavailable or unparsable', () => {
+      expect(resultFor(54, undefined)).toEqual({ [KEY]: '16.0' });
+      expect(resultFor(55, 'latest')).toEqual({ [KEY]: '16.0' });
+      expect(resultFor(54, '')).toEqual({ [KEY]: '16.0' });
+      expect(resultFor(56, undefined)).toEqual({});
+      expect(resultFor(58, '16.x')).toEqual({});
+      expect(resultFor(undefined, undefined)).toEqual({});
+    });
+  });
+
   it('is idempotent', () => {
     const props: Record<string, unknown> = { [KEY]: '15.1' };
     raisePodfileDeploymentTarget(props, 54);
@@ -294,7 +434,7 @@ describe('withIosDeploymentTarget (finalized mod on disk)', () => {
   });
 
   const run = async (
-    sdk: number | undefined,
+    sdk: number | string | undefined,
     opts?: { introspect?: boolean }
   ) =>
     runIosFinalizedMod(
@@ -344,9 +484,11 @@ describe('withIosDeploymentTarget (finalized mod on disk)', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('wins over a lower value written by another plugin (the order-independence contract)', async () => {
+  it('wins over a lower value left behind by a regular mod that ran earlier', async () => {
     // What expo-build-properties { ios: { deploymentTarget: "15.1" } } leaves
-    // behind when it runs after every regular mod of this plugin.
+    // behind when it runs after every regular mod of this plugin. The ordering
+    // itself is covered through Expo's real mod compiler in
+    // withIosDeploymentTarget.integration.test.ts.
     project = createTempIosProject({
       podfileProperties: { [KEY]: '15.1' },
       pbxproj: createPbxproj({
@@ -424,6 +566,115 @@ describe('withIosDeploymentTarget (finalized mod on disk)', () => {
     });
     await run(58);
     expect(fs.existsSync(project.podfilePropertiesPath)).toBe(false);
+  });
+
+  describe('the generated ios/Podfile is the source of truth for the template default', () => {
+    it.each([
+      ['UNVERSIONED', 'UNVERSIONED'],
+      ['a missing sdkVersion', undefined],
+    ])(
+      'writes 16.0 on a 15.1 template when sdkVersion is %s (the SDK number is unknown)',
+      async (_label, sdk) => {
+        project = createTempIosProject({
+          podfileProperties: { 'expo.jsEngine': 'hermes' },
+          pbxproj: createPbxproj(TEMPLATE_54_55),
+          podfile: podfileWithFallback('15.1'),
+        });
+        await run(sdk);
+        expect(project.readPodfileProperties()).toEqual({
+          'expo.jsEngine': 'hermes',
+          [KEY]: '16.0',
+        });
+        expect(project.readDeploymentTargets()).toEqual([
+          '16.0',
+          '16.0',
+          '16.0',
+          '16.0',
+        ]);
+        expect(warn).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each([
+      ['a stale numeric SDK (54)', 54],
+      ['UNVERSIONED', 'UNVERSIONED'],
+      ['a missing sdkVersion', undefined],
+    ])(
+      'leaves a 16.4 template untouched byte for byte when sdkVersion is %s',
+      async (_label, sdk) => {
+        project = createTempIosProject({
+          podfileProperties: { 'expo.jsEngine': 'hermes' },
+          pbxproj: createPbxproj(TEMPLATE_56_PLUS),
+          podfile: podfileWithFallback('16.4'),
+        });
+        const podBefore = fs.readFileSync(project.podfilePropertiesPath);
+        const pbxBefore = fs.readFileSync(project.pbxprojPath);
+        await run(sdk);
+        expect(fs.readFileSync(project.podfilePropertiesPath)).toEqual(
+          podBefore
+        );
+        expect(fs.readFileSync(project.pbxprojPath)).toEqual(pbxBefore);
+        expect(warn).not.toHaveBeenCalled();
+      }
+    );
+
+    it('creates Podfile.properties.json for a 15.1 template even on an SDK 58 number', async () => {
+      project = createTempIosProject({
+        podfileProperties: null,
+        pbxproj: createPbxproj(TEMPLATE_54_55),
+        podfile: podfileWithFallback('15.1'),
+      });
+      await run(58);
+      expect(project.readPodfileProperties()).toEqual({ [KEY]: '16.0' });
+    });
+
+    it('does not write a key for a template that already defaults to exactly 16.0', async () => {
+      project = createTempIosProject({
+        podfileProperties: { 'expo.jsEngine': 'hermes' },
+        pbxproj: createPbxproj(TEMPLATE_56_PLUS),
+        podfile: podfileWithFallback('16.0'),
+      });
+      await run(54);
+      expect(project.readPodfileProperties()).toEqual({
+        'expo.jsEngine': 'hermes',
+      });
+    });
+
+    it.each([
+      ['a Podfile without the platform line', "require 'json'\n"],
+      ['an empty Podfile', ''],
+      ['a Podfile with a fixed platform', "platform :ios, '15.1'\n"],
+    ])(
+      'falls back to the SDK number when the Podfile cannot be parsed (%s)',
+      async (_label, podfile) => {
+        project = createTempIosProject({
+          podfileProperties: { 'expo.jsEngine': 'hermes' },
+          pbxproj: createPbxproj(TEMPLATE_54_55),
+          podfile,
+        });
+        await run(54);
+        expect(project.readPodfileProperties()[KEY]).toBe('16.0');
+        project.cleanup();
+
+        project = createTempIosProject({
+          podfileProperties: { 'expo.jsEngine': 'hermes' },
+          pbxproj: createPbxproj(TEMPLATE_56_PLUS),
+          podfile,
+        });
+        await run(58);
+        expect(KEY in project.readPodfileProperties()).toBe(false);
+      }
+    );
+
+    it('falls back to the SDK number when there is no Podfile at all', async () => {
+      project = createTempIosProject({
+        podfileProperties: { 'expo.jsEngine': 'hermes' },
+        pbxproj: createPbxproj(TEMPLATE_54_55),
+      });
+      expect(fs.existsSync(project.podfilePath)).toBe(false);
+      await run(54);
+      expect(project.readPodfileProperties()[KEY]).toBe('16.0');
+    });
   });
 
   it('does not overwrite an unreadable Podfile.properties.json, warns, and still fixes the pbxproj', async () => {

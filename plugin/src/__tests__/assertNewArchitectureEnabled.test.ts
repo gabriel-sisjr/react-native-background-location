@@ -106,6 +106,17 @@ describe('assertNewArchitectureEnabled', () => {
       expect(error.message).not.toContain('iOS:');
     });
 
+    it('a null ios value falls back to the top-level false (Expo uses ??)', () => {
+      // A bare toThrow() would also pass if the null fell through, because
+      // Android (undefined) throws for the same top-level false. Assert on iOS.
+      const error = catchError(
+        makeConfig({ newArchEnabled: false, ios: { newArchEnabled: null } })
+      );
+      expect(error.message).toContain(
+        'iOS: app config: newArchEnabled = false'
+      );
+    });
+
     it('the string "false" counts (Expo SDK 54 compares toString() to "false")', () => {
       expect(() =>
         assertNewArchitectureEnabled(makeConfig({ newArchEnabled: 'false' }))
@@ -242,11 +253,19 @@ describe('assertNewArchitectureEnabled', () => {
     it('states the real failure mode: the build succeeds, the app crashes at startup', () => {
       const error = catchError(makeConfig({ newArchEnabled: false }));
       expect(error.message).toContain('the native build still succeeds');
-      expect(error.message).toContain('crashes at startup');
+      expect(error.message).toContain('on iOS the app crashes at startup');
       expect(error.message).toContain(
         "TurboModuleRegistry.getEnforcing('BackgroundLocation')"
       );
       expect(error.message).toContain('as soon as the package is imported');
+      expect(error.message).toContain(
+        'The legacy architecture is not supported on Android either.'
+      );
+    });
+
+    it('keeps the verification evidence out of the end-user message', () => {
+      const error = catchError(makeConfig({ newArchEnabled: false }));
+      expect(error.message).not.toContain('verified');
     });
   });
 });

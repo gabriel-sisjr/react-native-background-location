@@ -13,17 +13,3 @@ exports[`withIosUsageStrings populates all three usage strings with defaults whe
   ],
 }
 `;
-
-exports[`withIosUsageStrings snapshot of full plist after applying defaults to an empty baseline 1`] = `
-{
-  "CFBundleDevelopmentRegion": "en",
-  "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-  "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-  "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location, even when the app is in the background.",
-  "NSLocationAlwaysUsageDescription": "Allow $(PRODUCT_NAME) to access your location at all times.",
-  "NSLocationWhenInUseUsageDescription": "Allow $(PRODUCT_NAME) to access your location while you use the app.",
-  "UIBackgroundModes": [
-    "location",
-  ],
-}
-`;

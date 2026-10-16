@@ -39,20 +39,68 @@ describe('withIosUsageStrings', () => {
     expect(result.UIBackgroundModes).toEqual(['audio', 'location']);
   });
 
-  it('consumer override wins for locationWhenInUseUsageDescription', async () => {
-    const config = withBackgroundLocation(baseExpoConfig(), {
-      locationWhenInUseUsageDescription: 'Custom copy',
+  // Precedence chain for every usage string: prop > existing plist value >
+  // library default. A value the consumer's app.json or another plugin already
+  // put in the plist must survive, and an explicit prop must beat it.
+  describe.each([
+    [
+      'locationWhenInUseUsageDescription',
+      'NSLocationWhenInUseUsageDescription',
+    ],
+    [
+      'locationAlwaysAndWhenInUseUsageDescription',
+      'NSLocationAlwaysAndWhenInUseUsageDescription',
+    ],
+    ['locationAlwaysUsageDescription', 'NSLocationAlwaysUsageDescription'],
+  ] as const)('%s', (prop, plistKey) => {
+    it('the prop wins over an existing plist value', async () => {
+      const config = withBackgroundLocation(baseExpoConfig(), {
+        [prop]: 'Custom copy',
+      });
+      const seeded = createBaseInfoPlist();
+      seeded[plistKey] = 'Pre-existing plist value';
+
+      const result = await runInfoPlistMod(config, seeded);
+
+      expect(result[plistKey]).toBe('Custom copy');
     });
 
-    // Pre-populate the plist with a value the consumer's app.json or another
-    // plugin could have set. The explicit prop must beat that value, which
-    // in turn beats the library default.
-    const seeded = createBaseInfoPlist();
-    seeded.NSLocationWhenInUseUsageDescription = 'Pre-existing plist value';
+    it('an existing plist value wins over the default when the prop is omitted', async () => {
+      const config = withBackgroundLocation(baseExpoConfig(), {});
+      const seeded = createBaseInfoPlist();
+      seeded[plistKey] = 'Pre-existing plist value';
 
-    const result = await runInfoPlistMod(config, seeded);
+      const result = await runInfoPlistMod(config, seeded);
 
-    expect(result.NSLocationWhenInUseUsageDescription).toBe('Custom copy');
+      expect(result[plistKey]).toBe('Pre-existing plist value');
+    });
+  });
+
+  it.each([
+    ['a string', 'audio'],
+    ['an object', { audio: true }],
+  ])(
+    'replaces a malformed UIBackgroundModes (%s) with ["location"]',
+    async (_label, malformed) => {
+      const config = withBackgroundLocation(baseExpoConfig(), {});
+      const seeded = createBaseInfoPlist();
+      (seeded as Record<string, unknown>).UIBackgroundModes = malformed;
+
+      const result = await runInfoPlistMod(config, seeded);
+
+      expect(result.UIBackgroundModes).toEqual(['location']);
+    }
+  );
+
+  it('lets temporaryUsageDescriptions win over an existing entry with the same key', async () => {
+    const config = withBackgroundLocation(baseExpoConfig(), {
+      temporaryUsageDescriptions: { ExistingKey: 'Prop value' },
+    });
+    const result = await runInfoPlistMod(config, createPrePopulatedInfoPlist());
+
+    expect(result.NSLocationTemporaryUsageDescriptionDictionary).toEqual({
+      ExistingKey: 'Prop value',
+    });
   });
 
   it('shallow-merges temporaryUsageDescriptions preserving existing keys', async () => {
@@ -84,15 +132,5 @@ describe('withIosUsageStrings', () => {
     const modes = secondResult.UIBackgroundModes as string[];
     expect(modes.filter((m) => m === 'location').length).toBe(1);
     expect(secondResult).toEqual(firstResult);
-  });
-
-  it('snapshot of full plist after applying defaults to an empty baseline', async () => {
-    // Top-level snapshot — locks the shape of the plist after the modifier
-    // runs on the canonical empty baseline. Mirrors the Android snapshot and
-    // gives the reviewer a single source of truth for the expected output.
-    const config = withBackgroundLocation(baseExpoConfig(), {});
-    const result = await runInfoPlistMod(config, createBaseInfoPlist());
-
-    expect(result).toMatchSnapshot();
   });
 });

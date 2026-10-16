@@ -7,7 +7,8 @@
 export interface BackgroundLocationPluginProps {
   /**
    * iOS `NSLocationWhenInUseUsageDescription`.
-   * Defaults to a generic, App-Review-safe string mentioning `$(PRODUCT_NAME)`.
+   * Defaults to a generic string mentioning `$(PRODUCT_NAME)`; override it
+   * before submitting to App Review.
    */
   locationWhenInUseUsageDescription?: string;
 
@@ -35,7 +36,7 @@ export interface BackgroundLocationPluginProps {
    * `requestTemporaryFullAccuracyAuthorization(withPurposeKey:)`.
    *
    * Keys are purpose strings (the `withPurposeKey` argument of that call).
-   * Values are App-Review-safe usage strings.
+   * Values must be non-empty strings.
    *
    * @example
    * { "AccurateFix": "We need accurate location for in-app navigation." }

@@ -30,9 +30,10 @@ const LIBRARY_PERMISSIONS: ReadonlyArray<string> = [
  *
  * Uses `AndroidConfig.Permissions.ensurePermissions`, which mutates the
  * supplied `AndroidManifest` in place and returns a `Record<string, boolean>`
- * summary of which permissions were already present. The summary is
- * intentionally discarded — assigning it back to `cfg.modResults` would
- * clobber the manifest object with the summary record and break the build.
+ * summary where `true` marks a permission that was added and `false` one that
+ * was already present. The summary is intentionally discarded — assigning it
+ * back to `cfg.modResults` would clobber the manifest object with the summary
+ * record and break the build.
  *
  * The helper is idempotent: calling it twice with the same permission list
  * produces a byte-identical manifest.

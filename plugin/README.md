@@ -11,14 +11,14 @@ Contributor-facing notes. End-user documentation lives in the
 modifier is registered, so a half-applied config can never escape) and then
 chains the modifiers:
 
-| Step                           | Source                                       | Effect                                                                                                                                                                                                                                                           |
-| ------------------------------ | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `validatePluginProps`          | `src/options/validate.ts`                    | Rejects invalid props with `PluginError`.                                                                                                                                                                                                                        |
-| `assertNewArchitectureEnabled` | `src/guards/assertNewArchitectureEnabled.ts` | Throws `PluginError` (`NEW_ARCHITECTURE_DISABLED`) when the New Architecture is explicitly disabled on Expo SDK 54 or earlier. Expo SDK 55+ ignores the flag.                                                                                                    |
-| `warnUnsupportedExpoSdk`       | `src/guards/warnUnsupportedExpoSdk.ts`       | Prints a non-fatal warning, once per platform, when the project uses an Expo SDK older than 54. Never throws and stays silent when the SDK is unknown (missing or `UNVERSIONED`).                                                                                |
-| `withAndroidPermissions`       | `src/android/withAndroidPermissions.ts`      | Ensures the seven permissions declared by the library's `AndroidManifest.xml` are present in the app manifest.                                                                                                                                                   |
-| `withIosUsageStrings`          | `src/ios/withIosUsageStrings.ts`             | Writes the `NSLocation*UsageDescription` keys (prop, then existing value, then default), adds `location` to `UIBackgroundModes` once, and merges `temporaryUsageDescriptions`.                                                                                   |
-| `withIosDeploymentTarget`      | `src/ios/withIosDeploymentTarget.ts`         | Raises the iOS deployment target to 16.0 (the podspec minimum) in `ios/Podfile.properties.json` and in every `IPHONEOS_DEPLOYMENT_TARGET` of `project.pbxproj`. Never lowers a higher value. Runs as a finalized mod, so it does not depend on the plugin order. |
+| Step                           | Source                                       | Effect                                                                                                                                                                                                                                                                              |
+| ------------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `validatePluginProps`          | `src/options/validate.ts`                    | Rejects invalid or unknown props with `PluginError` (an unknown option throws `UNKNOWN_PROP` and lists the supported ones).                                                                                                                                                         |
+| `assertNewArchitectureEnabled` | `src/guards/assertNewArchitectureEnabled.ts` | Throws `PluginError` (`NEW_ARCHITECTURE_DISABLED`) when the New Architecture is explicitly disabled on Expo SDK 54 or earlier. Expo SDK 55+ ignores the flag.                                                                                                                       |
+| `warnUnsupportedExpoSdk`       | `src/guards/warnUnsupportedExpoSdk.ts`       | Prints a non-fatal warning, once per platform, when the project uses an Expo SDK older than 54. Never throws and stays silent when the SDK is unknown (missing or `UNVERSIONED`).                                                                                                   |
+| `withAndroidPermissions`       | `src/android/withAndroidPermissions.ts`      | Ensures the seven permissions declared by the library's `AndroidManifest.xml` are present in the app manifest.                                                                                                                                                                      |
+| `withIosUsageStrings`          | `src/ios/withIosUsageStrings.ts`             | Writes the `NSLocation*UsageDescription` keys (prop, then existing value, then default), adds `location` to `UIBackgroundModes` once, and merges `temporaryUsageDescriptions`.                                                                                                      |
+| `withIosDeploymentTarget`      | `src/ios/withIosDeploymentTarget.ts`         | Raises the iOS deployment target to 16.0 (the podspec minimum) in `ios/Podfile.properties.json` and in every `IPHONEOS_DEPLOYMENT_TARGET` of `project.pbxproj`. Never lowers a higher value. Runs as a finalized mod, so it runs after every regular mod whatever the plugin order. |
 
 ## Design notes
 
@@ -35,27 +35,35 @@ chains the modifiers:
   registered under the same name (for example `podfileProperties`) run in
   reverse plugin order, so a regular mod would be overwritten by
   `expo-build-properties` whenever that plugin is listed before this one.
-  Finalized mods run after every other mod. On an untouched Expo SDK 56+
-  template the default is already above 16.0 and the mod changes nothing.
-- **`config.sdkVersion` drives the SDK-aware behavior** (`src/utils/expoSdk.ts`).
-  A missing or `UNVERSIONED` value never triggers the guard or the warning, and
-  the deployment-target mod then does not add an absent `ios.deploymentTarget`
-  key, because it cannot tell whether the template default is already above 16.0.
+  Finalized mods run after every regular mod, but finalized mods of different
+  plugins also run in reverse plugin order: a plugin that is listed before this
+  one and writes the deployment target from its own finalized mod runs after it.
+  On an untouched Expo SDK 56+ template the default is already above 16.0 and
+  the mod changes nothing.
+- **`config.sdkVersion` drives the SDK-aware guard and warning**
+  (`src/utils/expoSdk.ts`). A missing or `UNVERSIONED` value never triggers
+  them. The deployment-target mod does not depend on it: it reads the template
+  default from the generated `ios/Podfile`
+  (`platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`) and
+  falls back to the SDK number (below 56 means 15.1) only when that line cannot
+  be parsed. It writes the key only when that default is below 16.0, so a 16.4
+  template (SDK 56+) is never lowered, even with a stale `sdkVersion`.
 - **Every error has a stable code.** `PluginError` exposes `code`
   (`PluginErrorCode` in `src/errors/PluginError.ts`). Document new codes in the
   user guide.
 
 ## Layout
 
-| Path                         | Role                                                                                |
-| ---------------------------- | ----------------------------------------------------------------------------------- |
-| `app.plugin.js`              | Repo-root entry shim; `require()`s `./plugin/build`.                                |
-| `plugin/src/`                | TypeScript sources. Not published to npm.                                           |
-| `plugin/src/index.ts`        | Default export (`createRunOncePlugin` wrapper); re-exports `PluginError` and types. |
-| `plugin/src/__tests__/`      | Jest tests, snapshots, fixtures and the `makeConfig.ts` helpers that run mods.      |
-| `plugin/build/`              | Compiled JS + `.d.ts` consumed by `app.plugin.js`. Published.                       |
-| `plugin/tsconfig.json`       | Standalone Node-target tsconfig. Does not extend the root tsconfig.                 |
-| `plugin/tsconfig.tests.json` | Same options, re-includes the tests that `tsconfig.json` excludes (`noEmit`).       |
+| Path                         | Role                                                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `app.plugin.js`              | Repo-root entry shim; `require()`s `./plugin/build`.                                                                             |
+| `app.plugin.d.ts`            | Repo-root type stub that re-exports `./plugin/build`, so `<pkg>/app.plugin` has types under `moduleResolution: node`. Published. |
+| `plugin/src/`                | TypeScript sources. Not published to npm.                                                                                        |
+| `plugin/src/index.ts`        | Default export (`createRunOncePlugin` wrapper); re-exports `PluginError` and types.                                              |
+| `plugin/src/__tests__/`      | Jest tests, snapshots, fixtures and the `makeConfig.ts` helpers that run mods.                                                   |
+| `plugin/build/`              | Compiled JS + `.d.ts` consumed by `app.plugin.js`. Published.                                                                    |
+| `plugin/tsconfig.json`       | Standalone Node-target tsconfig. Does not extend the root tsconfig.                                                              |
+| `plugin/tsconfig.tests.json` | Same options, re-includes the tests that `tsconfig.json` excludes (`noEmit`).                                                    |
 
 ## Scripts
 

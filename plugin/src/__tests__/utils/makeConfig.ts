@@ -237,8 +237,9 @@ export const hasRegisteredIosMod = (
  * `ios/Podfile.properties.json` and `ios/*.xcodeproj`). Throws if the mod is
  * not registered, which would indicate a regression in the plugin chain.
  *
- * `finalized` mods run after every other mod, so the iOS deployment-target
- * floor holds whatever the plugin order is; `dangerous` mods run before them.
+ * `finalized` mods run after every regular mod, so the iOS deployment-target
+ * floor holds whatever the order of the other plugins' regular mods is;
+ * `dangerous` mods run before them.
  */
 export const runRegisteredMod = async (
   config: ExpoConfig,

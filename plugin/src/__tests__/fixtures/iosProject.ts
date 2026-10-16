@@ -74,8 +74,17 @@ export const TEMPLATE_56_PLUS = {
   targetRelease: '16.4',
 } as const;
 
+/**
+ * The line of the generated `ios/Podfile` that holds the value CocoaPods uses
+ * when `ios.deploymentTarget` is absent from `Podfile.properties.json`. Expo
+ * ships `'15.1'` on SDK 54/55 and `'16.4'` on SDK 56-58.
+ */
+export const podfileWithFallback = (fallback: string): string =>
+  `platform :ios, podfile_properties['ios.deploymentTarget'] || '${fallback}'\n`;
+
 export interface TempIosProject {
   projectRoot: string;
+  podfilePath: string;
   podfilePropertiesPath: string;
   pbxprojPath: string;
   readPodfileProperties: () => Record<string, unknown>;
@@ -87,14 +96,18 @@ export interface TempIosProject {
  * Lays out `<tmp>/ios/Podfile.properties.json` and
  * `<tmp>/ios/App.xcodeproj/project.pbxproj` the way `expo prebuild` does.
  * Pass `podfileProperties: null` to omit the JSON file, or a string to write
- * raw (possibly invalid) content.
+ * raw (possibly invalid) content. Pass `podfile` to also write
+ * `<tmp>/ios/Podfile` (see {@link podfileWithFallback}); it is omitted by
+ * default, which is how the plugin falls back to the SDK number.
  */
 export const createTempIosProject = ({
   podfileProperties,
   pbxproj,
+  podfile,
 }: {
   podfileProperties: Record<string, unknown> | string | null;
   pbxproj: string;
+  podfile?: string;
 }): TempIosProject => {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bg-location-'));
   const iosDir = path.join(projectRoot, 'ios');
@@ -110,11 +123,14 @@ export const createTempIosProject = ({
         : `${JSON.stringify(podfileProperties, null, 2)}\n`
     );
   }
+  const podfilePath = path.join(iosDir, 'Podfile');
+  if (podfile !== undefined) fs.writeFileSync(podfilePath, podfile);
   const pbxprojPath = path.join(xcodeprojDir, 'project.pbxproj');
   fs.writeFileSync(pbxprojPath, pbxproj);
 
   return {
     projectRoot,
+    podfilePath,
     podfilePropertiesPath,
     pbxprojPath,
     readPodfileProperties: () =>
