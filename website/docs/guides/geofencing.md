@@ -45,7 +45,7 @@ Before using geofencing:
 1. **Location permissions:** Background location access is required. Use `useLocationPermissions` and call `requestPermissions()` before registering geofences. See the [Permission Handling](./permission-handling.md) guide.
 2. **Android:** Google Play Services must be installed. Without it, a `GeofenceError` with code `PLAY_SERVICES_UNAVAILABLE` is thrown.
 3. **iOS:** "Always" authorization is required for reliable background monitoring. "When In Use" works only in the foreground.
-4. **Minimum versions:** iOS 13+, Android SDK 24+.
+4. **Minimum versions:** iOS 16+, Android SDK 24+.
 
 ## Quick Start
 

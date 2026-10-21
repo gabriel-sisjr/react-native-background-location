@@ -36,6 +36,7 @@ keywords:
 - **Unified React hooks** -- `useBackgroundLocation`, `useLocationPermissions`, `useLocationUpdates`, and `useLocationTracking`
 - **Fully typed TypeScript API** -- Complete type definitions for all methods, options, events, and hook return types
 - **Provider abstraction** -- Google Play Services primary with automatic Android Location API fallback
+- **Expo config plugin** -- Expo SDK 54+ projects get permissions, usage strings, and background modes configured on `expo prebuild`
 
 ## Platform Support
 
@@ -45,7 +46,7 @@ keywords:
 | Persistent storage | Room Database (SQLite) | Core Data (SQLite) |
 | Crash recovery | WorkManager | Significant location monitoring |
 | Location provider | Fused Location (Google Play Services) + Android Location fallback | CLLocationManager |
-| Min SDK / OS version | API 24 (Android 7.0) | iOS 13+ |
+| Min SDK / OS version | API 24 (Android 7.0) | iOS 16+ |
 | Target SDK | 34 (Android 14) | Latest Xcode SDK |
 | Notification customization | Full (icon, color, actions, dynamic updates) | N/A (system blue bar) |
 | Geofencing | Google Geofencing API | CLCircularRegion |
@@ -65,6 +66,7 @@ keywords:
 | CocoaPods (iOS) | 1.13+ |
 | Android minSdkVersion | 24 |
 | Kotlin (Android) | 1.9+ |
+| Expo (optional) | SDK 54+ with a development build (SDK 54 needs Node.js 20.19.4+ and Xcode 16.1+, and newer SDKs raise these minimums; see the [Expo Config Plugin guide](../guides/expo-config-plugin.md)) |
 
 > **Note:** This library requires the React Native New Architecture (TurboModules) to be enabled. It does not support the legacy bridge architecture.
 

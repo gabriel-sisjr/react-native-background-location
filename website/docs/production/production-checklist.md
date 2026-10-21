@@ -70,7 +70,7 @@ See the [Battery Optimization](../guides/battery-optimization.md) and [Notificat
 
 ### iOS
 
-- [ ] Tested on iOS 13+ (minimum supported version)
+- [ ] Tested on iOS 16+ (minimum supported version)
 - [ ] Tested WhenInUse to Always permission escalation flow
 - [ ] Tested background tracking with blue status bar indicator visible
 - [ ] Tested `foregroundOnly` mode pauses tracking when backgrounded

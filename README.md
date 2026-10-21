@@ -28,26 +28,51 @@ A TurboModule for the React Native New Architecture. Drives a foreground service
 - Persistent location storage (Room on Android, Core Data on iOS)
 - Crash recovery via WorkManager and significant location monitoring
 - React hooks: `useBackgroundLocation`, `useLocationPermissions`, `useLocationUpdates`, `useLocationTracking`
-- Expo config plugin for managed workflows
+- Expo config plugin (SDK 54+) that configures permissions, usage strings, background modes and the iOS 16 deployment target on `expo prebuild`
 
 ## Requirements
 
-| Requirement    | Version                            |
-| -------------- | ---------------------------------- |
-| React Native   | >=0.73 (New Architecture required) |
-| iOS            | >=16.0                             |
-| Android minSdk | 24                                 |
+| Requirement     | Version                                                     |
+| --------------- | ----------------------------------------------------------- |
+| React Native    | >=0.73 (New Architecture required)                          |
+| iOS             | >=16.0                                                      |
+| Android minSdk  | 24                                                          |
+| Expo (optional) | SDK 54+ with a development build (Expo Go is not supported) |
 
 ## Installation
 
-### Bare React Native (recommended)
+### Bare React Native
 
 ```bash
 yarn add @gabriel-sisjr/react-native-background-location
 cd ios && pod install
 ```
 
-Autolinking handles Android manifest merging and iOS pod registration. Bare iOS apps must still add `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`, and a `UIBackgroundModes` entry containing `location` to their `Info.plist`. See the [iOS setup guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details.
+Autolinking registers the library with Gradle and CocoaPods, and Gradle's manifest merger merges the library's manifest into your app manifest. Bare iOS apps must still add `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`, `NSLocationAlwaysUsageDescription`, and a `UIBackgroundModes` entry containing `location` to their `Info.plist`. See the [iOS setup guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/getting-started/ios-setup) for full details.
+
+### Expo
+
+Requires version 1.1.0 or later of this package (the first release that ships the config plugin), Expo SDK 54 or later and a [development build](https://docs.expo.dev/develop/development-builds/introduction/) (Expo Go is not supported).
+
+```bash
+npx expo install @gabriel-sisjr/react-native-background-location
+```
+
+Then add the plugin to your `app.json`:
+
+```json
+{
+  "expo": {
+    "plugins": ["@gabriel-sisjr/react-native-background-location"]
+  }
+}
+```
+
+```bash
+npx expo prebuild --clean
+```
+
+The plugin injects the Android permissions, the iOS `Info.plist` usage strings and `UIBackgroundModes`, and raises the iOS deployment target to 16.0 when it is lower, so `expo-build-properties` is not needed. It stops the prebuild with a `PluginError` if the New Architecture is explicitly disabled (SDK 54 is the last SDK that allows it). See the [Expo config plugin guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin) for options and supported SDK versions.
 
 ## Quick Start
 

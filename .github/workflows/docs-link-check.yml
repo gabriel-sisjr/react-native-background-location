@@ -36,13 +36,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      # Lychee runs in two passes so that broken *internal* links and broken
-      # *anchors* (e.g. foo.md#section) hard-fail CI, while broken *external*
-      # links are reported as a warning only. External hosts are routinely
-      # flaky (rate limits, transient 5xx, DNS hiccups, geo-blocking GH
-      # runners) and blocking merges on them creates noisy false positives
-      # that train contributors to ignore the check entirely.
-
       - name: Check internal links and anchors (fail-blocking)
         uses: lycheeverse/lychee-action@82202e5e9c2f4ef1a55a3d02563e1cb6041e5332 # v2.6.1
         with:

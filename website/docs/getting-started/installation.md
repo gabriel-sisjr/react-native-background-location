@@ -36,10 +36,11 @@ Ensure your project satisfies these peer dependencies:
 |---|---|
 | `react` | >= 18.2.0 |
 | `react-native` | >= 0.73.0 |
+| `expo` (optional) | `*` -- only needed for the [Expo config plugin](../guides/expo-config-plugin.md), which requires Expo SDK 54 or later |
 
-The New Architecture (TurboModules) must be enabled in your project. This is the default for React Native >= 0.76.
+The New Architecture (TurboModules) must be enabled in your project. This is the default for React Native >= 0.76 and for Expo SDK 54 and later.
 
-## Android Setup
+## Android Setup (bare React Native)
 
 ### Add Permissions to AndroidManifest.xml
 
@@ -89,7 +90,7 @@ yarn start --reset-cache
 yarn android
 ```
 
-## iOS Setup
+## iOS Setup (bare React Native)
 
 iOS requires additional configuration beyond installing the package. See the dedicated [iOS Setup](./ios-setup.md) page for complete instructions, including:
 
@@ -108,18 +109,18 @@ Quick summary for minimal setup:
 cd ios && pod install && cd ..
 ```
 
-## Expo Compatibility
+## Expo
 
-This library uses native TurboModules and **does not support Expo Go**. To use it in an Expo project, you must use a [development build](https://docs.expo.dev/develop/development-builds/introduction/) or the bare workflow.
+This library contains native Kotlin (Android) and Swift (iOS) code, so it **does not run in Expo Go**. Use Expo SDK 54 or later with a [development build](https://docs.expo.dev/develop/development-builds/introduction/) or EAS Build.
 
-If you are using Expo with a development build:
+With the config plugin you do **not** follow the Android and iOS setup sections above -- they are for bare React Native projects. Instead:
 
-1. Install the library as shown above
-2. Run `npx expo prebuild` to generate native projects
-3. Follow the Android and iOS setup steps on the generated native projects
-4. Build with `npx expo run:android` or `npx expo run:ios`
+1. Install the library: `npx expo install @gabriel-sisjr/react-native-background-location`
+2. Add `"@gabriel-sisjr/react-native-background-location"` to the `plugins` array of your `app.json` (or `app.config.ts`)
+3. Run `npx expo prebuild --clean` to generate the native projects. The plugin adds the Android permissions, the iOS usage strings and `UIBackgroundModes`, and raises the iOS deployment target to 16.0
+4. Build with `npx expo run:android` or `npx expo run:ios` (or EAS Build)
 
-> **Note:** The library includes native Kotlin (Android) and Swift (iOS) code that requires compilation. Expo Go does not support custom native modules.
+See the [Expo config plugin guide](../guides/expo-config-plugin.md) for the options, the supported SDK versions and troubleshooting.
 
 ## Verifying the Installation
 
@@ -133,9 +134,9 @@ const status = await isTracking();
 console.log('Library loaded, tracking active:', status.active);
 ```
 
-If you see a warning about `BackgroundLocation not available`, the native module is not linked. Common causes:
+If the app crashes at launch (a red screen in development) with `TurboModuleRegistry.getEnforcing(...): 'BackgroundLocation' could not be found`, the native module is not linked -- on Expo, see [the startup crash](../guides/expo-config-plugin.md#the-app-crashes-at-startup-with-backgroundlocation-could-not-be-found). Common causes:
 
-- New Architecture is not enabled
+- New Architecture is not enabled (on Expo, remove `newArchEnabled: false` from your config and run `npx expo prebuild --clean`; the config plugin stops the prebuild, and any other Expo command that loads your config, while the New Architecture is disabled)
 - Native project was not rebuilt after installation
 - CocoaPods not installed (iOS)
 

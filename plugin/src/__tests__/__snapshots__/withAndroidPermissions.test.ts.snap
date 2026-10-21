@@ -1,0 +1,56 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`withAndroidPermissions injects exactly the 7 library permissions on a clean manifest 1`] = `
+{
+  "manifest": {
+    "$": {
+      "xmlns:android": "http://schemas.android.com/apk/res/android",
+    },
+    "application": [
+      {
+        "$": {
+          "android:name": ".MainApplication",
+        },
+      },
+    ],
+    "queries": [],
+    "uses-permission": [
+      {
+        "$": {
+          "android:name": "android.permission.ACCESS_FINE_LOCATION",
+        },
+      },
+      {
+        "$": {
+          "android:name": "android.permission.ACCESS_COARSE_LOCATION",
+        },
+      },
+      {
+        "$": {
+          "android:name": "android.permission.ACCESS_BACKGROUND_LOCATION",
+        },
+      },
+      {
+        "$": {
+          "android:name": "android.permission.FOREGROUND_SERVICE",
+        },
+      },
+      {
+        "$": {
+          "android:name": "android.permission.FOREGROUND_SERVICE_LOCATION",
+        },
+      },
+      {
+        "$": {
+          "android:name": "android.permission.POST_NOTIFICATIONS",
+        },
+      },
+      {
+        "$": {
+          "android:name": "android.permission.RECEIVE_BOOT_COMPLETED",
+        },
+      },
+    ],
+  },
+}
+`;

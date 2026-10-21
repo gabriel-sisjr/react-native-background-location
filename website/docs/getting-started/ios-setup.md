@@ -107,6 +107,8 @@ complete and accurate trip records for fleet management.</string>
 CoreLocation framework.</string>
 ```
 
+> Using Expo? The [Expo config plugin](../guides/expo-config-plugin.md) handles the `Info.plist` usage strings and the `UIBackgroundModes` entry automatically and raises the iOS deployment target to 16.0.
+
 ## Step 3: Enable Background Modes in Xcode
 
 1. Open your `.xcworkspace` file in Xcode (not `.xcodeproj`)
@@ -133,10 +135,11 @@ The library includes a `PrivacyInfo.xcprivacy` file that is automatically bundle
 
 - **Precise Location** (`NSPrivacyCollectedDataTypePreciseLocation`) -- collected for app functionality
 - **Coarse Location** (`NSPrivacyCollectedDataTypeCoarseLocation`) -- collected for app functionality
+- **UserDefaults** (`NSPrivacyAccessedAPICategoryUserDefaults`, reason `CA92.1`) -- the library keeps its crash-recovery state (stop token and restart counter) and the geofence notification settings in the app's own `UserDefaults`; nothing is shared with other apps or an App Group
 - No tracking domains
 - No tracking
 
-You do **not** need to add a separate privacy manifest for the library. However, your **app-level** `PrivacyInfo.xcprivacy` must also declare location data collection for App Store submissions targeting iOS 17+.
+You do **not** need to add a separate privacy manifest for the library. However, your **app-level** `PrivacyInfo.xcprivacy` must also declare location data collection for App Store submissions targeting iOS 17+. See [App Store Compliance](../production/app-store-compliance.md#library-level-manifest) for the full manifest and for apps on React Native 0.73.0 to 0.73.8 or 0.74.0, which predate React Native's privacy aggregation.
 
 ## Step 5: Notification Permission
 

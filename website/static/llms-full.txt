@@ -13,6 +13,7 @@ npm install @gabriel-sisjr/react-native-background-location
 ```
 
 Requirements: React Native >= 0.73.0, React >= 18.2.0, TurboModules enabled.
+Expo (optional): SDK 54+ with a development build (Expo Go is not supported); add the config plugin, see https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin
 
 ## Quick Start
 
@@ -297,15 +298,17 @@ interface NotificationOptions {
   text?: string;
   channelId?: string;
   channelName?: string;
-  channelDescription?: string;
   priority?: NotificationPriority;
-  smallIconName?: string;
-  largeIconName?: string;
+  smallIcon?: string;
+  largeIcon?: string;
   color?: string;
   showTimestamp?: boolean;
-  subText?: string;
+  subtext?: string;
   actions?: NotificationAction[];
-  transitionOverrides?: Record<string, { title?: string; text?: string }>;
+  transitionOverrides?: Partial<Record<
+    'ENTER' | 'EXIT' | 'DWELL',
+    Omit<NotificationOptions, 'transitionOverrides' | 'enabled'>
+  >>;
 }
 ```
 
@@ -347,4 +350,4 @@ interface NotificationOptions {
 | Notifications | Full customization | System blue bar |
 | Crash recovery | WorkManager | Significant location monitoring |
 | Permission model | Foreground → Background → Notification | WhenInUse → Always |
-| Min SDK | 24 | iOS 13 |
+| Min SDK | 24 | iOS 16 |

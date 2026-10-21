@@ -1,6 +1,6 @@
 {
   "name": "@gabriel-sisjr/react-native-background-location",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "React Native library for background location tracking using TurboModules. Track user location even when the app is minimized or in the background.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -10,6 +10,11 @@
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
+    "./app.plugin": {
+      "types": "./plugin/build/index.d.ts",
+      "default": "./app.plugin.js"
+    },
+    "./app.plugin.js": "./app.plugin.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -20,6 +25,9 @@
     "cpp",
     "*.podspec",
     "react-native.config.js",
+    "app.plugin.js",
+    "app.plugin.d.ts",
+    "plugin/build",
     "!ios/build",
     "!android/build",
     "!android/gradle",
@@ -36,8 +44,13 @@
     "test": "jest",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
-    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
-    "prepare": "bob build",
+    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib plugin/build",
+    "prepare": "tsc --project plugin/tsconfig.json && bob build",
+    "build:plugin": "tsc --project plugin/tsconfig.json",
+    "watch:plugin": "tsc --project plugin/tsconfig.json --watch",
+    "typecheck:plugin:tests": "tsc --project plugin/tsconfig.tests.json --noEmit",
+    "prepublishOnly": "yarn typecheck && yarn typecheck:plugin:tests && yarn lint && yarn test && yarn build:plugin && bob build",
+    "verify:expo-tarball": "bash scripts/verify-expo-tarball.sh",
     "release": "release-it --only-version",
     "docs:dev": "yarn workspace website start",
     "docs:build": "yarn workspace website build",
@@ -73,7 +86,9 @@
     "event-driven",
     "location-updates",
     "persistent-storage",
-    "location-permissions"
+    "location-permissions",
+    "expo",
+    "expo-config-plugin"
   ],
   "repository": {
     "type": "git",
@@ -107,6 +122,7 @@
     "eslint": "^9.35.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "expo": "~54.0.37",
     "jest": "^30.3.0",
     "prettier": "^3.8.1",
     "react": "19.2.4",
@@ -118,26 +134,56 @@
     "typescript": "^6.0.2"
   },
   "peerDependencies": {
+    "expo": "*",
     "react": ">=18.2.0",
     "react-native": ">=0.73.0"
   },
+  "peerDependenciesMeta": {
+    "expo": {
+      "optional": true
+    }
+  },
   "workspaces": [
     "example",
+    "example-expo",
     "website"
   ],
   "packageManager": "yarn@3.6.1",
   "jest": {
-    "preset": "react-native",
-    "setupFilesAfterEnv": [
-      "<rootDir>/src/__tests__/setup-minimal.ts"
-    ],
-    "modulePathIgnorePatterns": [
-      "<rootDir>/example/node_modules",
-      "<rootDir>/website/",
-      "<rootDir>/lib/"
-    ],
-    "testMatch": [
-      "<rootDir>/src/__tests__/**/*.test.{js,ts,tsx}"
+    "projects": [
+      {
+        "displayName": "lib",
+        "preset": "react-native",
+        "setupFilesAfterEnv": [
+          "<rootDir>/src/__tests__/setup-minimal.ts"
+        ],
+        "modulePathIgnorePatterns": [
+          "<rootDir>/example/node_modules",
+          "<rootDir>/website/",
+          "<rootDir>/lib/"
+        ],
+        "testMatch": [
+          "<rootDir>/src/__tests__/**/*.test.{js,ts,tsx}"
+        ]
+      },
+      {
+        "displayName": "plugin",
+        "testEnvironment": "node",
+        "clearMocks": true,
+        "testMatch": [
+          "<rootDir>/plugin/src/__tests__/**/*.test.ts"
+        ],
+        "transform": {
+          "^.+\\.ts$": [
+            "babel-jest",
+            {
+              "presets": [
+                "module:@babel/preset-typescript"
+              ]
+            }
+          ]
+        }
+      }
     ],
     "collectCoverageFrom": [
       "src/**/*.{js,ts,tsx}",
@@ -180,6 +226,11 @@
           "name": "angular"
         }
       }
+    },
+    "hooks": {
+      "after:bump": [
+        "yarn build:plugin"
+      ]
     }
   },
   "prettier": {

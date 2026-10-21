@@ -50,18 +50,25 @@ Beta releases: Manual trigger via GitHub Actions UI
 - Push to `main` or `develop` branches
 - Pull requests targeting `main` or `develop`
 - Merge queue checks
+- Manual run (`workflow_dispatch`), available once the workflow is on the default branch
 
 **Jobs:**
 
 | Job | Description |
 | --- | --- |
-| Lint | ESLint validation |
-| Test | Jest unit tests with coverage |
-| Build Library | TypeScript compilation |
-| Build Android | Native Android compilation |
-| Build iOS | Native iOS compilation (macOS runner) |
+| `lint` | ESLint, `tsc` for the library and `tsc` for the Expo plugin sources and tests (`yarn typecheck:plugin:tests`) |
+| `test` | Jest unit tests with coverage (the `lib` and `plugin` projects); fails if the plugin test project is not collected |
+| `build-library` | `yarn prepare` (Expo config plugin, then library), then packs the npm tarball once, checks its contents and uploads it as the `npm-tarball` artifact |
+| `build-android` | Native Android compilation of the example app |
+| `build-ios` | Native iOS compilation of the example app (macOS runner) |
+| `expo prebuild (android)` and `expo prebuild (ios)` | `expo prebuild` on `example-expo/` with the plugin built from the checkout, then value-level assertions on the generated project (`scripts/assert-expo-prebuild-output.sh`). Both run on Ubuntu: prebuild needs neither CocoaPods nor Xcode |
+| `expo android build` | Prebuild, then `./gradlew :app:assembleDebug` of `example-expo` (one ABI) and assertions on the merged `AndroidManifest.xml` |
+| `expo ios build` | Prebuild, `pod install` and `xcodebuild` for the iOS Simulator (macOS runner) |
+| `expo tarball (sdk-54)` to `expo tarball (sdk-58)` | The tarball packed by `build-library`, installed with plain `npm install` into a fresh Expo SDK 54 to 58 app, then `expo prebuild` and the same assertions (no props, all props, pre-existing config) |
 
-**Duration:** ~10-15 minutes
+The Expo jobs run the plugin the way a user does. The native builds (`expo android build` and `expo ios build`) cover Expo SDK 54, the SDK `example-expo` uses; SDK 55 to 58 are verified up to the prebuild by the tarball jobs. To run the same checks on your machine, see "Working on the Expo Config Plugin" in the [Contributing guide](./contributing.md).
+
+**Duration:** roughly 10-20 minutes; the native build jobs run in parallel and take the longest
 
 ---
 
@@ -74,15 +81,19 @@ Beta releases: Manual trigger via GitHub Actions UI
 **Process:**
 
 1. Check if version changed (compare with npm registry)
-2. Build package (`yarn prepare`)
-3. Run unit tests
-4. Publish to npm with production tag
-5. Create git tag (e.g., `v1.2.3`)
-6. Create GitHub Release with auto-generated notes
+2. Build package (`yarn prepare`: Expo config plugin, then library)
+3. Type-check the plugin sources and tests (`yarn typecheck:plugin:tests`)
+4. Verify tarball contents: pack with `npm pack --ignore-scripts`, then `scripts/verify-expo-tarball.sh contents` (required files such as `app.plugin.js` and `plugin/build/`, no sources or tests, the `package.json` contract and the iOS privacy manifest)
+5. Run unit tests
+6. Publish to npm with production tag. `npm publish` first runs the `prepublishOnly` hook (`yarn typecheck`, `yarn typecheck:plugin:tests`, `yarn lint`, `yarn test`, then the plugin and library builds) and runs `prepare` once more while packing. This is the only step of the workflow that runs `yarn lint` and the root `yarn typecheck`, so a lint or type error that steps 2-5 do not cover fails the release here, before anything is uploaded
+7. Create git tag (e.g., `v1.2.3`)
+8. Create GitHub Release (the notes list the commit subjects since the previous tag; `CHANGELOG.md` is not read)
 
 **Duration:** ~5-7 minutes
 
 **Version Detection:** The workflow automatically compares `package.json` version with the latest on npm. If versions match, publishing is skipped.
+
+**Tags:** The workflow creates the `vX.Y.Z` tag itself. Do not create or push that tag manually: the tag step fails when it already exists.
 
 **Security:**
 - Uses `--provenance` flag for supply chain security
@@ -102,7 +113,8 @@ Beta releases: Manual trigger via GitHub Actions UI
 1. Go to the GitHub **Actions** tab
 2. Select **"Pre-release to NPM"** workflow
 3. Click **"Run workflow"**
-4. Select branch: `develop`
+4. Select branch: `develop` (**Use workflow from**)
+   - Leave **Branch to release from** at `develop`. The version suffix, the release note and the npm provenance record the commit of the branch chosen in **Use workflow from**, not of this input, so when you pre-release another branch, choose it in both fields.
 5. (Optional) Provide custom version suffix (e.g., `rc1`, `beta1`)
 6. (Optional) Provide description for the pre-release
 7. Click **"Run workflow"**
@@ -110,12 +122,14 @@ Beta releases: Manual trigger via GitHub Actions UI
 ### What Happens
 
 1. Generates beta version: `X.Y.Z-beta.TIMESTAMP.SHA` (or custom suffix)
-2. Builds the package
-3. Runs unit tests
-4. Publishes to npm with `@beta` tag
-5. Creates pre-release tag
-6. Creates GitHub Pre-release
-7. Comments on recently merged PRs with install instructions
+2. Builds the package (`yarn prepare`: Expo config plugin, then library)
+3. Type-checks the plugin sources and tests (`yarn typecheck:plugin:tests`)
+4. Verifies the tarball contents (`scripts/verify-expo-tarball.sh contents`, the same check as the Publish workflow)
+5. Runs unit tests
+6. Publishes to npm with `@beta` tag (`npm publish` first runs the `prepublishOnly` hook: type checks, lint, tests and builds, as in the Publish workflow)
+7. Creates pre-release tag
+8. Creates GitHub Pre-release
+9. Comments on recently merged PRs with install instructions
 
 **Duration:** ~5-7 minutes
 
@@ -185,11 +199,13 @@ For both `main` and `develop` branches:
    - Enable: Require approvals (1)
    - Enable: Require status checks to pass before merging
    - Enable: Require branches to be up to date
-   - Required status checks: `lint`, `test`, `build-library`, `build-android`, `build-ios`
+   - Required status checks: `lint`, `test`, `build-library`, `build-android`, `build-ios`, plus `expo prebuild (android)`, `expo prebuild (ios)` and `expo tarball (sdk-54)` (see the note below)
    - Enable: Require conversation resolution
    - Enable: Do not allow bypassing settings
    - Disable: Force pushes and deletions
 4. Click **"Create"**
+
+**Note on the Expo checks:** Required checks are an owner action in the repository settings; no workflow adds them. GitHub only offers check names it has already seen, so add the Expo checks after they have passed once on the target branch. This repository is governed by a repository ruleset rather than a classic branch protection rule, so add them to the `required_status_checks` rule of that ruleset. `expo android build` and `expo ios build` can be added after a few green runs. `expo tarball (sdk-54)` floats with the Expo patch releases of SDK 54 (the template and the `expo` version it installs), like the SDK 55 to 58 legs, so require it only if you accept that a new Expo patch release can turn it red without a change in this repository. `expo tarball (sdk-55)` to `expo tarball (sdk-58)` should stay informational: the Expo template for each SDK moves independently of this repository, so a patch release of Expo could otherwise block an unrelated pull request.
 
 ---
 
@@ -222,17 +238,22 @@ After merge to develop:
 git checkout develop
 git pull origin develop
 
-# 2. Bump version (semantic versioning)
-npm version patch   # Bug fixes: 1.0.0 -> 1.0.1
-npm version minor   # New features: 1.0.0 -> 1.1.0
-npm version major   # Breaking changes: 1.0.0 -> 2.0.0
+# 2. Bump version (semantic versioning). --no-git-tag-version only edits
+#    package.json: the Publish workflow creates the vX.Y.Z tag itself.
+npm version patch --no-git-tag-version   # Bug fixes: 1.0.0 -> 1.0.1
+npm version minor --no-git-tag-version   # New features: 1.0.0 -> 1.1.0
+npm version major --no-git-tag-version   # Breaking changes: 1.0.0 -> 2.0.0
 
-# 3. Push version
+# 3. Update CHANGELOG.md (and BREAKING_CHANGES.md when needed) by hand,
+#    including the release date. Neither file is generated.
+
+# 4. Commit and push
+git add package.json CHANGELOG.md BREAKING_CHANGES.md
+git commit -m "chore(version): bump v1.1.0"
 git push origin develop
-git push origin --tags
 
-# 4. Create PR from develop to main on GitHub
-# 5. After merge, production is published automatically
+# 5. Create PR from develop to main on GitHub
+# 6. After merge, production is published automatically
 ```
 
 ### Hotfix Process
@@ -301,11 +322,13 @@ npm view @gabriel-sisjr/react-native-background-location dist-tags
 
 **Cause:** Version in `package.json` matches the published version.
 
-**Solution:**
+**Solution:** bump the version on `develop` and merge it into `main` again:
 
 ```bash
-npm version patch  # or minor, major
-git push --tags
+npm version patch --no-git-tag-version  # or minor, major
+git add package.json
+git commit -m "chore(version): bump v1.0.1"
+git push origin develop
 ```
 
 #### "401 Unauthorized" during npm publish
@@ -325,9 +348,13 @@ Run locally first:
 yarn install
 yarn lint
 yarn typecheck
+yarn typecheck:plugin:tests
 yarn test
 yarn prepare
+./scripts/verify-expo-tarball.sh all --sdk 54
 ```
+
+The last command reproduces the `build-library` tarball check and an `expo tarball (sdk-54)` job. The Expo prebuild and native build jobs are reproduced step by step in "Working on the Expo Config Plugin" in the [Contributing guide](./contributing.md).
 
 #### Pre-release not triggered
 

@@ -1,0 +1,19 @@
+{
+  // Tests-only tsconfig for the Expo config plugin.
+  //
+  // The production `plugin/tsconfig.json` excludes `**/__tests__/**` so test
+  // files are not emitted into `plugin/build/` and do not ship in the npm
+  // tarball. That also means `tsc --project plugin/tsconfig.json` skips
+  // type-checking the tests. This config extends the same compiler options but
+  // re-includes the test tree (still `noEmit`, so it produces no artifacts).
+  //
+  // Wired into `lefthook.yml` as the `types-plugin-tests` command and runnable
+  // ad-hoc via `yarn typecheck:plugin:tests`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*"],
+  "exclude": ["build"]
+}

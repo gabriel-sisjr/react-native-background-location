@@ -1,5 +1,81 @@
 # Changelog
 
+## [1.1.0] - 2026-10-16
+
+> **Expo support.** The package now ships an Expo config plugin, so projects on Expo SDK 54 or later (`expo prebuild` / EAS Build) get the Android permissions, iOS usage strings, `UIBackgroundModes` and the iOS 16.0 deployment target configured automatically. **Bare React Native apps are unaffected:** the public TypeScript API, the TurboModule Codegen spec, the native event names and the Android/iOS runtime code are unchanged. Compared with `1.0.1`, the only change to the native sources and resources is the iOS privacy manifest, which now declares its `UserDefaults` usage. This release also contains the `1.0.1` changes (Android build fix for AGP 9), which were only published as a beta.
+
+### Added
+
+- **Expo config plugin** — list `@gabriel-sisjr/react-native-background-location` in the `plugins` array of `app.json` / `app.config.ts` (entry point `app.plugin.js`, compiled sources in `plugin/build/`). On every `expo prebuild` it:
+  - injects the seven Android permissions declared by the library (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`) into `AndroidManifest.xml`, each exactly once, also when the app already declares some of them;
+  - writes `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription` and `NSLocationAlwaysUsageDescription` into `Info.plist` (plugin option, then a value already in `ios.infoPlist` or set by a plugin listed after this one, then a generic default; a plugin listed before this one that sets the same key itself, such as `expo-location`, runs later and wins) and adds `location` to `UIBackgroundModes` exactly once;
+  - raises the iOS deployment target to 16.0 when the project is set lower (`ios.deploymentTarget` in `Podfile.properties.json` and every `IPHONEOS_DEPLOYMENT_TARGET` of the Xcode project), so `expo-build-properties` is no longer needed for that. Whether `ios.deploymentTarget` has to be written at all is decided from the template default in the generated `ios/Podfile` (the fallback after `||` in the `platform :ios` line); the Expo SDK number is only the fallback when that line cannot be parsed. A project that keeps the default of Expo SDK 56 and later (16.4) is left untouched. The result does not depend on where `expo-build-properties` (or any other plugin that uses regular mods) sits in `plugins`, a higher value is never lowered, and an `ios.deploymentTarget` below 16.0 that the project set explicitly is overridden with a warning;
+  - stops the prebuild with a `PluginError` (`NEW_ARCHITECTURE_DISABLED`) when the New Architecture is explicitly disabled (`newArchEnabled: false`, in the app config or through `expo-build-properties`) on Expo SDK 54 or earlier; Expo SDK 55 and later cannot disable it. The library only supports the New Architecture: on iOS with the legacy architecture the native build still succeeds, but the app throws as soon as the package is imported;
+  - prints a non-fatal warning, and still applies its changes, when the project uses an Expo SDK older than 54. It stays silent when the SDK version is unknown.
+- **Plugin options** — `locationWhenInUseUsageDescription`, `locationAlwaysAndWhenInUseUsageDescription`, `locationAlwaysUsageDescription` and `temporaryUsageDescriptions` (merged into `NSLocationTemporaryUsageDescriptionDictionary`; the library has no runtime API that consumes it). Props are validated before any file is touched: invalid values throw a `PluginError`, and so do unknown or misspelled options (`UNKNOWN_PROP`, which lists the supported ones). `BackgroundLocationPluginProps` and `PluginError` are exported from `@gabriel-sisjr/react-native-background-location/app.plugin`.
+- New [Expo Config Plugin guide](https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin) (prerequisites, supported SDK versions, options, troubleshooting, bare-to-Expo migration), Expo notes in the README and in the Installation, iOS Setup and Permissions pages, and an "Expo config plugin bug" issue template.
+- `example-expo/` Yarn workspace on Expo SDK 54, used by CI to run `expo prebuild` against the plugin end to end.
+- Jest `plugin` project (snapshot, idempotency and modifier tests) next to the existing `lib` project; `yarn test` runs both.
+
+### Changed
+
+- **Minimum supported Expo SDK is 54** (React Native 0.81, React 19.1). SDK 50-53 are not supported: the plugin prints a warning there and does not block the prebuild. The `react-native` peer range is unchanged (`>=0.73.0`).
+- **New optional peer dependency `expo`** (range `*`, `peerDependenciesMeta.expo.optional`). It is only needed for the Expo config plugin, which imports its helpers from `expo/config-plugins` and therefore always runs against the Expo SDK of the app. The range is `*` on purpose, so it does not conflict with the `expo` release a project already has. No earlier release declared an `expo` or `@expo/config-plugins` peer.
+- `package.json` `exports` now also exposes `./app.plugin` (with types) and `./app.plugin.js`; the existing `.` and `./package.json` entries are unchanged. `files` now lists `app.plugin.js`, `app.plugin.d.ts` (types for the `./app.plugin` import, so it also resolves under `moduleResolution: node`) and `plugin/build`. It is an allow-list: plugin sources, tests, tsconfig files and `plugin/README.md` are not listed, so they are not published.
+- `yarn prepare` builds the plugin and then the library (`tsc --project plugin/tsconfig.json && bob build`). It does not call Yarn, so it also runs where Yarn is not available, such as an install from a Git URL or a fork. A new `prepublishOnly` script makes `npm publish` run `yarn typecheck`, `yarn typecheck:plugin:tests`, `yarn lint` and `yarn test`, then rebuild the plugin and the library, so a publish (locally, and from the Publish and Pre-release workflows) stops before anything is uploaded when one of those checks fails.
+- Documentation now states iOS 16.0 as the minimum (Introduction, Geofencing, Production Checklist, both Contributing pages, `llms.txt` and `llms-full.txt`). `BackgroundLocation.podspec` has required iOS 16.0 since `0.10.0`; the earlier "iOS 13+" statements were wrong.
+
+### Fixed
+
+- **(iOS)** `PrivacyInfo.xcprivacy` now declares the `UserDefaults` required-reason API (`NSPrivacyAccessedAPICategoryUserDefaults`, reason `CA92.1`). The library keeps its stop token, recovery counters and geofence notification settings in `UserDefaults` (`ios/LocationStorage.swift`, `ios/GeofenceNotificationConfigStore.swift`), but the bundled manifest listed no accessed API types.
+- **(Docs)** The Notification Customization guide documented `<meta-data>` keys (`com.backgroundlocation.notification.*`) and a convention drawable (`ic_notification`) that the Android code never reads, and called `updateNotification` with an object. It now documents `com.backgroundlocation.default_notification_icon`, `default_notification_large_icon` and `default_notification_color`, the `bg_location_notification_icon` / `bg_location_notification_large_icon` drawables, and `updateNotification(title, text)`.
+- **(Packaging)** The npm package no longer ships `lib/typescript/website/`: three declaration files generated from the documentation site, with their source maps, that every release since `0.14.0` included by mistake. `tsconfig.build.json` now excludes `website`, `example-expo` and `plugin`, so `lib/typescript/` holds only the library's own typings.
+
+### Internal
+
+- CI: `expo prebuild (android)` and `expo prebuild (ios)` (quick gate, both on Ubuntu) run `expo prebuild` on `example-expo/` and assert the generated native projects; `expo android build` runs Gradle `assembleDebug` on the prebuilt project and checks the merged manifest; `expo ios build` runs `pod install` and `xcodebuild` for the iOS Simulator; `expo tarball (sdk-54)` to `expo tarball (sdk-58)` install the packed npm tarball with plain `npm install` into fresh Expo SDK 54 to 58 apps, then run `expo prebuild` and value-level assertions. The native builds cover Expo SDK 54 only; SDK 55 to 58 are checked up to the prebuild.
+- CI: `scripts/assert-expo-prebuild-output.sh` asserts values (permissions, usage strings and their precedence, background modes, deployment target, New Architecture) of the generated native projects, and `scripts/verify-expo-tarball.sh` reproduces the tarball checks locally. `build-library` packs the npm tarball once, checks its contents and uploads it for the `expo tarball` jobs; `lint` also type-checks the plugin sources and tests; `test` fails when the plugin Jest project is not collected. The Publish and Pre-release workflows type-check the plugin and run the same tarball content check before publishing.
+- Tooling for the plugin: `build:plugin` Turborepo task, Lefthook type-check hooks for `plugin/**` and for the plugin tests, ESLint overrides for `plugin/**` and `app.plugin.js`, `plugin/build/` in `.gitignore`, and lychee excludes for `example-expo/` and `plugin/build/`.
+
+### Notes
+
+- **Bare React Native apps need no action.** See `BREAKING_CHANGES.md` for the precise list of what changed in the package metadata.
+- **Expo and `compileSdk`.** The library's Android code needs `compileSdk` 35 or newer (Expo SDK 54 defaults to 36). If your project pins `compileSdkVersion` to 34 or lower through `expo-build-properties`, remove or raise it.
+- Not included in this release: plugin options for the notification icon and color, and options to opt out of background location.
+
+## [1.0.1] - 2026-09-15
+
+> **Patch release (Android build fix).** Fixes Android Gradle configuration on projects that use Android Gradle Plugin (AGP) 9. No public API, TurboModule spec or runtime behavior changed. `1.0.1` was only published to npm as the `1.0.1-beta.20260915172131.fae04bd` pre-release (`beta` dist-tag); `latest` stayed on `1.0.0`. These changes ship in `1.1.0`.
+
+### Fixed
+
+- **(Android)** Gradle configuration no longer fails with `Cannot add extension with name 'kotlin'` on AGP 9 ([#50](https://github.com/gabriel-sisjr/react-native-background-location/pull/50)). AGP 9 ships built-in Kotlin support and registers the `kotlin` extension itself, so applying `kotlin-android` again failed the build. `android/build.gradle` now applies `kotlin-android` only when no `kotlin` extension has been registered yet. The check looks for the extension directly, so it needs no AGP version table and also covers AGP 10, where the `android.builtInKotlin` opt-out is removed.
+
+### Internal
+
+- CI: the `build-ios` job resolves Xcode with `latest-stable` instead of the exact `16.4` pin, which stopped resolving after `macos-latest` moved from macOS 15 to macOS 26, and logs the selected toolchain ([#51](https://github.com/gabriel-sisjr/react-native-background-location/pull/51)).
+- Example app: the `build:ios` script passes `SWIFT_ENABLE_EXPLICIT_MODULES=NO`, because Xcode 26 enables Swift explicit modules by default, which breaks the prebuilt React Native core (`RCT_USE_PREBUILT_RNCORE`) on React Native 0.81.
+
+Thanks to [@gabrieldonadel](https://github.com/gabrieldonadel) for the AGP 9 fix.
+
+## [1.0.0] - 2026-06-10
+
+> **First stable release of the 1.x line.** Promotes `1.0.0-rc1` to stable ([#48](https://github.com/gabriel-sisjr/react-native-background-location/pull/48)). From `1.0.0` forward the library follows strict semver; the public TypeScript surface, the TurboModule Codegen spec and the native event names are frozen for the 1.x line (see the `1.0.0-rc` entry below). No public API, native or behavior changes since `1.0.0-rc` or `0.17.0`.
+
+### Changed
+
+- README: removed the "Expo" installation section, which described an Expo config plugin that was not part of the package.
+- `package.json` version bumped from `1.0.0-rc` to `1.0.0`.
+
+### Internal
+
+- `yarn.lock` fixed after the release-candidate pipeline run: the `example` workspace resolves the local package instead of the `0.17.0` registry copy.
+
+### Notes
+
+- **No public API or native behavior changed since `1.0.0-rc` / `0.17.0`.** Consumers on `0.17.0` or `1.0.0-rc1` can upgrade with zero code changes.
+- The README published with `1.0.0` still lists an "Expo config plugin for managed workflows" feature bullet and links to an Expo guide. The plugin was not part of the `1.0.0` package (no `app.plugin.js`) and the guide was not published; both arrive with `1.1.0`.
+
 ## [1.0.0-rc] - 2026-05-27
 
 > **First release candidate for the 1.x line.** From `1.0.0` forward, the library follows strict semver: breaking changes ship only on a major version bump. Three surfaces are explicitly frozen for the 1.x line: (1) the public TypeScript surface (named exports from `src/index.tsx`), (2) the TurboModule Codegen spec (`src/NativeBackgroundLocation.ts`), and (3) the native event names emitted via `NativeEventEmitter` (`onLocationUpdate`, `onLocationError`, `onLocationWarning`, `onNotificationAction`, `onGeofenceTransition`). No native (Android/iOS) code changes and no public TypeScript API changes since `0.17.0` this release candidate exists to declare API stability, not to introduce behavior.
