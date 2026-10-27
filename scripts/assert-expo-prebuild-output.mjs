@@ -13,6 +13,10 @@
  *
  *   iOS usage string = plugin prop ?? ios.infoPlist value ?? library default
  *
+ * The opt-in `motionActivity` prop decides whether the activity-recognition
+ * permissions, NSMotionUsageDescription and the Podfile compile flag must be
+ * present (prop set) or absent (prop not set, unless the app declares them).
+ *
  * Dependency-free on purpose (Node >= 18): it must run unchanged in the monorepo
  * workspace, in a scratch app that installed the npm tarball, and on both the
  * Linux and macOS runners.
@@ -22,6 +26,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PACKAGE_NAME = '@gabriel-sisjr/react-native-background-location';
 const MIN_IOS_DEPLOYMENT_TARGET = '16.0';
@@ -38,8 +43,35 @@ const LIBRARY_PERMISSIONS = [
   'android.permission.RECEIVE_BOOT_COMPLETED',
 ];
 
+// Opt-in motion activity: these exist only when the app sets the
+// `motionActivity` plugin prop (or declares them itself). The library manifest
+// never declares the permissions. Keep in sync with
+// plugin/src/android/withAndroidPermissions.ts, plugin/src/ios/withIosUsageStrings.ts
+// and plugin/src/ios/withIosMotionActivity.ts.
+const MOTION_PERMISSION = 'android.permission.ACTIVITY_RECOGNITION';
+// Play services variant for Android 9 and lower, capped at API 28 when the
+// plugin adds it.
+const MOTION_PLAY_SERVICES_PERMISSION =
+  'com.google.android.gms.permission.ACTIVITY_RECOGNITION';
+const MOTION_PLAY_SERVICES_MAX_SDK = '28';
+const MOTION_USAGE_KEY = 'NSMotionUsageDescription';
+const MOTION_USAGE_FALLBACK =
+  'Allow $(PRODUCT_NAME) to use motion activity to detect when you are stationary or driving.';
+// The Podfile line that compiles the CoreMotion code into the pod. It must come
+// before the first `target ... do` block.
+const MOTION_PODFILE_FLAG = 'BackgroundLocationMotionActivity';
+const MOTION_PODFILE_LINE =
+  /^\s*\$BackgroundLocationMotionActivity\s*=\s*true\s*$/;
+const PODFILE_TARGET_LINE = /^target\s+['"][^'"]+['"]\s+do\s*$/;
+// The library module's own merged manifest (Gradle output, relative to the
+// package directory), before the app manifest merges it.
+const LIBRARY_MERGED_MANIFEST =
+  'android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml';
+
 // Components the library manifest contributes; they only exist after Gradle
 // merges the library manifest into the app manifest (never at prebuild time).
+// `exported`, when set, is the android:exported value the merged entry must
+// carry.
 const LIBRARY_COMPONENTS = [
   { tag: 'service', name: 'com.backgroundlocation.LocationService' },
   {
@@ -54,6 +86,11 @@ const LIBRARY_COMPONENTS = [
   {
     tag: 'service',
     name: 'androidx.work.impl.foreground.SystemForegroundService',
+  },
+  {
+    tag: 'receiver',
+    name: 'com.backgroundlocation.motion.MotionActivityReceiver',
+    exported: 'false',
   },
 ];
 
@@ -322,6 +359,26 @@ function findPluginEntry(plugins) {
   return null;
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * The `motionActivity` prop when the app opted in (its presence, even `{}`,
+ * enables the feature), otherwise null. Any other value never gets this far:
+ * the plugin rejects it during prebuild.
+ */
+function motionActivityOf(props) {
+  const value = props.motionActivity;
+  if (value === undefined) return null;
+  if (!isPlainObject(value)) {
+    die(
+      `plugin prop motionActivity must be an object, got ${JSON.stringify(value)}; expo prebuild should have rejected it`
+    );
+  }
+  return value;
+}
+
 // ---------------------------------------------------------------------------
 // Android
 // ---------------------------------------------------------------------------
@@ -374,6 +431,84 @@ function assertPermissions(elements, file) {
   );
 }
 
+/**
+ * Permissions the app declares itself through `android.permissions` in its
+ * Expo config. Short names get the `android.permission.` prefix, as Expo does.
+ */
+function appDeclaredPermissions(expo) {
+  const declared = (expo.android && expo.android.permissions) || [];
+  return new Set(
+    declared
+      .filter((name) => typeof name === 'string')
+      .map((name) => (name.includes('.') ? name : `android.permission.${name}`))
+  );
+}
+
+/**
+ * The two activity-recognition permissions: exactly once each when the
+ * `motionActivity` prop is set (or the app declares them), absent otherwise.
+ * With the prop set, the platform permission never carries a maxSdkVersion,
+ * and the Play services one is capped at API 28 unless the app declared it
+ * (the plugin must leave the app's own entry untouched).
+ */
+function assertMotionPermissions(elements, file, motion, appPermissions) {
+  const declared = elements.filter(
+    (e) =>
+      e.tag === 'uses-permission' &&
+      !['remove', 'removeAll'].includes(e.attrs['tools:node'])
+  );
+  const nodesOf = (permission) =>
+    declared.filter((e) => e.attrs['android:name'] === permission);
+  for (const permission of [
+    MOTION_PERMISSION,
+    MOTION_PLAY_SERVICES_PERMISSION,
+  ]) {
+    const count = nodesOf(permission).length;
+    if (motion || appPermissions.has(permission)) {
+      const reason = motion ? 'motionActivity prop set' : 'declared by the app';
+      check(
+        count === 1,
+        `${permission} declared once (${reason})`,
+        `${permission} must be declared exactly once in ${file} (${reason}), found ${count}`
+      );
+    } else {
+      check(
+        count === 0,
+        `${permission} absent (no motionActivity prop)`,
+        `${permission} must not be declared in ${file} without the motionActivity prop, found ${count}`
+      );
+    }
+  }
+  if (!motion) return;
+
+  const [platform] = nodesOf(MOTION_PERMISSION);
+  if (platform) {
+    const maxSdk = platform.attrs['android:maxSdkVersion'];
+    check(
+      maxSdk === undefined,
+      `${MOTION_PERMISSION} has no maxSdkVersion`,
+      `${MOTION_PERMISSION} must not carry android:maxSdkVersion in ${file}, found "${maxSdk}"`
+    );
+  }
+  const [playServices] = nodesOf(MOTION_PLAY_SERVICES_PERMISSION);
+  if (playServices) {
+    const maxSdk = playServices.attrs['android:maxSdkVersion'];
+    if (appPermissions.has(MOTION_PLAY_SERVICES_PERMISSION)) {
+      check(
+        maxSdk === undefined,
+        `${MOTION_PLAY_SERVICES_PERMISSION} declared by the app left unchanged`,
+        `${MOTION_PLAY_SERVICES_PERMISSION} is declared by the app and must be left unchanged in ${file}, found android:maxSdkVersion="${maxSdk}"`
+      );
+    } else {
+      check(
+        maxSdk === MOTION_PLAY_SERVICES_MAX_SDK,
+        `${MOTION_PLAY_SERVICES_PERMISSION} has maxSdkVersion=${MOTION_PLAY_SERVICES_MAX_SDK}`,
+        `${MOTION_PLAY_SERVICES_PERMISSION} must carry android:maxSdkVersion="${MOTION_PLAY_SERVICES_MAX_SDK}" in ${file}, found ${maxSdk === undefined ? 'none' : `"${maxSdk}"`}`
+      );
+    }
+  }
+}
+
 function readGradleProperty(file, key) {
   if (!fs.existsSync(file)) return undefined;
   const line = fs
@@ -383,7 +518,7 @@ function readGradleProperty(file, key) {
   return line ? line.split('=').slice(1).join('=').trim() : undefined;
 }
 
-function assertAndroid(projectDir) {
+function assertAndroid(projectDir, expo, props) {
   const androidDir = path.join(projectDir, 'android');
   const manifestFile = path.join(
     androidDir,
@@ -393,7 +528,14 @@ function assertAndroid(projectDir) {
     manifestFile,
     `run 'expo prebuild --platform android --clean --no-install' in ${projectDir} first`
   );
-  assertPermissions(parseXmlElements(manifest), manifestFile);
+  const elements = parseXmlElements(manifest);
+  assertPermissions(elements, manifestFile);
+  assertMotionPermissions(
+    elements,
+    manifestFile,
+    motionActivityOf(props),
+    appDeclaredPermissions(expo)
+  );
 
   const newArch = readGradleProperty(
     path.join(androidDir, 'gradle.properties'),
@@ -423,7 +565,47 @@ function findMergedManifest(projectDir) {
   return null;
 }
 
-function assertAndroidMerged(projectDir) {
+/**
+ * Directory of the installed library package, resolved from the app the way
+ * autolinking finds it (a workspace symlink resolves to this checkout). Falls
+ * back to this checkout when the app cannot resolve the package.
+ */
+function resolveLibraryDir(projectDir) {
+  try {
+    return path.dirname(
+      createRequire(path.join(projectDir, 'package.json')).resolve(
+        `${PACKAGE_NAME}/package.json`
+      )
+    );
+  } catch {
+    return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  }
+}
+
+/** The library module's own merged manifest never declares the permission. */
+function assertLibraryManifest(projectDir) {
+  const file = path.join(
+    resolveLibraryDir(projectDir),
+    LIBRARY_MERGED_MANIFEST
+  );
+  if (!fs.existsSync(file)) {
+    check(
+      false,
+      '',
+      `the library's merged manifest ${file} does not exist; build the app first ('./gradlew :app:assembleDebug' in ${projectDir}/android)`
+    );
+    return;
+  }
+  const count =
+    fs.readFileSync(file, 'utf8').split('ACTIVITY_RECOGNITION').length - 1;
+  check(
+    count === 0,
+    'library merged manifest has no ACTIVITY_RECOGNITION',
+    `the library's merged manifest ${file} must not mention ACTIVITY_RECOGNITION (apps opt in through the plugin prop or their own manifest), found ${count}`
+  );
+}
+
+function assertAndroidMerged(projectDir, expo, props) {
   const manifestFile = findMergedManifest(projectDir);
   if (!manifestFile) {
     die(
@@ -432,7 +614,13 @@ function assertAndroidMerged(projectDir) {
   }
   const elements = parseXmlElements(fs.readFileSync(manifestFile, 'utf8'));
   assertPermissions(elements, manifestFile);
-  for (const { tag, name } of LIBRARY_COMPONENTS) {
+  assertMotionPermissions(
+    elements,
+    manifestFile,
+    motionActivityOf(props),
+    appDeclaredPermissions(expo)
+  );
+  for (const { tag, name, exported } of LIBRARY_COMPONENTS) {
     const matches = elements.filter(
       (e) => e.tag === tag && e.attrs['android:name'] === name
     );
@@ -441,6 +629,14 @@ function assertAndroidMerged(projectDir) {
       `<${tag} ${name}> merged once`,
       `<${tag} android:name="${name}"> must appear exactly once in ${manifestFile}, found ${matches.length}`
     );
+    if (exported !== undefined && matches.length === 1) {
+      const actual = matches[0].attrs['android:exported'];
+      check(
+        actual === exported,
+        `<${tag} ${name}> android:exported="${exported}"`,
+        `<${tag} android:name="${name}"> must declare android:exported="${exported}" in ${manifestFile}, found ${actual === undefined ? 'none' : `"${actual}"`}`
+      );
+    }
   }
   const service = elements.find(
     (e) =>
@@ -455,6 +651,7 @@ function assertAndroidMerged(projectDir) {
     'LocationService has foregroundServiceType=location',
     'LocationService must declare android:foregroundServiceType="location"'
   );
+  assertLibraryManifest(projectDir);
 }
 
 // ---------------------------------------------------------------------------
@@ -526,6 +723,28 @@ function assertIos(projectDir, expo, props) {
       plist[key] === expected,
       `${key} = expected value`,
       `${key} mismatch in ${infoPlist}\n  expected: ${JSON.stringify(expected)}\n  actual:   ${JSON.stringify(plist[key])}`
+    );
+  }
+
+  // Motion usage string: written only when the app opts in, with the same
+  // precedence as the location strings; otherwise only the app may declare it.
+  const motion = motionActivityOf(props);
+  if (motion || userInfoPlist[MOTION_USAGE_KEY] !== undefined) {
+    const expected = motion
+      ? (motion.usageDescription ??
+        userInfoPlist[MOTION_USAGE_KEY] ??
+        MOTION_USAGE_FALLBACK)
+      : userInfoPlist[MOTION_USAGE_KEY];
+    check(
+      plist[MOTION_USAGE_KEY] === expected,
+      `${MOTION_USAGE_KEY} = expected value`,
+      `${MOTION_USAGE_KEY} mismatch in ${infoPlist}\n  expected: ${JSON.stringify(expected)}\n  actual:   ${JSON.stringify(plist[MOTION_USAGE_KEY])}`
+    );
+  } else {
+    check(
+      plist[MOTION_USAGE_KEY] === undefined,
+      `${MOTION_USAGE_KEY} absent (no motionActivity prop)`,
+      `${MOTION_USAGE_KEY} must be absent from ${infoPlist} without the motionActivity prop, found ${JSON.stringify(plist[MOTION_USAGE_KEY])}`
     );
   }
 
@@ -620,6 +839,45 @@ function assertIos(projectDir, expo, props) {
     );
   }
 
+  // Motion compile flag: the podspec reads this Ruby global, so it must be set
+  // exactly once, before the first target, when the app opts in, and never
+  // otherwise.
+  const podfileLines = fs.existsSync(podfile)
+    ? fs.readFileSync(podfile, 'utf8').split(/\r?\n/)
+    : null;
+  if (podfileLines === null) {
+    check(false, '', `${podfile} not found`);
+  } else if (motion) {
+    const flagLines = [];
+    podfileLines.forEach((line, index) => {
+      if (MOTION_PODFILE_LINE.test(line)) flagLines.push(index);
+    });
+    check(
+      flagLines.length === 1,
+      `Podfile sets $${MOTION_PODFILE_FLAG} = true once`,
+      `${podfile} must contain exactly one "$${MOTION_PODFILE_FLAG} = true" line when the motionActivity prop is set, found ${flagLines.length}`
+    );
+    if (flagLines.length === 1) {
+      const firstTarget = podfileLines.findIndex((line) =>
+        PODFILE_TARGET_LINE.test(line)
+      );
+      check(
+        firstTarget !== -1 && flagLines[0] < firstTarget,
+        `Podfile sets $${MOTION_PODFILE_FLAG} before the first target`,
+        `${podfile}: "$${MOTION_PODFILE_FLAG} = true" (line ${flagLines[0] + 1}) must come before the first "target ... do" line (${firstTarget === -1 ? 'none found' : `line ${firstTarget + 1}`})`
+      );
+    }
+  } else {
+    const mentions = podfileLines.filter((line) =>
+      line.includes(MOTION_PODFILE_FLAG)
+    );
+    check(
+      mentions.length === 0,
+      `Podfile does not mention ${MOTION_PODFILE_FLAG}`,
+      `${podfile} must not mention ${MOTION_PODFILE_FLAG} without the motionActivity prop: ${mentions.join(' | ')}`
+    );
+  }
+
   const newArch = properties.newArchEnabled;
   check(
     newArch !== 'false' && newArch !== false,
@@ -670,26 +928,30 @@ function main() {
     die(`project directory ${options.projectDir} does not exist`);
   }
 
-  if (platform === 'android') {
-    assertAndroid(options.projectDir);
-  } else if (platform === 'android-merged') {
-    assertAndroidMerged(options.projectDir);
+  // Every platform needs the plugin props (motionActivity); Android also needs
+  // the app's own android.permissions, iOS its ios.infoPlist.
+  let expo;
+  let props;
+  if (options.propsJson !== null) {
+    props = JSON.parse(options.propsJson);
+    if (!isPlainObject(props)) die('--props-json must be a JSON object');
+    expo = {};
   } else {
-    let expo;
-    let props;
-    if (options.propsJson !== null) {
-      props = JSON.parse(options.propsJson);
-      expo = {};
-    } else {
-      expo = readExpoConfig(options.projectDir);
-      const entry = findPluginEntry(expo.plugins);
-      if (!entry) {
-        die(
-          `${PACKAGE_NAME} is not listed in the Expo config plugins of ${options.projectDir}`
-        );
-      }
-      props = entry.props;
+    expo = readExpoConfig(options.projectDir);
+    const entry = findPluginEntry(expo.plugins);
+    if (!entry) {
+      die(
+        `${PACKAGE_NAME} is not listed in the Expo config plugins of ${options.projectDir}`
+      );
     }
+    props = entry.props;
+  }
+
+  if (platform === 'android') {
+    assertAndroid(options.projectDir, expo, props);
+  } else if (platform === 'android-merged') {
+    assertAndroidMerged(options.projectDir, expo, props);
+  } else {
     assertIos(options.projectDir, expo, props);
   }
 
