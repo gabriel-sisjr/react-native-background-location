@@ -74,10 +74,17 @@ cd example/ios && pod install && cd ../..
 yarn example ios
 ```
 
+The example app builds without the opt-in motion activity code. To compile it in, for example to test the feature on a device, install the pods with `EXAMPLE_MOTION_ACTIVITY=1`:
+
+```sh
+cd example/ios && EXAMPLE_MOTION_ACTIVITY=1 bundle exec pod install && cd ../..
+```
+
 The iOS native source files are located at:
 
 - `ios/BackgroundLocation.mm` -- TurboModule bridge (Objective-C++)
 - `ios/*.swift` -- Swift implementation (LocationManagerWrapper, LocationStorage, RecoveryManager, etc.)
+- `ios/Motion/*.swift` -- Opt-in motion activity (the CoreMotion code is compiled in only with the Podfile flag `$BackgroundLocationMotionActivity = true`)
 
 To edit the Swift files in Xcode, open `example/ios/BackgroundLocationExample.xcworkspace` and find the source files at `Pods > Development Pods > @gabriel-sisjr/react-native-background-location`.
 
@@ -105,6 +112,15 @@ yarn test
 ```
 
 `yarn test` runs two Jest projects: `lib` (the library, `src/__tests__/`) and `plugin` (the Expo config plugin, `plugin/src/__tests__/`). Add `--selectProjects lib` or `--selectProjects plugin` to run only one of them.
+
+The native unit tests run outside Jest:
+
+```sh
+yarn test:android   # Kotlin unit tests of the library module; needs JDK 17 and the Android SDK
+yarn test:ios       # Swift motion unit tests; needs macOS with the Xcode command line tools
+```
+
+`yarn test:android` runs the library's Kotlin tests (Robolectric included) through the example app's Gradle wrapper. `yarn test:ios` compiles the Foundation-only sources of `ios/Motion/` with the tests in `ios-tests/motion-gate/` for macOS, without an Xcode project, simulator or CocoaPods, and takes seconds.
 
 ### Commit message convention
 
@@ -146,6 +162,8 @@ The `package.json` file contains various scripts for common tasks:
 - `yarn typecheck:plugin:tests`: type-check the Expo config plugin together with its tests.
 - `yarn lint`: lint files with ESLint.
 - `yarn test`: run unit tests with Jest (the `lib` and `plugin` projects).
+- `yarn test:android`: run the Kotlin unit tests of the library module (needs JDK 17 and the Android SDK).
+- `yarn test:ios`: compile and run the Swift motion unit tests (needs macOS with the Xcode command line tools).
 - `yarn prepare`: build the Expo config plugin into `plugin/build/`, then the library into `lib/`.
 - `yarn build:plugin` / `yarn watch:plugin`: compile (or watch) only the Expo config plugin.
 - `yarn workspace example-expo prebuild`: run `expo prebuild` on the Expo example app (`prebuild:android` and `prebuild:ios` do one platform).
@@ -236,7 +254,9 @@ yarn workspace example-expo prebuild:ios
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `expo prebuild (android)` and `expo prebuild (ios)` | `example-expo` prebuilds with the plugin; permissions, usage strings, background modes, deployment target and New Architecture are as expected.                |
 | `expo android build`                                | `./gradlew :app:assembleDebug` (one ABI) succeeds and the merged manifest contains the library service and receivers exactly once.                             |
-| `expo ios build`                                    | `pod install` and an `xcodebuild` for the iOS Simulator succeed on the prebuilt `example-expo`.                                                                |
+| `expo ios build`                                    | `pod install` and an `xcodebuild` for the iOS Simulator succeed on the prebuilt `example-expo`, with motion activity compiled in.                              |
 | `expo tarball (sdk-54)` to `expo tarball (sdk-58)`  | The packed tarball installs with plain `npm install` into a fresh Expo SDK app, resolves its exports and prebuilds (no props, all props, pre-existing config). |
 
 The native builds run on Expo SDK 54 only (the SDK `example-expo` uses); SDK 55 to 58 are verified up to the prebuild.
+
+Outside the Expo checks, the `android unit tests` job runs `yarn test:android` with assertions on the JUnit results, the library manifest and the Room schema export, and `build-ios` runs `yarn test:ios` and asserts that the bare example compiles without the motion activity code.

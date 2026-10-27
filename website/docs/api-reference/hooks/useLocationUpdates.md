@@ -43,7 +43,7 @@ The hook accepts a single optional `UseLocationUpdatesOptions` object.
 | `tripId` | `string` | — | Specific trip ID to watch. If not provided, the hook watches updates for any active trip. |
 | `onLocationUpdate` | `(location: Coords) => void` | — | Callback fired for each new location received |
 | `onUpdateInterval` | `number` | `undefined` | Throttle interval in milliseconds for the `onLocationUpdate` callback. Locations are still collected and stored at the native update rate, but the callback is only executed at this interval. |
-| `onLocationWarning` | `(warning: LocationWarningEvent) => void` | — | Callback fired for service warnings (SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE) |
+| `onLocationWarning` | `(warning: LocationWarningEvent) => void` | — | Callback fired for every service warning. All warning types are listed under [Event Flow](#event-flow). |
 | `onNotificationAction` | `(event: NotificationActionEvent) => void` | — | Callback fired when a notification action button is pressed |
 | `autoLoad` | `boolean` | `true` | Whether to automatically load existing locations from the database on mount |
 
@@ -99,13 +99,25 @@ Each location update:
 Native LocationService → SharedFlow → NativeEventEmitter → useLocationUpdates
 ```
 
-Warning events are non-critical notifications about service state changes. They do not stop tracking.
+Warning events are non-critical notifications about service state changes. They do not stop tracking, except `PERMISSION_REVOKED` on iOS.
 
-| Warning Type | Meaning |
-|-------------|---------|
-| `SERVICE_TIMEOUT` | Android 15+ foreground service timeout reached; service is restarting |
-| `TASK_REMOVED` | App was swiped from recents; tracking continues in background |
-| `LOCATION_UNAVAILABLE` | GPS signal lost or location services disabled |
+| Warning Type | Platform | Meaning |
+|-------------|----------|---------|
+| `SERVICE_TIMEOUT` | Android 15+ | Foreground service timeout reached; service is restarting |
+| `TASK_REMOVED` | Android | App was swiped from recents; tracking continues in background |
+| `LOCATION_UNAVAILABLE` | Both | GPS signal lost or location services disabled. Not reported while motion activity has reduced updates, except during the periodic full-accuracy probe |
+| `LOCATION_UPDATES_PAUSED` | iOS | iOS paused location updates; the library resumes them unless the trip is `foregroundOnly` |
+| `LOCATION_UPDATES_RESUMED` | iOS | iOS resumed location updates |
+| `PERMISSION_REVOKED` | iOS | Location permission revoked or denied while tracking; tracking stops |
+| `PERMISSION_DOWNGRADED` | iOS | Location permission downgraded to When In Use; background tracking may stop when the app is suspended |
+| `MOTION_LOCATION_REDUCED` | Both | Device stationary; location updates reduced (`motionActivity.reduceWhenStationary`) |
+| `MOTION_LOCATION_RESTORED` | Both | Full-accuracy location updates restored after a reduction |
+| `MOTION_ACTIVITY_UNAVAILABLE` | Both | Motion activity cannot run; tracking continues at full accuracy |
+| `MOTION_PERMISSION_NOT_GRANTED` | Both | Motion permission missing or revoked; tracking continues at full accuracy |
+
+Each [`LocationWarningEvent`](../types.md#locationwarningevent) carries `type`, `message`, `tripId` and `timestamp`. `timestamp` is always present on both platforms: the time the native layer emitted the warning, in milliseconds since the epoch. The `MOTION_*` types are emitted only for trips that enable `motionActivity`; their messages are listed under [Warnings](../../guides/motion-activity.md#warnings) in the Motion Activity guide.
+
+> **Note:** New warning types can be added in minor releases. Keep a `default` branch in any `switch` over `warning.type`.
 
 ### 3. Notification Actions (`onNotificationAction`)
 
@@ -114,6 +126,8 @@ User taps notification button → BroadcastReceiver → SharedFlow → NativeEve
 ```
 
 Fired when the user taps an action button on the foreground service notification.
+
+**See also:** [`useMotionActivity`](./useMotionActivity.md) for motion activity events, which this hook does not receive.
 
 ---
 

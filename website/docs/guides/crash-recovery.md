@@ -28,11 +28,20 @@ The library persists tracking state and location data using platform-native stor
 |------|-----------|----------------|-------------|
 | Tracking state | Yes | Room Database | Core Data |
 | Current trip ID | Yes | Room Database | Core Data |
-| TrackingOptions | Yes | Room Database | Core Data |
+| TrackingOptions | Yes | Room Database | Core Data (some options in `UserDefaults`, see below) |
 | Location data | Yes | Room Database | Core Data |
 | React hook state | No | Lost | Lost |
 
 React state is always lost on restart. The library provides tools to reconstruct your UI state from the persisted native data.
+
+### Options Restored by Recovery
+
+Since 1.2.0, a recovered session gets back more of its `TrackingOptions`:
+
+- **Android:** `distanceFilter` is restored (before 1.2.0, recovered sessions ran without it), and so are the `motionActivity` options. A malformed stored motion value turns motion activity off for that recovered session.
+- **iOS:** `activityType` is restored (before 1.2.0 it was reset to the default), and `waitForAccurateLocation` and the `motionActivity` options are kept. These are stored in `UserDefaults` under the key `bg_location_tracking_options_ext` while tracking is active, and removed otherwise; the Core Data model is unchanged. A stored value of the wrong type falls back to the default, with one log line.
+
+> **Note:** Upgrading to 1.2.0 migrates the Android Room database from version 1 to version 2. The migration is additive (the `tracking_state` table gains two nullable columns, `distanceFilter` and `motionOptionsJson`), so every stored row is kept: locations, tracking state, geofences and geofence transitions.
 
 ## Android Recovery
 
@@ -88,6 +97,7 @@ The iOS `RecoveryManager` follows these steps:
 2. Verify permissions are still granted
 3. Read tracking state from Core Data
 4. Resume `CLLocationManager` updates with saved `TrackingOptions`
+5. Restart motion activity when the trip enables it, through the normal start path (it never prompts for the motion permission)
 
 ### Rate Limiting
 
@@ -102,6 +112,16 @@ To prevent excessive battery drain, the iOS `RecoveryManager` limits recoveries 
 | Recovery notification | Shows a recovery notification | No notification (system-managed) |
 | Rate limiting | 5 restarts/hour (crash loop detection) | 5 recoveries/hour (RecoveryManager) |
 | Stop token | SharedPreferences with 60s TTL | UserDefaults with similar TTL |
+
+## Motion Activity and Recovery
+
+When a trip enables the opt-in `motionActivity` option, recovery restarts motion activity through the normal start path:
+
+- **No permission prompt.** Recovery never asks for the motion permission. If it is missing, the recovered session emits the usual `MOTION_PERMISSION_NOT_GRANTED` warning and tracks at full accuracy.
+- **Fresh reduction state.** The reduction state of `reduceWhenStationary` is never persisted. A recovered or restarted session starts at full accuracy (`MONITORING`) and cannot reduce updates during its first `automotiveCooldown` (default 10 minutes).
+- **Restart while reduced (Android).** If the foreground service restarts in the same process while the running session is reduced (for example, the Android 15+ foreground-service timeout restart), full accuracy is restored and `MOTION_LOCATION_RESTORED` is emitted with the message `Tracking restarted; full-accuracy location updates restored.` A session recovered after the process was killed has no reduction to end, so it starts at full accuracy without this warning. On iOS a session never restarts in place, so this message does not occur there.
+
+See [How the Reduction Works](./motion-activity.md#how-the-reduction-works) in the Motion Activity guide for the full sequence.
 
 ## Recovery Scenarios
 
@@ -354,6 +374,10 @@ function TrackingWithRecovery() {
           // GPS lost -- notify user
           showNotification('GPS signal lost');
           break;
+        default:
+          // Other types, including members added in later minor releases
+          logAnalytics('location_warning', { type: warning.type });
+          break;
       }
     },
   });
@@ -449,3 +473,4 @@ const persistTrackingState = async (tripId: string, metadata: any) => {
 - [Battery Optimization](./battery-optimization.md) -- Why services might be killed and how to prevent it
 - [Background Tracking](./background-tracking.md) -- Full tracking lifecycle
 - [Real-Time Updates](./real-time-updates.md) -- Handling service warnings
+- [Motion Activity](./motion-activity.md) -- Opt-in motion activity and the stationary reduction

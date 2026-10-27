@@ -104,8 +104,8 @@ Standard location tracking resumes
 ### Suspended
 
 - iOS suspends the app to free memory
-- If background location is enabled, the app is **not** suspended -- it stays in "Background" state
-- If only "When In Use" permission is granted, the app **will** be suspended after approximately 10 seconds
+- If background location is enabled and updates are running, the app is **not** suspended -- it stays in "Background" state, with either "Always" or "When In Use" permission
+- If background location updates are not running (for example with `foregroundOnly: true`), the app **will** be suspended after approximately 10 seconds
 - No code executes while suspended
 
 ### Terminated
@@ -131,7 +131,6 @@ Standard location tracking resumes
                         RecoveryManager resumes tracking
 
                     foregroundOnly = true
-                    OR WhenInUse permission only
                     |
     Active -------> Background -------> Suspended (~10s)
                     |                   (no location updates)
@@ -174,13 +173,15 @@ const tripId = await startTracking({
 
 The library sets `pausesLocationUpdatesAutomatically = false` to ensure continuous tracking. When this property is `true` (the default), iOS may pause location updates when it determines the user has stopped moving. Setting it to `false` reduces — but does not eliminate — system-initiated pauses, since iOS may still pause when its motion classifier decides the configured `activityType` disagrees with observed motion.
 
-When iOS pauses updates, the library emits a `LOCATION_UPDATES_PAUSED` warning event for observability, then automatically resumes location updates if all of the following hold (`ios/LocationManagerWrapper.swift:289-314`):
+When iOS pauses updates, the library emits a `LOCATION_UPDATES_PAUSED` warning event for observability, then automatically resumes location updates if all of the following hold (`didPauseLocationUpdates` in `ios/LocationManagerWrapper.swift`):
 
 - `_isTracking == true`
 - `_currentOptions?.isForegroundOnly == false`
 - `locationManager != nil`
 
 If updates resume on their own (without the auto-resume call), the library also emits a `LOCATION_UPDATES_RESUMED` event.
+
+These two warnings describe the system pause only. The opt-in motion reduction never emits them; it reports `MOTION_LOCATION_REDUCED` and `MOTION_LOCATION_RESTORED` instead (see [Motion Activity on iOS](#motion-activity-on-ios)).
 
 ```typescript
 import { useLocationUpdates } from '@gabriel-sisjr/react-native-background-location';
@@ -232,6 +233,53 @@ When no explicit `distanceFilter` is provided, the library applies accuracy-base
 
 Setting a distance filter reduces battery consumption by ignoring small movements.
 
+## Motion Activity on iOS
+
+Motion activity (`TrackingOptions.motionActivity`) is opt-in and off by default. It is unrelated to the `activityType` setting described above: `activityType` is only a hint for `CLLocationManager`, while motion activity reads CoreMotion to report what the device is doing ([`MotionActivityType`](../api-reference/enums.md#motionactivitytype)) and can reduce location updates while the device is stationary. See the [Motion Activity guide](../guides/motion-activity.md) for setup and the full behavior.
+
+### Compile-Time Opt-In
+
+The library's CoreMotion code is compiled only when your `ios/Podfile` sets this flag before the first `target`, followed by `pod install`:
+
+```ruby
+$BackgroundLocationMotionActivity = true
+```
+
+With Expo, the config plugin prop `motionActivity` adds the line for you (see [Expo Setup](../guides/motion-activity.md#expo-setup)). With the flag on, add `NSMotionUsageDescription` to `Info.plist`. Without the flag no CoreMotion code is compiled or linked: enabling `motionActivity` in JavaScript then emits a `MOTION_ACTIVITY_UNAVAILABLE` warning, the motion permission functions resolve `UNAVAILABLE`, and tracking continues at full accuracy.
+
+### The Reduction Keeps the App Running
+
+With `reduceWhenStationary` enabled, a confirmed stationary period degrades the location request instead of stopping it:
+
+- `desiredAccuracy` becomes `kCLLocationAccuracyThreeKilometers` and `distanceFilter` becomes 500 meters.
+- Standard location updates keep running and `allowsBackgroundLocationUpdates` is unchanged, so the app is not suspended, CoreMotion keeps delivering activity updates, and the blue location indicator stays visible.
+- Keep-alive fixes received while reduced are not stored or emitted; they only feed a displacement check. A keep-alive fix restores full accuracy only when it is farther from the anchor than the sum of both accuracies (at least 100 m), where the anchor's accuracy includes the distance filter the trip runs with: with the 3 km accuracy setting that is roughly the anchor's accuracy plus 1-3 km (less when iOS supplies Wi-Fi-based fixes), and the 500 m distance filter also holds deliveries back until iOS estimates about 500 m of movement. The CoreMotion classifier is therefore the primary restore path, displacement is the safety net, and the forced full-accuracy probe every `maxReducedDuration` is the backstop.
+- `LOCATION_UNAVAILABLE` is not reported while reduced (`didFailWithError` with any error other than `.denied`), because it would describe the keep-alive request, not the trip. During the periodic full-accuracy probe the trip's own profile runs, and errors are reported normally.
+- On restore, the trip's own accuracy and distance filter return and `MOTION_LOCATION_RESTORED` is emitted.
+- Region monitoring is run by the system and is not changed by the reduction.
+
+This works with both "Always" and "When In Use" authorization, as long as background location updates run for the trip. The reduction does not apply to `foregroundOnly` trips or to `PASSIVE` and `NO_POWER` accuracy (the [`MotionReductionStatus`](../api-reference/enums.md#motionreductionstatus) is then `NOT_APPLICABLE`); `onMotionActivity` events keep flowing.
+
+### System Pause vs Motion Reduction
+
+| Aspect | System pause | Motion reduction |
+|---|---|---|
+| Decided by | iOS | The library, from CoreMotion activity |
+| Location updates | Paused; the library auto-resumes trips that are not `foregroundOnly` | Degraded to the reduced profile, never stopped |
+| Warnings | `LOCATION_UPDATES_PAUSED`, `LOCATION_UPDATES_RESUMED` | `MOTION_LOCATION_REDUCED`, `MOTION_LOCATION_RESTORED` |
+
+Because the reduction never emits `LOCATION_UPDATES_PAUSED` or `LOCATION_UPDATES_RESUMED`, `onLocationWarning` can tell the two apart.
+
+### Reduction Timers
+
+The stationary delay, vehicle cooldown, maximum reduced duration and probe timers are `DispatchSourceTimer`s on the library's serial queue, and the reduced profile keeps the app running. The maximum reduced duration and probe timers follow wall-clock time: time the device spends asleep counts toward them, so a sleep does not stretch the interval between forced fixes. The stationary delay and cooldown timers count only the time the device is awake, so a sleep can postpone a reduction, never a restore. Every `maxReducedDuration` (default 30 minutes) the library runs a full-accuracy probe for up to 120 seconds: a fix with accuracy of 100 meters or better that has not moved is recorded and the reduction resumes silently (it also resumes silently when no fix arrives in time), while a moved fix or detected movement restores full accuracy. JavaScript keeps seeing the `REDUCED` status during the probe.
+
+### Motion Permission
+
+- `startTracking()` never prompts for Motion & Fitness. Call `requestMotionPermission()` with the app in the foreground before starting the trip; it prompts only while the status is undetermined. When the user has not answered (for example, it was called while the app was not active), it resolves `UNDETERMINED`. A permission granted mid-trip takes effect at the next tracking start.
+- Detection warnings (`MOTION_ACTIVITY_UNAVAILABLE` or `MOTION_PERMISSION_NOT_GRANTED`, at most one per session) arrive just after `startTracking()` resolves.
+- While detection runs, the permission is re-checked when the app becomes active, at each `maxReducedDuration` timer, and when the stationary delay or cooldown timer fires while a stationary period is being confirmed. If it was revoked during a reduced period, the library emits `MOTION_LOCATION_RESTORED` ("Motion activity stopped; full-accuracy location updates restored.") and then `MOTION_PERMISSION_NOT_GRANTED` ("Motion activity permission was revoked. Location tracking continues at full accuracy.").
+
 ## showsBackgroundLocationIndicator (Blue Bar)
 
 When background tracking is active, iOS shows a blue indicator to the user:
@@ -266,6 +314,8 @@ The library maps accuracy levels to `CLLocationAccuracy` values:
 | `NO_POWER` / `PASSIVE` | `kCLLocationAccuracyThreeKilometers` | ~3 kilometers |
 
 > With `NO_POWER` or `PASSIVE` accuracy, the library uses `startMonitoringSignificantLocationChanges()` instead of `startUpdatingLocation()`. This provides cell-tower-based updates only, with very low battery impact but reduced precision.
+
+> **Note:** With `motionActivity.reduceWhenStationary` enabled, the library itself switches to `kCLLocationAccuracyThreeKilometers` while the device is stationary, and restores the trip's accuracy when movement is detected. See [Motion Activity on iOS](#motion-activity-on-ios).
 
 ## Location Filtering
 
@@ -335,6 +385,8 @@ When the app is terminated by iOS (not by the user force-quitting), the crash re
 6. It checks the restart loop counter (max 5 recoveries per hour)
 7. It validates location authorization
 8. It resumes tracking with the persisted options
+
+> **Note:** From 1.2.0, recovery also restores `activityType` (previously reset to the default), `waitForAccurateLocation` and the motion options. They are kept in `UserDefaults` under `bg_location_tracking_options_ext` while tracking is active. Motion detection restarts without prompting and with a fresh reduction state, so the recovered trip starts at full accuracy.
 
 ### Stop Token
 
@@ -424,3 +476,4 @@ The iOS Simulator supports basic background location but does not accurately sim
 - [App Store Compliance](./app-store-compliance.md) -- App Store requirements
 - [Platform Comparison](./platform-comparison.md) -- Full Android vs iOS comparison
 - [Permissions](../getting-started/permissions.md) -- Permission setup and hooks
+- [Motion Activity](../guides/motion-activity.md) -- Opt-in motion activity detection and the stationary reduction

@@ -26,6 +26,8 @@ import { useLocationPermissions } from '@gabriel-sisjr/react-native-background-l
 
 > **Note:** `useGeofencePermissions` is also exported as an alias for this hook, since geofencing uses the same location permissions.
 
+> **Note:** This hook does not cover the motion activity permission used by the opt-in `motionActivity` tracking option. See [Motion Activity Permission](#motion-activity-permission).
+
 ## Signature
 
 ```ts
@@ -193,6 +195,40 @@ Check `permissionStatus.notification` separately for notification-specific state
 
 - On Android: `false` when the user has selected "Never Ask Again" (reported as `BLOCKED` status)
 - On iOS: `false` when the permission has been denied (user must go to Settings to change)
+
+## Motion Activity Permission
+
+`useLocationPermissions` does not check or request the motion activity permission (Android `ACTIVITY_RECOGNITION`, iOS Motion & Fitness) used by the opt-in `motionActivity` tracking option. This is unchanged in 1.2.0: `permissionStatus`, `hasAllPermissions` and the results of `requestPermissions()` and `checkPermissions()` reflect only the location and notification permissions.
+
+Use the standalone [motion activity functions](../functions.md#motion-activity-functions) instead:
+
+- `checkMotionPermission()` -- resolves the current `MotionPermissionStatus` without prompting.
+- `requestMotionPermission()` -- shows the system prompt when it can (Android 10+; on iOS only while the status is undetermined and the app is in the foreground) and resolves the resulting status.
+
+The motion permission flow is independent of the location flow, and `startTracking()` never prompts for it, so request it before starting a trip that enables `motionActivity`. If it is not granted, the trip still tracks at full accuracy and emits a `MOTION_PERMISSION_NOT_GRANTED` warning. See [Requesting the permission](../../guides/motion-activity.md#requesting-the-permission) in the Motion Activity guide.
+
+```tsx
+import {
+  useLocationPermissions,
+  requestMotionPermission,
+  startTracking,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function StartTripButton() {
+  const { requestPermissions } = useLocationPermissions();
+
+  const handleStart = async () => {
+    const locationGranted = await requestPermissions();
+    if (!locationGranted) return;
+
+    // Separate from the location flow; startTracking() never prompts for it
+    await requestMotionPermission();
+    await startTracking('trip-1', { motionActivity: true });
+  };
+
+  return <Button title="Start Trip" onPress={handleStart} />;
+}
+```
 
 ## Usage
 
