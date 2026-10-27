@@ -17,6 +17,9 @@ import {
   useLocationPermissions,
   useBackgroundLocation,
   useLocationUpdates,
+  useMotionActivity,
+  checkMotionPermission,
+  requestMotionPermission,
   LocationPermissionStatus,
   LocationAccuracy,
   LocationActivityType,
@@ -24,6 +27,9 @@ import {
   type TrackingOptions,
   type NotificationActionEvent,
   type RequestPermissionsOptions,
+  type LocationWarningEvent,
+  type MotionActivityEvent,
+  type MotionPermissionStatus,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import styles from './styles';
@@ -104,6 +110,16 @@ const BACKGROUND_RATIONALE_OPTIONS: RequestPermissionsOptions = {
     buttonNeutral: 'Mais tarde',
   },
 };
+
+/** Maximum number of entries kept in the motion event and warning log. */
+const MOTION_LOG_LIMIT = 20;
+
+/** Formats an epoch-milliseconds timestamp for the motion log. */
+function formatLogTime(timestamp: number): string {
+  return Number.isFinite(timestamp)
+    ? new Date(timestamp).toLocaleTimeString()
+    : '--:--:--';
+}
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = React.useState<
@@ -229,6 +245,52 @@ export default function App() {
     setTrackingOptions(configPresets[preset]);
   };
 
+  // Motion activity is opt-in: both toggles start OFF.
+  const [motionEnabled, setMotionEnabled] = React.useState(false);
+  const [reduceWhenStationary, setReduceWhenStationary] = React.useState(false);
+  const [motionPermission, setMotionPermission] =
+    React.useState<MotionPermissionStatus | null>(null);
+  const [motionLog, setMotionLog] = React.useState<string[]>([]);
+
+  const appendMotionLog = React.useCallback((entry: string) => {
+    setMotionLog((previous) => [entry, ...previous].slice(0, MOTION_LOG_LIMIT));
+  }, []);
+
+  // Options used at the next start: the selected configuration plus the
+  // motion activity toggles (omitted entirely while motion is off).
+  const effectiveTrackingOptions = React.useMemo<TrackingOptions>(
+    () => ({
+      ...trackingOptions,
+      motionActivity: motionEnabled ? { reduceWhenStationary } : undefined,
+    }),
+    [trackingOptions, motionEnabled, reduceWhenStationary]
+  );
+
+  // Motion activity events and state (read-only, no effect while motion is off)
+  const {
+    lastActivity,
+    detection: motionDetection,
+    reduction: motionReduction,
+    refresh: refreshMotionState,
+  } = useMotionActivity({
+    onMotionActivity: (event: MotionActivityEvent) => {
+      appendMotionLog(
+        `${formatLogTime(event.timestamp)} ${event.activity} (${event.confidence})`
+      );
+    },
+  });
+
+  const handleMotionPermission = async (request: boolean) => {
+    try {
+      const status = request
+        ? await requestMotionPermission()
+        : await checkMotionPermission();
+      setMotionPermission(status);
+    } catch (err) {
+      Alert.alert('Motion Permission', `Failed: ${String(err)}`);
+    }
+  };
+
   // Manage permissions with hook
   const { permissionStatus, requestPermissions, isRequesting } =
     useLocationPermissions();
@@ -246,12 +308,15 @@ export default function App() {
     clearCurrentTrip,
     clearError,
   } = useBackgroundLocation({
-    options: trackingOptions,
+    options: effectiveTrackingOptions,
     onTrackingStart: (id) => {
       Alert.alert('Success', `Tracking started with trip ID: ${id}`);
+      // Starting and stopping emit no motion warning: re-read the motion state.
+      refreshMotionState();
     },
     onTrackingStop: () => {
       Alert.alert('Success', 'Tracking stopped');
+      refreshMotionState();
     },
     onError: (err) => {
       console.error('Tracking error:', err);
@@ -268,6 +333,11 @@ export default function App() {
   } = useLocationUpdates({
     onLocationUpdate: (location) => {
       console.log('New location received:', location);
+    },
+    onLocationWarning: (warning: LocationWarningEvent) => {
+      appendMotionLog(
+        `${formatLogTime(warning.timestamp)} WARNING ${warning.type}: ${warning.message}`
+      );
     },
     onNotificationAction: (event: NotificationActionEvent) => {
       console.log('Notification action pressed:', event);
@@ -564,6 +634,14 @@ export default function App() {
                   Activity Type (iOS): {trackingOptions.activityType}
                 </Text>
                 <Text style={styles.configDetailText}>
+                  Motion Activity Recognition:{' '}
+                  {motionEnabled
+                    ? reduceWhenStationary
+                      ? 'On, reduce GPS while stationary'
+                      : 'On'
+                    : 'Off'}
+                </Text>
+                <Text style={styles.configDetailText}>
                   Wait for Accurate:{' '}
                   {trackingOptions.waitForAccurateLocation ? 'Yes' : 'No'}
                 </Text>
@@ -612,6 +690,91 @@ export default function App() {
                 </Text>
               </View>
             </View>
+          )}
+        </View>
+
+        <View style={styles.configContainer}>
+          <View style={styles.configHeader}>
+            <Text style={styles.configTitle}>Motion Activity (opt-in)</Text>
+          </View>
+          <View style={styles.modeContainer}>
+            <Text style={styles.modeLabel}>Motion Activity Recognition:</Text>
+            <Switch
+              value={motionEnabled}
+              onValueChange={setMotionEnabled}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={motionEnabled ? '#2196F3' : '#f4f3f4'}
+            />
+          </View>
+          <View style={styles.modeContainer}>
+            <Text style={styles.modeLabel}>Reduce GPS While Stationary:</Text>
+            <Switch
+              value={reduceWhenStationary}
+              onValueChange={setReduceWhenStationary}
+              disabled={!motionEnabled}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={reduceWhenStationary ? '#2196F3' : '#f4f3f4'}
+            />
+          </View>
+          <Text style={styles.configDetailText}>
+            Applied at the next Start Tracking. Request the motion permission
+            first: tracking never prompts for it.
+          </Text>
+          <Text style={styles.configDetailText}>
+            Motion Permission: {motionPermission ?? 'not checked'}
+          </Text>
+          <Text style={styles.configDetailText}>
+            Detection: {motionDetection}
+          </Text>
+          <Text style={styles.configDetailText}>
+            Reduction: {motionReduction}
+          </Text>
+          <Text style={styles.configDetailText}>
+            Last Motion Activity:{' '}
+            {lastActivity
+              ? `${lastActivity.activity} (${lastActivity.confidence})`
+              : 'none'}
+          </Text>
+          <View style={styles.buttonContainer}>
+            <Button
+              title="Check Motion Permission"
+              onPress={() => handleMotionPermission(false)}
+              color="#607D8B"
+            />
+            <Button
+              title="Request Motion Permission"
+              onPress={() => handleMotionPermission(true)}
+              color="#4CAF50"
+            />
+            <Button
+              title="Refresh Motion State"
+              onPress={refreshMotionState}
+              color="#2196F3"
+            />
+          </View>
+        </View>
+
+        <View style={styles.actionEventContainer}>
+          <Text style={styles.actionEventTitle}>
+            Motion Events and Warnings
+          </Text>
+          {motionLog.length === 0 ? (
+            <Text style={styles.actionEventText}>
+              No motion events or warnings yet.
+            </Text>
+          ) : (
+            motionLog.map((entry, index) => (
+              <Text key={`${index}-${entry}`} style={styles.actionEventText}>
+                {entry}
+              </Text>
+            ))
+          )}
+          {motionLog.length > 0 && (
+            <Button
+              title="Clear Log"
+              onPress={() => setMotionLog([])}
+              color="#795548"
+            />
           )}
         </View>
 
@@ -731,7 +894,9 @@ export default function App() {
               {!isTracking ? (
                 <Button
                   title="Start Tracking"
-                  onPress={() => startTracking(undefined, trackingOptions)}
+                  onPress={() =>
+                    startTracking(undefined, effectiveTrackingOptions)
+                  }
                   color="#2196F3"
                 />
               ) : (
