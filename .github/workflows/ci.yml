@@ -142,7 +142,9 @@ jobs:
         run: |
           bash scripts/assert-junit-results.sh android/build/test-results/testDebugUnitTest \
             MotionGateTest MotionClassifierTest MotionOptionsTest MotionPermissionsTest \
-            MotionPendingIntentsTest MotionSessionTest LocationDatabaseMigrationTest
+            MotionPendingIntentsTest MotionSessionTest LocationDatabaseMigrationTest \
+            AlarmMotionTimersTest MotionActivityReceiverTest MotionPendingIntentsRoundTripTest \
+            LocationStorageTest
 
       # KSP exports the Room schema into android/schemas on every build; a
       # modified or untracked file there means the committed schema is stale.

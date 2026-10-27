@@ -81,7 +81,7 @@ Runs the Kotlin unit tests of the library module through the example app's Gradl
 cd example/android && ./gradlew :gabriel-sisjr_react-native-background-location:testDebugUnitTest --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a
 ```
 
-It needs JDK 17 and the Android SDK. The motion classes are `MotionGateTest`, `MotionClassifierTest`, `MotionOptionsTest`, `MotionPermissionsTest`, `MotionPendingIntentsTest` and `MotionSessionTest`; `LocationDatabaseMigrationTest` (Robolectric) migrates a version 1 Room database to version 2 and checks that every row survives. The existing provider, flow and `RecoveryWorker` tests run too. The JUnit XML reports are written to `android/build/test-results/testDebugUnitTest`.
+It needs JDK 17 and the Android SDK. The motion classes are `MotionGateTest`, `MotionClassifierTest`, `MotionOptionsTest`, `MotionPermissionsTest`, `MotionPendingIntentsTest`, `MotionSessionTest`, `AlarmMotionTimersTest`, `MotionActivityReceiverTest` and `MotionPendingIntentsRoundTripTest`; `LocationDatabaseMigrationTest` (Robolectric) migrates a version 1 Room database to version 2 and checks that every row survives, and `LocationStorageTest` checks the fire-and-forget flush that runs before location updates are reduced, against a mocked DAO. The existing provider, flow and `RecoveryWorker` tests run too. The JUnit XML reports are written to `android/build/test-results/testDebugUnitTest`.
 
 ### iOS Motion Unit Tests (Swift)
 

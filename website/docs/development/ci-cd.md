@@ -79,7 +79,7 @@ The `android-unit-tests` job runs on Ubuntu with JDK 17 and a 30-minute timeout.
 
 1. Asserts that the library manifest declares no `ACTIVITY_RECOGNITION`: apps opt in through their own manifest or the Expo plugin prop.
 2. Runs `yarn test:android`, the same command as on a local machine.
-3. Runs `scripts/assert-junit-results.sh` on `android/build/test-results/testDebugUnitTest`. Gradle 8 exits 0 when no test runs, so the JUnit XML is the evidence: the step fails on 0 tests, on any failure or error, and when a required class is missing (`MotionGateTest`, `MotionClassifierTest`, `MotionOptionsTest`, `MotionPermissionsTest`, `MotionPendingIntentsTest`, `MotionSessionTest`, `LocationDatabaseMigrationTest`).
+3. Runs `scripts/assert-junit-results.sh` on `android/build/test-results/testDebugUnitTest`. Gradle 8 exits 0 when no test runs, so the JUnit XML is the evidence: the step fails on 0 tests, on any failure or error, and when a required class is missing (`MotionGateTest`, `MotionClassifierTest`, `MotionOptionsTest`, `MotionPermissionsTest`, `MotionPendingIntentsTest`, `MotionSessionTest`, `LocationDatabaseMigrationTest`, `AlarmMotionTimersTest`, `MotionActivityReceiverTest`, `MotionPendingIntentsRoundTripTest`, `LocationStorageTest`).
 4. Asserts that the Room schema export is committed. KSP writes `android/schemas/` during the build, so `git status --porcelain -- android/schemas` must print nothing.
 5. Uploads the JUnit XML and HTML reports as the `android-unit-test-reports` artifact, also when an earlier step failed.
 
