@@ -13,6 +13,14 @@ import CoreLocation
   // Stored as JSON string to allow cross-platform TrackingOptions without crashes
   @objc public let notificationOptions: String?
 
+  // Motion activity (opt-in). All nil when the feature is off. The sampling interval and the
+  // reduced-notification text are Android-only and never reach iOS.
+  @objc public let motionActivityEnabled: NSNumber?
+  @objc public let motionReduceWhenStationary: NSNumber?
+  @objc public let motionStationaryDelay: NSNumber?
+  @objc public let motionAutomotiveCooldown: NSNumber?
+  @objc public let motionMaxReducedDuration: NSNumber?
+
   @objc public init(dictionary: NSDictionary?) {
     guard let dict = dictionary else {
       self.accuracy = nil
@@ -22,6 +30,11 @@ import CoreLocation
       self.foregroundOnly = nil
       self.waitForAccurateLocation = nil
       self.notificationOptions = nil
+      self.motionActivityEnabled = nil
+      self.motionReduceWhenStationary = nil
+      self.motionStationaryDelay = nil
+      self.motionAutomotiveCooldown = nil
+      self.motionMaxReducedDuration = nil
       super.init()
       return
     }
@@ -35,6 +48,12 @@ import CoreLocation
 
     // Notification options — parsed without error, unused on iOS
     self.notificationOptions = dict["notificationOptions"] as? String
+
+    self.motionActivityEnabled = dict["motionActivityEnabled"] as? NSNumber
+    self.motionReduceWhenStationary = dict["motionReduceWhenStationary"] as? NSNumber
+    self.motionStationaryDelay = dict["motionStationaryDelay"] as? NSNumber
+    self.motionAutomotiveCooldown = dict["motionAutomotiveCooldown"] as? NSNumber
+    self.motionMaxReducedDuration = dict["motionMaxReducedDuration"] as? NSNumber
     super.init()
   }
 
@@ -119,6 +138,17 @@ import CoreLocation
       }
     }
 
+    // Motion activity keys: NSNumber (bool-bridged flags, millisecond durations)
+    for key in TrackingOptions.motionNumberKeys {
+      if let raw = dict[key] {
+        if let value = raw as? NSNumber, !(raw is NSNull) {
+          sanitized[key] = value
+        } else if !(raw is NSNull) {
+          wrongTypeKeys.append("'\(key)' (expected NSNumber)")
+        }
+      }
+    }
+
     if !wrongTypeKeys.isEmpty {
       let joined = wrongTypeKeys.joined(separator: ", ")
       guardLogger("[BackgroundLocation] \(methodName) received wrong type for key(s) \(joined); falling back to defaults")
@@ -144,5 +174,25 @@ import CoreLocation
 
   @objc public var isForegroundOnly: Bool {
     return foregroundOnly?.boolValue ?? false
+  }
+
+  /// Transported motion keys, all NSNumber: two flags and three millisecond durations.
+  static let motionNumberKeys = [
+    "motionActivityEnabled",
+    "motionReduceWhenStationary",
+    "motionStationaryDelay",
+    "motionAutomotiveCooldown",
+    "motionMaxReducedDuration",
+  ]
+
+  /// Motion options with defaults and clamps applied; nil unless `motionActivityEnabled` is true.
+  var motionOptions: MotionOptions? {
+    return MotionOptions.normalized(
+      enabled: motionActivityEnabled?.boolValue,
+      reduceWhenStationary: motionReduceWhenStationary?.boolValue,
+      stationaryDelayMs: motionStationaryDelay?.doubleValue,
+      automotiveCooldownMs: motionAutomotiveCooldown?.doubleValue,
+      maxReducedDurationMs: motionMaxReducedDuration?.doubleValue
+    )
   }
 }

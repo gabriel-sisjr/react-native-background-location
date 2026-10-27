@@ -6,6 +6,11 @@ import {
   LocationActivityType as LocationActivityTypeEnum,
   NotificationPriority as NotificationPriorityEnum,
   NotificationPermissionStatus as NotificationPermissionStatusEnum,
+  MotionActivityType as MotionActivityTypeEnum,
+  MotionConfidence as MotionConfidenceEnum,
+  MotionPermissionStatus as MotionPermissionStatusEnum,
+  MotionDetectionStatus as MotionDetectionStatusEnum,
+  MotionReductionStatus as MotionReductionStatusEnum,
 } from './types/enums';
 import { GeofenceErrorCode } from './types/geofencing';
 import type {
@@ -58,6 +63,18 @@ export { GeofenceTransitionType, GeofenceErrorCode } from './types';
 export type { NotificationOptions } from './types';
 export { GEOFENCE_TEMPLATE_VARS } from './types';
 
+// Motion activity type exports
+export type {
+  MotionActivityOptions,
+  MotionReductionOptions,
+  MotionActivityEvent,
+  MotionActivityState,
+  MotionActivityListener,
+  MotionActivitySubscription,
+  UseMotionActivityOptions,
+  UseMotionActivityResult,
+} from './types';
+
 // Export enums (as values + companion types for type annotations)
 // Import and re-export as named exports to ensure they're available at runtime
 export const LocationPermissionStatus = LocationPermissionStatusEnum;
@@ -70,9 +87,27 @@ export const NotificationPriority = NotificationPriorityEnum;
 export type NotificationPriority = NotificationPriorityEnum;
 export const NotificationPermissionStatus = NotificationPermissionStatusEnum;
 export type NotificationPermissionStatus = NotificationPermissionStatusEnum;
+export const MotionActivityType = MotionActivityTypeEnum;
+export type MotionActivityType = MotionActivityTypeEnum;
+export const MotionConfidence = MotionConfidenceEnum;
+export type MotionConfidence = MotionConfidenceEnum;
+export const MotionPermissionStatus = MotionPermissionStatusEnum;
+export type MotionPermissionStatus = MotionPermissionStatusEnum;
+export const MotionDetectionStatus = MotionDetectionStatusEnum;
+export type MotionDetectionStatus = MotionDetectionStatusEnum;
+export const MotionReductionStatus = MotionReductionStatusEnum;
+export type MotionReductionStatus = MotionReductionStatusEnum;
 
 // Export errors
 export { GeofenceError } from './errors';
+
+// Export motion activity functions
+export {
+  addMotionActivityListener,
+  checkMotionPermission,
+  requestMotionPermission,
+  getMotionActivityState,
+} from './motion';
 
 // Export hooks
 export {
@@ -83,6 +118,7 @@ export {
   useGeofencing,
   useGeofenceEvents,
   useGeofencePermissions,
+  useMotionActivity,
 } from './hooks';
 
 /**

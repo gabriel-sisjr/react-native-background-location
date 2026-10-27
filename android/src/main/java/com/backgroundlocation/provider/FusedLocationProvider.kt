@@ -18,6 +18,10 @@ class FusedLocationProvider : LocationProvider {
     private var locationCallback: LocationCallback? = null
     private var updateCallback: LocationUpdateCallback? = null
 
+    // Request of the last requestLocationUpdates() call, re-applied by restoreLocationUpdates()
+    private var fullRequest: LocationRequest? = null
+    private var reduced = false
+
     override fun initialize(context: Context) {
         this.context = context
         this.fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
@@ -50,7 +54,50 @@ class FusedLocationProvider : LocationProvider {
             }
             .build()
 
-        locationCallback = object : LocationCallback() {
+        fullRequest = locationRequest
+        reduced = false
+        register(locationRequest, callback)
+    }
+
+    override fun reduceLocationUpdates(profile: ReducedLocationProfile) {
+        val callback = updateCallback ?: return
+        if (reduced || fullRequest == null || locationCallback == null) return
+
+        val reducedRequest = LocationRequest.Builder(profile.priority, profile.intervalMs)
+            .setMinUpdateIntervalMillis(profile.fastestIntervalMs)
+            .apply {
+                if (profile.minDistanceM > 0f) {
+                    setMinUpdateDistanceMeters(profile.minDistanceM)
+                }
+            }
+            .build()
+
+        unregisterCallback()
+        register(reducedRequest, callback)
+        reduced = true
+    }
+
+    override fun restoreLocationUpdates() {
+        val callback = updateCallback ?: return
+        val request = fullRequest ?: return
+        if (!reduced || locationCallback == null) return
+
+        unregisterCallback()
+        register(request, callback)
+        reduced = false
+    }
+
+    override fun isReduced(): Boolean = reduced
+
+    override fun removeLocationUpdates() {
+        unregisterCallback()
+        fullRequest = null
+        reduced = false
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun register(locationRequest: LocationRequest, callback: LocationUpdateCallback) {
+        val newCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 if (result.locations.size == 1) {
                     callback.onLocationUpdate(result.locations.first())
@@ -63,15 +110,16 @@ class FusedLocationProvider : LocationProvider {
                 callback.onLocationAvailabilityChanged(availability.isLocationAvailable)
             }
         }
+        locationCallback = newCallback
 
         fusedLocationClient?.requestLocationUpdates(
             locationRequest,
-            locationCallback!!,
+            newCallback,
             Looper.getMainLooper()
         )
     }
 
-    override fun removeLocationUpdates() {
+    private fun unregisterCallback() {
         locationCallback?.let {
             fusedLocationClient?.removeLocationUpdates(it)
         }

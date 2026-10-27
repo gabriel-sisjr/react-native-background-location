@@ -89,6 +89,14 @@ import CoreLocation
       dict["foregroundOnly"] = NSNumber(value: foregroundOnly)
     }
 
-    return TrackingOptions(dictionary: dict)
+    // Options without a Core Data attribute (activityType, waitForAccurateLocation, motion keys)
+    if let extras = state["extras"] as? [String: Any] {
+      for (key, value) in extras where dict[key] == nil {
+        dict[key] = value
+      }
+    }
+
+    // Same sanitizing as startTracking: a wrong-typed value falls back to its default with one log line
+    return TrackingOptions.from(rawOptions: dict, methodName: "recoverTracking")
   }
 }

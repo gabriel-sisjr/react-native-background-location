@@ -134,7 +134,9 @@ import CoreData
 
   @objc public func saveTrackingState(tripId: String?, isActive: Bool, options: TrackingOptions?) {
     queue.async { [weak self] in
-      guard self != nil else { return }
+      guard let self = self else { return }
+
+      self.saveTrackingOptionsExtras(isActive: isActive, options: options)
 
       let context = CoreDataStack.shared.newBackgroundContext()
       context.performAndWait {
@@ -170,6 +172,8 @@ import CoreData
 
   @objc public func saveTrackingStateSync(tripId: String?, isActive: Bool, options: TrackingOptions?) {
     queue.sync {
+      saveTrackingOptionsExtras(isActive: isActive, options: options)
+
       let context = CoreDataStack.shared.newBackgroundContext()
       context.performAndWait {
         let request = NSFetchRequest<NSManagedObject>(entityName: "TrackingStateEntity")
@@ -225,8 +229,49 @@ import CoreData
         }
       }
 
+      if let extras = UserDefaults.standard.dictionary(forKey: LocationStorage.trackingOptionsExtrasKey) {
+        result["extras"] = extras
+      }
+
       return result
     }
+  }
+
+  // MARK: - Tracking Options Extras (Crash Recovery)
+
+  /// Options the Core Data model has no attributes for, kept in UserDefaults so the model does not change.
+  private static let trackingOptionsExtrasKey = "bg_location_tracking_options_ext"
+
+  /// Writes the non-nil extras while a session is active; removes them otherwise. Must be called on `queue`.
+  private func saveTrackingOptionsExtras(isActive: Bool, options: TrackingOptions?) {
+    guard isActive, let options = options else {
+      UserDefaults.standard.removeObject(forKey: LocationStorage.trackingOptionsExtrasKey)
+      return
+    }
+
+    var extras: [String: Any] = [:]
+    if let activityType = options.activityType {
+      extras["activityType"] = activityType
+    }
+    if let waitForAccurateLocation = options.waitForAccurateLocation {
+      extras["waitForAccurateLocation"] = waitForAccurateLocation.boolValue
+    }
+    if let enabled = options.motionActivityEnabled {
+      extras["motionActivityEnabled"] = enabled.boolValue
+    }
+    if let reduce = options.motionReduceWhenStationary {
+      extras["motionReduceWhenStationary"] = reduce.boolValue
+    }
+    if let delay = options.motionStationaryDelay?.doubleValue, delay.isFinite {
+      extras["motionStationaryDelay"] = delay
+    }
+    if let cooldown = options.motionAutomotiveCooldown?.doubleValue, cooldown.isFinite {
+      extras["motionAutomotiveCooldown"] = cooldown
+    }
+    if let maxReduced = options.motionMaxReducedDuration?.doubleValue, maxReduced.isFinite {
+      extras["motionMaxReducedDuration"] = maxReduced
+    }
+    UserDefaults.standard.set(extras, forKey: LocationStorage.trackingOptionsExtrasKey)
   }
 
   // MARK: - Stop Token (Crash Recovery)
