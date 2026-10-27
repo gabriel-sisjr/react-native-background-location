@@ -13,4 +13,7 @@ export default createRunOncePlugin(plugin, pkg.name, pkg.version);
 
 export { PluginError } from './errors/PluginError';
 export type { PluginErrorCode } from './errors/PluginError';
-export type { BackgroundLocationPluginProps } from './options/types';
+export type {
+  BackgroundLocationPluginProps,
+  MotionActivityPluginProps,
+} from './options/types';
