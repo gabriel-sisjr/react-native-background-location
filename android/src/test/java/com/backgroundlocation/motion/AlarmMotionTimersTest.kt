@@ -3,6 +3,7 @@ package com.backgroundlocation.motion
 import android.app.AlarmManager
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import com.backgroundlocation.TrackingOptions
@@ -37,12 +38,20 @@ class AlarmMotionTimersTest {
 
   private fun scheduledAlarms(): List<ShadowAlarmManager.ScheduledAlarm> = shadowOf(alarmManager).scheduledAlarms
 
+  /**
+   * The intent [alarm] delivers. `ScheduledAlarm` has no getter for its PendingIntent, only the
+   * deprecated `operation` field, so every read of it goes through here.
+   */
+  @Suppress("DEPRECATION")
+  private fun deliveredIntent(alarm: ShadowAlarmManager.ScheduledAlarm): Intent =
+    shadowOf(alarm.operation).savedIntent
+
   /** The delivery the receiver parses from the alarm scheduled for [kind]. */
   private fun scheduledDelivery(kind: TimerKind): MotionDelivery.Timer {
     val alarm = scheduledAlarms().single { alarm ->
-      shadowOf(alarm.operation).savedIntent.getStringExtra(MotionPendingIntents.EXTRA_TIMER_KIND) == kind.name
+      deliveredIntent(alarm).getStringExtra(MotionPendingIntents.EXTRA_TIMER_KIND) == kind.name
     }
-    return MotionActivityReceiver.parse(shadowOf(alarm.operation).savedIntent) as MotionDelivery.Timer
+    return MotionActivityReceiver.parse(deliveredIntent(alarm)) as MotionDelivery.Timer
   }
 
   @Test
@@ -52,10 +61,10 @@ class AlarmMotionTimersTest {
     assertTrue(timers.start(TimerKind.DWELL, 60_000L, 42L))
 
     val alarm = scheduledAlarms().single()
-    assertEquals(AlarmManager.ELAPSED_REALTIME_WAKEUP, alarm.type)
-    assertEquals(armedAt + 60_000L, alarm.triggerAtTime)
+    assertEquals(AlarmManager.ELAPSED_REALTIME_WAKEUP, alarm.getType())
+    assertEquals(armedAt + 60_000L, alarm.triggerAtMs)
     assertTrue(alarm.isAllowWhileIdle)
-    val intent = shadowOf(alarm.operation).savedIntent
+    val intent = deliveredIntent(alarm)
     assertEquals(MotionActivityReceiver::class.java.name, intent.component?.className)
     assertEquals(MotionDelivery.Timer(TimerKind.DWELL, 42L), MotionActivityReceiver.parse(intent))
   }
