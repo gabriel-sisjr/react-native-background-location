@@ -34,6 +34,20 @@ object LocationEventEmitter {
     }
 
     /**
+     * Emits a motion activity event via SharedFlow
+     */
+    fun emitMotionActivity(tripId: String, activity: String, confidence: String, timestamp: Long) {
+        LocationEventFlow.emit(
+            LocationEvent.MotionActivity(
+                tripId = tripId,
+                activity = activity,
+                confidence = confidence,
+                timestamp = timestamp
+            )
+        )
+    }
+
+    /**
      * Converts Location to Bundle for event emission
      */
     fun locationToBundle(location: Location): Bundle {

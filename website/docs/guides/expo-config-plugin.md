@@ -20,15 +20,16 @@ The library ships an [Expo config plugin](https://docs.expo.dev/config-plugins/i
 
 The plugin is a thin, declarative wrapper around the native module's manifest, plist, and project requirements. It runs at `expo prebuild` time and is responsible for:
 
-- Injecting the seven Android permissions the library needs into `AndroidManifest.xml`.
+- Injecting the seven Android permissions the library needs into `AndroidManifest.xml` (nine with the [`motionActivity`](#motionactivity) prop).
 - Writing the three `NSLocation*UsageDescription` keys into `Info.plist`.
 - Adding `"location"` to the `UIBackgroundModes` array.
 - Raising the iOS deployment target to 16.0 when your project is set lower (a higher value is left untouched).
 - Stopping `expo prebuild` (and any other Expo command that loads your config) with a `PluginError` when the New Architecture is explicitly disabled, because the library only works on the New Architecture.
 - Printing a warning when your project uses an Expo SDK older than 54.
 - Optionally merging a `NSLocationTemporaryUsageDescriptionDictionary` (see [`temporaryUsageDescriptions`](#temporaryusagedescriptions)).
+- Optionally, with the [`motionActivity`](#motionactivity) prop, preparing the native projects for motion activity: two Android activity-recognition permissions, `NSMotionUsageDescription`, and a Podfile flag that compiles the library's CoreMotion code.
 
-The plugin is **consumer-scoped**: it touches only files inside the consumer's generated `android/` and `ios/` directories. It does not patch the library itself, register services or receivers, edit Gradle scripts, or modify the podspec — autolinking handles all of that.
+The plugin is **consumer-scoped**: it touches only files inside the consumer's generated `android/` and `ios/` directories. It does not patch the library itself, register services or receivers, edit Gradle scripts, or modify the podspec — autolinking handles all of that. It edits the generated `ios/Podfile` only for the `motionActivity` prop, to set the flag that the podspec reads.
 
 If you are on the **bare workflow** and edit `AndroidManifest.xml` or `Info.plist` yourself, you do **not** need the plugin. Install it only when Expo manages your native projects.
 
@@ -126,7 +127,7 @@ The defaults shipped with the plugin are intentionally generic so they do not im
 
 ### Android — `AndroidManifest.xml`
 
-The plugin uses Expo's `AndroidConfig.Permissions.ensurePermissions` modifier (idempotent) to make sure the seven permissions required by the foreground service and the location pipeline are present in the generated app manifest (the library's own `AndroidManifest.xml` declares the same permissions and is merged into the app manifest by Gradle's manifest merger):
+The plugin uses Expo's `AndroidConfig.Permissions.ensurePermissions` modifier (idempotent) to make sure the permissions required by the foreground service and the location pipeline are present in the generated app manifest: seven without the `motionActivity` prop, nine with it. The library's own `AndroidManifest.xml` declares the seven listed here and is merged into the app manifest by Gradle's manifest merger:
 
 | Permission | Required For |
 | --- | --- |
@@ -138,9 +139,18 @@ The plugin uses Expo's `AndroidConfig.Permissions.ensurePermissions` modifier (i
 | `android.permission.POST_NOTIFICATIONS` | Foreground service notification on Android 13+ |
 | `android.permission.RECEIVE_BOOT_COMPLETED` | Restore registered geofences after a device reboot |
 
+With the [`motionActivity`](#motionactivity) prop, the plugin adds two more permissions. The library's own manifest declares neither of them, so without the prop they are not added:
+
+| Permission | Required For |
+| --- | --- |
+| `android.permission.ACTIVITY_RECOGNITION` | Motion activity on Android 10+ (runtime permission) |
+| `com.google.android.gms.permission.ACTIVITY_RECOGNITION` | Motion activity on Android 9 and lower (granted at install time) |
+
+The plugin writes `android:maxSdkVersion="28"` on the Google Play services entry only when it adds that entry itself. An entry your app already declares is never duplicated or modified.
+
 ### iOS — `Info.plist`
 
-The plugin writes three usage description keys and ensures `UIBackgroundModes` contains `location`:
+The plugin writes three usage description keys (four with the `motionActivity` prop) and ensures `UIBackgroundModes` contains `location`:
 
 | Key | Source |
 | --- | --- |
@@ -149,6 +159,18 @@ The plugin writes three usage description keys and ensures `UIBackgroundModes` c
 | `NSLocationAlwaysUsageDescription` | `locationAlwaysUsageDescription` prop (then an existing value, then the default) |
 | `UIBackgroundModes` | `["location"]` appended (guarded against duplicates) |
 | `NSLocationTemporaryUsageDescriptionDictionary` | Shallow-merged from `temporaryUsageDescriptions`, if provided |
+| `NSMotionUsageDescription` | Only with `motionActivity`: the `motionActivity.usageDescription` prop (then an existing value, then the default) |
+
+### iOS — `Podfile`
+
+Only with the `motionActivity` prop, the plugin inserts these two lines before the first `target '<name>' do` line of the generated `ios/Podfile`:
+
+```ruby
+# Motion activity (CoreMotion) for @gabriel-sisjr/react-native-background-location, added by its config plugin.
+$BackgroundLocationMotionActivity = true
+```
+
+When CocoaPods reads the library's podspec, the flag makes it compile the CoreMotion code and link the `CoreMotion` framework. The change is idempotent: a Podfile that already sets `$BackgroundLocationMotionActivity = true` is left as it is. If the Podfile has no `target` line, the plugin leaves it unchanged and prints a `withIosMotionActivity` warning; the app still builds, and at runtime iOS reports `MOTION_ACTIVITY_UNAVAILABLE` while tracking continues at full accuracy (see [Motion activity is not compiled into this app](#motion-activity-is-not-compiled-into-this-app)). The plugin never removes the lines, so run `npx expo prebuild --clean` after removing the prop.
 
 ### iOS — deployment target
 
@@ -184,7 +206,7 @@ npx expo prebuild --clean
 Inspect the generated files to confirm the plugin ran:
 
 ```bash
-# Android — should contain the 7 permissions listed above
+# Android — should contain the 7 permissions listed above (9 with motionActivity)
 grep "uses-permission" android/app/src/main/AndroidManifest.xml
 
 # iOS (macOS) — should contain the 3 NSLocation* keys and UIBackgroundModes
@@ -196,6 +218,10 @@ grep -A2 -E 'NSLocation|UIBackgroundModes' ios/*/Info.plist
 # iOS — the deployment target should be 16.0 or higher
 grep ios.deploymentTarget ios/Podfile.properties.json
 grep IPHONEOS_DEPLOYMENT_TARGET ios/*.xcodeproj/project.pbxproj
+
+# iOS, only with motionActivity — the Podfile flag and the motion usage string
+grep -n BackgroundLocationMotionActivity ios/Podfile
+grep -A1 NSMotionUsageDescription ios/*/Info.plist
 ```
 
 On Expo SDK 54 and 55, the first deployment target command prints `"ios.deploymentTarget": "16.0"` and every line of the second ends in `16.0;` (a higher value that you configured yourself is kept). From SDK 56 the Expo default of `16.4` applies: the first command prints nothing and the second prints `16.4;`.
@@ -255,9 +281,27 @@ CocoaPods reports `required a higher minimum deployment target` because the iOS 
 
 On Expo SDK 56 and later, Expo itself needs a deployment target of `16.4`. If `pod install` fails there, remove any `ios.deploymentTarget` override from your config or set it to `16.4` or higher.
 
+### Motion activity is not compiled into this app
+
+On iOS, a trip started with the `motionActivity` tracking option emits a `MOTION_ACTIVITY_UNAVAILABLE` warning with this message, and tracking continues at full accuracy:
+
+```text
+Motion activity is not compiled into this app. Set $BackgroundLocationMotionActivity = true in the Podfile (or add the motionActivity plugin prop) and reinstall pods. Location tracking continues at full accuracy.
+```
+
+The installed app was built without the Podfile flag. Check, in this order:
+
+1. **The `motionActivity` prop is missing** from the plugin entry. Add it (see [`motionActivity`](#motionactivity)).
+2. **The build is older than the prop.** Run `npx expo prebuild --clean`, then build and install the app again.
+3. **The prebuild printed a `withIosMotionActivity` warning** saying that no `target '<name>' do` line was found in `ios/Podfile`. The plugin then leaves the Podfile unchanged. Add `$BackgroundLocationMotionActivity = true` above the first `target` yourself and run `pod install`.
+
+### `MOTION_PERMISSION_NOT_GRANTED` after adding `motionActivity`
+
+The prop declares the permissions and the usage string, but it does not request anything at runtime. Call `requestMotionPermission()` after the location permissions and before `startTracking()`; until the permission is granted, trips run at full accuracy and report this warning. See [Motion Activity Permission](./permission-handling.md#motion-activity-permission).
+
 ### Usage string rejected by App Review
 
-The default strings are generic on purpose. Override them with consumer-specific copy in your `app.json` (see [Customize usage strings](#customize-usage-strings)) — every `NSLocation*` key should mention **why** your specific app needs location access.
+The default strings are generic on purpose. Override them with consumer-specific copy in your `app.json` (see [Customize usage strings](#customize-usage-strings)) — every `NSLocation*` key should mention **why** your specific app needs location access. The same applies to `NSMotionUsageDescription`: set `motionActivity.usageDescription` to say why your app uses motion activity.
 
 ### Plugin error codes
 
@@ -266,10 +310,11 @@ The plugin validates its options synchronously, when your config is loaded and b
 | Code | Cause | Fix |
 | --- | --- | --- |
 | `INVALID_PROPS_TYPE` | The options in the second position of the plugin entry are not an object, for example a string or an array: `Plugin props must be a plain object. Received string.` | Pass `["@gabriel-sisjr/react-native-background-location", { ... }]`, or only the package name when you set no options. Compare your `plugins` array with the snippet in [Customize usage strings](#customize-usage-strings). |
-| `UNKNOWN_PROP` | The options object has a key the plugin does not have: a typo such as `locationWhenInUseUsageDescripton`, or an option of another plugin such as `locationWhenInUsePermission` from `expo-location`. The message lists the unknown keys and the supported options: `` Unknown plugin option: `locationWhenInUseUsageDescripton`. Supported options: ... `` | Rename or remove the key. The supported options are in the [Options Reference](#options-reference). |
-| `INVALID_USAGE_DESCRIPTION` | One of `locationWhenInUseUsageDescription`, `locationAlwaysAndWhenInUseUsageDescription` or `locationAlwaysUsageDescription` is not a string (a number or `null`, for example): `` `locationWhenInUseUsageDescription` must be a string when provided. Received number. `` Or it is empty or whitespace-only: `` `locationWhenInUseUsageDescription` must not be empty or whitespace-only. `` | Pass a non-empty string, or remove the option to keep the default. |
+| `UNKNOWN_PROP` | The options object has a key the plugin does not have: a typo such as `locationWhenInUseUsageDescripton`, or an option of another plugin such as `locationWhenInUsePermission` from `expo-location`. The message lists the unknown keys and the supported options: `` Unknown plugin option: `locationWhenInUseUsageDescripton`. Supported options: ... `` Keys inside `motionActivity` are checked the same way and reported with their path: `` Unknown plugin option: `motionActivity.usageDescripton`. Supported options: `motionActivity.usageDescription`. `` | Rename or remove the key. The supported options are in the [Options Reference](#options-reference). |
+| `INVALID_USAGE_DESCRIPTION` | One of `locationWhenInUseUsageDescription`, `locationAlwaysAndWhenInUseUsageDescription`, `locationAlwaysUsageDescription` or `motionActivity.usageDescription` is not a string (a number or `null`, for example): `` `locationWhenInUseUsageDescription` must be a string when provided. Received number. `` Or it is empty or whitespace-only: `` `locationWhenInUseUsageDescription` must not be empty or whitespace-only. `` | Pass a non-empty string, or remove the option to keep the default. |
 | `INVALID_TEMPORARY_USAGE_DESCRIPTIONS` | `temporaryUsageDescriptions` is not an object, for example an array of strings: `` `temporaryUsageDescriptions` must be a plain object mapping purpose keys to usage strings. `` | Pass an object that maps purpose keys to strings, for example `{ "AccurateFix": "..." }`. See [`temporaryUsageDescriptions`](#temporaryusagedescriptions). |
 | `INVALID_TEMPORARY_USAGE_DESCRIPTION_VALUE` | One value of `temporaryUsageDescriptions` is not a string or is empty or whitespace-only. The message names the key: `` `temporaryUsageDescriptions["AccurateFix"]` must be a non-empty string. Received number. `` | Give every purpose key a non-empty string. |
+| `INVALID_MOTION_ACTIVITY` | `motionActivity` is not a plain object, for example `true`, `null`, an array or a string: `` `motionActivity` must be a plain object (use `{}` to opt in with the default usage string). Received boolean. `` | Pass an object: `{}` for the default usage string, or `{ "usageDescription": "..." }`. Remove the key to leave motion activity off. |
 | `NEW_ARCHITECTURE_DISABLED` | The New Architecture is explicitly disabled in your Expo config (SDK 54 and earlier). | See [`NEW_ARCHITECTURE_DISABLED`](#new_architecture_disabled) above. |
 
 ### Permissions appear in `AndroidManifest.xml` but the foreground service still crashes
@@ -287,7 +332,7 @@ If you previously edited `AndroidManifest.xml` and `Info.plist` by hand:
 1. **Upgrade the library to 1.1.0 or later** (the plugin ships from 1.1.0): `npx expo install @gabriel-sisjr/react-native-background-location`.
 2. **Add the plugin entry** to `app.json` (see [Configure](#configure)). If you added `expo-build-properties` only to raise `ios.deploymentTarget` to 16.0 for this library, you can remove that entry.
 3. **If you prebuild without `--clean`, remove the manual entries** from `AndroidManifest.xml` and `Info.plist` so the files come solely from the plugin (`--clean` regenerates both files anyway). The modifiers are idempotent, but keeping stale manual entries makes audits harder.
-4. **Move custom usage strings** into the plugin's `locationWhenInUseUsageDescription` / `locationAlwaysAndWhenInUseUsageDescription` / `locationAlwaysUsageDescription` props.
+4. **Move custom usage strings** into the plugin's `locationWhenInUseUsageDescription` / `locationAlwaysAndWhenInUseUsageDescription` / `locationAlwaysUsageDescription` props. If you use motion activity, also add the [`motionActivity`](#motionactivity) prop and move your `NSMotionUsageDescription` text into `motionActivity.usageDescription`: the prop replaces the hand-added activity-recognition permissions and Podfile flag, which step 5 deletes.
 5. **Run `npx expo prebuild --clean`.** It deletes both native folders and regenerates them with the plugin applied.
 6. **Verify** with the commands in [Verify your build](#verify-your-build) — they should produce the same surface area as your previous manual setup.
 
@@ -295,7 +340,7 @@ No JavaScript imports change. Your existing call sites continue to compile and r
 
 ## Options Reference
 
-All props are optional. Pass them in the second position of the plugin tuple: `["@gabriel-sisjr/react-native-background-location", { ... }]`. Any other key is rejected with an `UNKNOWN_PROP` error that lists the supported options (see [Plugin error codes](#plugin-error-codes)), so a misspelled name fails the prebuild instead of silently falling back to the default copy. List the plugin once in `plugins`: if the same package appears twice, Expo applies only the first entry and skips the others without validating them.
+All props are optional. Pass them in the second position of the plugin tuple: `["@gabriel-sisjr/react-native-background-location", { ... }]`. Any other key, including an unknown key inside `motionActivity`, is rejected with an `UNKNOWN_PROP` error that lists the supported options (see [Plugin error codes](#plugin-error-codes)), so a misspelled name fails the prebuild instead of silently falling back to the default copy. List the plugin once in `plugins`: if the same package appears twice, Expo applies only the first entry and skips the others without validating them.
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -303,6 +348,8 @@ All props are optional. Pass them in the second position of the plugin tuple: `[
 | `locationAlwaysAndWhenInUseUsageDescription` | `string` | Generic background-location string mentioning `$(PRODUCT_NAME)` | Writes the iOS `NSLocationAlwaysAndWhenInUseUsageDescription` key in `Info.plist`. Must be a non-empty, non-whitespace string. |
 | `locationAlwaysUsageDescription` | `string` | Generic always-on string mentioning `$(PRODUCT_NAME)` | Writes the iOS `NSLocationAlwaysUsageDescription` key (legacy, iOS < 11 compatibility). Must be a non-empty, non-whitespace string. |
 | `temporaryUsageDescriptions` | `Record<string, string>` | _(omitted)_ | Shallow-merged into `NSLocationTemporaryUsageDescriptionDictionary`. Keys are purpose keys for `requestTemporaryFullAccuracyAuthorization(withPurposeKey:)`; values must be non-empty strings. See [`temporaryUsageDescriptions`](#temporaryusagedescriptions). |
+| `motionActivity` | `MotionActivityPluginProps` | _(omitted: off)_ | Opt-in for motion activity; its presence turns it on, even as `{}`. Adds the two Android activity-recognition permissions, `NSMotionUsageDescription` and the iOS Podfile flag. Must be a plain object. See [`motionActivity`](#motionactivity). |
+| `motionActivity.usageDescription` | `string` | `Allow $(PRODUCT_NAME) to use motion activity to detect when you are stationary or driving.` | Writes the iOS `NSMotionUsageDescription` key in `Info.plist`. When omitted, a value already in `Info.plist` is kept; otherwise the default is written. Must be a non-empty, non-whitespace string. |
 
 The props type is exported from the plugin entry point (source: [`plugin/src/options/types.ts`](https://github.com/gabriel-sisjr/react-native-background-location/blob/develop/plugin/src/options/types.ts)). Use `import type` so nothing from the plugin is loaded at runtime:
 
@@ -332,6 +379,8 @@ const config: ExpoConfig = {
 export default config;
 ```
 
+The type of the `motionActivity` object, `MotionActivityPluginProps`, is exported from the same entry point; see [`motionActivity`](#motionactivity) for an example.
+
 ## `temporaryUsageDescriptions`
 
 `temporaryUsageDescriptions` fills the `NSLocationTemporaryUsageDescriptionDictionary` that iOS 14 and later use for temporary full-accuracy requests (`CLLocationManager.requestTemporaryFullAccuracyAuthorization(withPurposeKey:)`). Each key is a purpose key and each value is the text shown to the user.
@@ -340,6 +389,60 @@ export default config;
 - It **does not** add a library API: the library never calls `requestTemporaryFullAccuracyAuthorization`, so the entries are only used by your own native code or by another library that does.
 
 When the prop is omitted, the dictionary is left untouched.
+
+## `motionActivity`
+
+`motionActivity` prepares the native projects for the library's opt-in motion activity detection. The prop is available from library version 1.2.0. Its presence turns it on, even as an empty object. Without it, the prebuild output is unchanged: exactly the seven library permissions, no `NSMotionUsageDescription` key and no Podfile line.
+
+```json
+{
+  "expo": {
+    "plugins": [
+      [
+        "@gabriel-sisjr/react-native-background-location",
+        {
+          "motionActivity": {
+            "usageDescription": "We use motion activity to detect when your vehicle is parked."
+          }
+        }
+      ]
+    ]
+  }
+}
+```
+
+Use `"motionActivity": {}` to keep the default usage string. In `app.config.ts`, type the object with the exported `MotionActivityPluginProps`:
+
+```ts
+import type { ExpoConfig } from 'expo/config';
+import type { MotionActivityPluginProps } from '@gabriel-sisjr/react-native-background-location/app.plugin';
+
+const motionActivity: MotionActivityPluginProps = {
+  usageDescription:
+    'We use motion activity to detect when your vehicle is parked.',
+};
+
+const config: ExpoConfig = {
+  name: 'my-app',
+  slug: 'my-app',
+  plugins: [
+    ['@gabriel-sisjr/react-native-background-location', { motionActivity }],
+  ],
+};
+
+export default config;
+```
+
+With the prop, the plugin:
+
+- **Android:** adds `android.permission.ACTIVITY_RECOGNITION` and `com.google.android.gms.permission.ACTIVITY_RECOGNITION`. The second entry gets `android:maxSdkVersion="28"` only when the plugin adds it, and entries your app already declares are never duplicated or modified.
+- **iOS:** writes `NSMotionUsageDescription`, resolved in this order: `motionActivity.usageDescription`, then a value already in `Info.plist` (for example from `ios.infoPlist`), then the default `Allow $(PRODUCT_NAME) to use motion activity to detect when you are stationary or driving.` It also inserts the `$BackgroundLocationMotionActivity = true` flag before the first `target` of the Podfile.
+
+[What the Plugin Sets Up](#what-the-plugin-sets-up) shows the exact entries. The library's privacy manifest does not change. On Google Play, `ACTIVITY_RECOGNITION` is health-related sensitive data: show a prominent disclosure and request the permission only after the user accepts it, complete the Health apps declaration, and declare motion-derived data that leaves the device in the Data safety form under Health and fitness > Fitness info (see [Google Play Compliance](../production/google-play-compliance.md#motion-activity-optional)). Declare such data in your App Store privacy details as well.
+
+The prop only prepares the native projects. Your JavaScript still turns detection on per trip with the `motionActivity` tracking option and requests the permission with `requestMotionPermission()` before `startTracking()`; see the [Motion Activity guide](./motion-activity.md#expo-setup).
+
+The default usage string is generic. Replace it with copy that says why your app uses motion activity before you submit to App Review. Removing the prop later requires `npx expo prebuild --clean`, because an incremental prebuild does not remove the permissions, the usage string or the Podfile line.
 
 ## Caveats and Known Limitations
 
@@ -351,3 +454,4 @@ When the prop is omitted, the dictionary is left untouched.
 - **The New Architecture must stay enabled.** The plugin stops `expo prebuild` and any other Expo command that loads your config if it is explicitly disabled (SDK 54 is the last SDK where that is possible).
 - **Expo SDK 54 or later.** SDK 50–53 are not supported; the plugin prints a warning there.
 - **Runtime permissions still required.** The plugin only manages manifest declarations — the runtime flow lives in the [`useLocationPermissions` hook](../getting-started/permissions.md).
+- **Removing `motionActivity` needs a clean prebuild.** An incremental prebuild does not remove the permissions, the usage string or the Podfile line the prop added; run `npx expo prebuild --clean`.

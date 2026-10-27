@@ -16,6 +16,8 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -252,5 +254,131 @@ class AndroidLocationProviderTest {
         // Calling removeLocationUpdates again should be a no-op (no second remove call).
         provider.removeLocationUpdates()
         verify(exactly = 1) { locationManager.removeUpdates(any<LocationListener>()) }
+    }
+
+    // --- Reduced profile (motion activity) ---
+
+    private data class Registration(val provider: String, val intervalMs: Long, val minDistance: Float)
+
+    private val reducedProfile = ReducedLocationProfile(
+        priority = Priority.PRIORITY_LOW_POWER,
+        intervalMs = 60_000L,
+        fastestIntervalMs = 30_000L,
+        minDistanceM = 0f
+    )
+
+    /** Records every registration sent to the location manager, in order. */
+    private fun captureRegistrations(): MutableList<Registration> {
+        val registrations = mutableListOf<Registration>()
+        every {
+            locationManager.requestLocationUpdates(
+                any<String>(),
+                any<Long>(),
+                any<Float>(),
+                capture(listenerSlot),
+                any<Looper>()
+            )
+        } answers {
+            registrations.add(Registration(firstArg(), secondArg(), thirdArg()))
+        }
+        return registrations
+    }
+
+    private fun requestFullAccuracy() {
+        provider.requestLocationUpdates(
+            intervalMs = 5000L,
+            fastestIntervalMs = 3000L,
+            priority = Priority.PRIORITY_HIGH_ACCURACY,
+            distanceFilter = 10f,
+            callback = updateCallback
+        )
+    }
+
+    @Test
+    fun `reduce re-registers once on the passive provider with the same update callback`() {
+        val registrations = captureRegistrations()
+        requestFullAccuracy()
+        val fullListener = listenerSlot.captured
+
+        provider.reduceLocationUpdates(reducedProfile)
+
+        verify(exactly = 1) { locationManager.removeUpdates(fullListener) }
+        assertEquals(
+            listOf(
+                Registration(LocationManager.GPS_PROVIDER, 5000L, 10f),
+                Registration(LocationManager.PASSIVE_PROVIDER, 60_000L, 0f)
+            ),
+            registrations
+        )
+        assertTrue(provider.isReduced())
+
+        // Fixes of the reduced registration still reach the same update callback
+        val location = mockk<Location>(relaxed = true)
+        listenerSlot.captured.onLocationChanged(location)
+        verify(exactly = 1) { updateCallback.onLocationUpdate(location) }
+    }
+
+    @Test
+    fun `second reduce is a no-op`() {
+        val registrations = captureRegistrations()
+        requestFullAccuracy()
+
+        provider.reduceLocationUpdates(reducedProfile)
+        provider.reduceLocationUpdates(reducedProfile)
+
+        assertEquals(2, registrations.size)
+        verify(exactly = 1) { locationManager.removeUpdates(any<LocationListener>()) }
+    }
+
+    @Test
+    fun `restore re-applies the last full request`() {
+        val registrations = captureRegistrations()
+        requestFullAccuracy()
+        provider.reduceLocationUpdates(reducedProfile)
+        val reducedListener = listenerSlot.captured
+
+        provider.restoreLocationUpdates()
+
+        verify(exactly = 1) { locationManager.removeUpdates(reducedListener) }
+        assertEquals(3, registrations.size)
+        assertEquals(Registration(LocationManager.GPS_PROVIDER, 5000L, 10f), registrations[2])
+        assertFalse(provider.isReduced())
+    }
+
+    @Test
+    fun `restore without reduce is a no-op`() {
+        val registrations = captureRegistrations()
+        requestFullAccuracy()
+
+        provider.restoreLocationUpdates()
+
+        assertEquals(1, registrations.size)
+        verify(exactly = 0) { locationManager.removeUpdates(any<LocationListener>()) }
+    }
+
+    @Test
+    fun `reduce after remove is a no-op`() {
+        val registrations = captureRegistrations()
+        requestFullAccuracy()
+        provider.removeLocationUpdates()
+
+        provider.reduceLocationUpdates(reducedProfile)
+        provider.restoreLocationUpdates()
+
+        assertEquals(1, registrations.size)
+        assertFalse(provider.isReduced())
+    }
+
+    @Test
+    fun `request clears the reduced state`() {
+        val registrations = captureRegistrations()
+        requestFullAccuracy()
+        provider.reduceLocationUpdates(reducedProfile)
+
+        requestFullAccuracy()
+
+        assertFalse(provider.isReduced())
+        provider.restoreLocationUpdates()
+        assertEquals(3, registrations.size)
     }
 }

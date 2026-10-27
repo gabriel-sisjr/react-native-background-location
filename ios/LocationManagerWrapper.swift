@@ -6,7 +6,9 @@ import CoreLocation
 
   private var locationManager: CLLocationManager?
   private let locationDelegate = LocationManagerDelegate()
-  private let queue = DispatchQueue(label: "com.backgroundlocation.manager", qos: .userInitiated)
+  private let queue: DispatchQueue
+  /// Opt-in motion activity session. Owned by `queue`: every call runs there.
+  private let motionCoordinator: MotionCoordinator
 
   private var _isTracking = false
   private var _currentTripId: String?
@@ -15,6 +17,15 @@ import CoreLocation
   // MARK: - Event Emission Closures
   @objc public var onLocationUpdate: (([String: Any]) -> Void)?
   @objc public var onLocationWarning: (([String: Any]) -> Void)?
+  /// Receives `onMotionActivity` events. May be assigned from any thread: the setter hands the
+  /// closure to `queue`, where the events are emitted, so it never races with an emission.
+  /// Never read it on `queue` (the getter waits for `queue`).
+  @objc public var onMotionActivity: (([String: Any]) -> Void)? {
+    get { return queue.sync { motionActivityHandler } }
+    set { queue.async { [weak self] in self?.motionActivityHandler = newValue } }
+  }
+  /// Storage behind `onMotionActivity`, confined to `queue`.
+  private var motionActivityHandler: (([String: Any]) -> Void)?
 
   // MARK: - Permission Management Properties
   private var permissionCompletionHandler: (([String: Any]) -> Void)?
@@ -28,8 +39,12 @@ import CoreLocation
   private var shouldIgnoreNextAuthCallback: Bool = false
 
   private override init() {
+    let queue = DispatchQueue(label: "com.backgroundlocation.manager", qos: .userInitiated)
+    self.queue = queue
+    self.motionCoordinator = MotionCoordinator(queue: queue)
     super.init()
     locationDelegate.callback = self
+    motionCoordinator.host = self
   }
 
   // MARK: - Crash Recovery
@@ -55,6 +70,9 @@ import CoreLocation
       if !options.isForegroundOnly {
         startSignificantLocationMonitoring()
       }
+
+      // Motion activity restarts through the normal path: a fresh session that never prompts
+      motionCoordinator.startSession(tripId: effectiveTripId, options: options)
 
       NSLog("[BackgroundLocation] Recovery complete: tracking resumed (tripId: \(effectiveTripId))")
     }
@@ -92,6 +110,9 @@ import CoreLocation
         startSignificantLocationMonitoring()
       }
 
+      // Motion activity (opt-in): never prompts; a detection warning is sent after this call returns
+      motionCoordinator.startSession(tripId: effectiveTripId, options: opts)
+
       return effectiveTripId
     }
   }
@@ -100,6 +121,7 @@ import CoreLocation
     queue.sync {
       guard _isTracking else { return }
 
+      motionCoordinator.stopSession()
       _isTracking = false
       _currentTripId = nil
       _currentOptions = nil
@@ -218,6 +240,39 @@ import CoreLocation
     }
   }
 
+  // MARK: - Motion Activity
+
+  /// Motion & Fitness permission without prompting: `granted`, `denied`, `undetermined`, or
+  /// `unavailable` (not compiled in, `NSMotionUsageDescription` missing or blank, or no motion hardware).
+  @objc public func checkMotionPermission() -> String {
+    let result = MotionActivityPlatformFactory.preconditions()
+    return MotionPreconditions.permissionStatus(for: result).rawValue
+  }
+
+  /// Prompts for Motion & Fitness access only when it is undetermined; otherwise returns the
+  /// current status. Independent of the location-permission flow.
+  @objc public func requestMotionPermission(completion: @escaping (String) -> Void) {
+    guard let platform = MotionActivityPlatformFactory.makePlatform() else {
+      completion(MotionPermissionStatus.unavailable.rawValue)
+      return
+    }
+    let result = platform.evaluatePreconditions()
+    guard result == .permissionNotDetermined else {
+      completion(MotionPreconditions.permissionStatus(for: result).rawValue)
+      return
+    }
+    platform.requestAuthorization { status in
+      completion(status.rawValue)
+    }
+  }
+
+  /// JSON snapshot of the motion session for `getMotionActivityState()`.
+  @objc public func motionActivityStateJSON() -> String {
+    return queue.sync {
+      motionCoordinator.stateJSON()
+    }
+  }
+
   public func didUpdateLocations(_ locations: [CLLocation]) {
     queue.async { [weak self] in
       guard let self = self, self._isTracking, let tripId = self._currentTripId else { return }
@@ -227,6 +282,20 @@ import CoreLocation
         // Reject invalid locations (negative accuracy means CLLocationManager couldn't determine position)
         guard location.horizontalAccuracy >= 0 else {
           NSLog("[BackgroundLocation] Filtered invalid location (horizontalAccuracy: \(location.horizontalAccuracy))")
+          continue
+        }
+
+        // Motion reduction: keep-alive fixes (reduced profile, a switch back to full accuracy not
+        // applied yet, or older than that switch) only feed the displacement check. They skip the
+        // age filter and are never persisted or emitted.
+        if self.motionCoordinator.hasGate && self.motionCoordinator.isKeepAliveFix(timestamp: location.timestamp) {
+          self.motionCoordinator.handleFix(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            accuracyMeters: location.horizontalAccuracy,
+            rawAccuracyMeters: location.horizontalAccuracy,
+            kind: .keepAlive
+          )
           continue
         }
 
@@ -241,6 +310,19 @@ import CoreLocation
 
         let eventData = self.formatLocationForEvent(location: location, tripId: tripId)
         self.onLocationUpdate?(eventData)
+
+        // A full fix reaches the gate only after it was recorded. Its accuracy includes the trip's
+        // distance filter: the device can move that far before the next full fix is delivered.
+        if self.motionCoordinator.hasGate {
+          let distanceFilter = self._currentOptions.map { self.fullLocationProfile(for: $0).distanceFilter } ?? 0
+          self.motionCoordinator.handleFix(
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            accuracyMeters: MotionGate.fullFixAccuracy(location.horizontalAccuracy, distanceFilter),
+            rawAccuracyMeters: location.horizontalAccuracy,
+            kind: .full
+          )
+        }
       }
     }
   }
@@ -250,6 +332,12 @@ import CoreLocation
       guard let self = self, self._isTracking else { return }
 
       let clError = error as? CLError
+
+      // While motion reduction is active the error describes the keep-alive request, not the trip
+      if clError?.code != .denied && self.motionCoordinator.isReduced {
+        return
+      }
+
       let errorType: String
       let message: String
 
@@ -261,17 +349,12 @@ import CoreLocation
         message = error.localizedDescription
       }
 
-      var eventData: [String: Any] = [
-        "type": errorType,
-        "message": message,
-      ]
-      if let tripId = self._currentTripId {
-        eventData["tripId"] = tripId
-      }
+      let eventData = self.makeWarningEvent(type: errorType, message: message, tripId: self._currentTripId)
       self.onLocationWarning?(eventData)
 
       // If permission denied, stop tracking
       if clError?.code == .denied {
+        self.motionCoordinator.stopSession()
         self._isTracking = false
         let tripIdForStorage = self._currentTripId
         self._currentTripId = nil
@@ -290,13 +373,11 @@ import CoreLocation
     queue.async { [weak self] in
       guard let self = self, self._isTracking else { return }
 
-      var eventData: [String: Any] = [
-        "type": "LOCATION_UPDATES_PAUSED",
-        "message": "iOS paused location updates automatically to save battery.",
-      ]
-      if let tripId = self._currentTripId {
-        eventData["tripId"] = tripId
-      }
+      let eventData = self.makeWarningEvent(
+        type: "LOCATION_UPDATES_PAUSED",
+        message: "iOS paused location updates automatically to save battery.",
+        tripId: self._currentTripId
+      )
       self.onLocationWarning?(eventData)
       NSLog("[BackgroundLocation] Location updates paused by system")
 
@@ -317,13 +398,11 @@ import CoreLocation
     queue.async { [weak self] in
       guard let self = self, self._isTracking else { return }
 
-      var eventData: [String: Any] = [
-        "type": "LOCATION_UPDATES_RESUMED",
-        "message": "iOS resumed location updates.",
-      ]
-      if let tripId = self._currentTripId {
-        eventData["tripId"] = tripId
-      }
+      let eventData = self.makeWarningEvent(
+        type: "LOCATION_UPDATES_RESUMED",
+        message: "iOS resumed location updates.",
+        tripId: self._currentTripId
+      )
       self.onLocationWarning?(eventData)
       NSLog("[BackgroundLocation] Location updates resumed by system")
     }
@@ -365,16 +444,15 @@ import CoreLocation
       switch status {
       case .denied, .restricted:
         // Permission fully revoked while tracking — emit warning and stop
-        var warningData: [String: Any] = [
-          "type": "PERMISSION_REVOKED",
-          "message": "Location permission was revoked while tracking. Stopping tracking.",
-        ]
-        if let tripId = self._currentTripId {
-          warningData["tripId"] = tripId
-        }
+        let warningData = self.makeWarningEvent(
+          type: "PERMISSION_REVOKED",
+          message: "Location permission was revoked while tracking. Stopping tracking.",
+          tripId: self._currentTripId
+        )
         self.onLocationWarning?(warningData)
 
         // Stop tracking (inline to avoid deadlock since we are already on queue)
+        self.motionCoordinator.stopSession()
         self._isTracking = false
         let tripIdForStorage = self._currentTripId
         self._currentTripId = nil
@@ -390,13 +468,11 @@ import CoreLocation
         // Downgraded from Always to WhenInUse while background tracking
         guard self._currentOptions?.isForegroundOnly == false else { return }
 
-        var warningData: [String: Any] = [
-          "type": "PERMISSION_DOWNGRADED",
-          "message": "Location permission downgraded to When In Use. Background tracking may stop when the app is suspended.",
-        ]
-        if let tripId = self._currentTripId {
-          warningData["tripId"] = tripId
-        }
+        let warningData = self.makeWarningEvent(
+          type: "PERMISSION_DOWNGRADED",
+          message: "Location permission downgraded to When In Use. Background tracking may stop when the app is suspended.",
+          tripId: self._currentTripId
+        )
         self.onLocationWarning?(warningData)
 
       default:
@@ -446,15 +522,9 @@ import CoreLocation
 
       let manager = CLLocationManager()
       manager.delegate = self.locationDelegate
-      manager.desiredAccuracy = options.clAccuracy
-
-      // Apply battery-optimized distance filter: use explicit distanceFilter if set,
-      // otherwise apply defaults based on accuracy level
-      if options.distanceFilter != nil && options.distanceFilter!.doubleValue > 0 {
-        manager.distanceFilter = options.clDistanceFilter
-      } else {
-        manager.distanceFilter = self.defaultDistanceFilter(for: options.accuracy)
-      }
+      let profile = self.fullLocationProfile(for: options)
+      manager.desiredAccuracy = profile.desiredAccuracy
+      manager.distanceFilter = profile.distanceFilter
 
       manager.activityType = options.clActivityType(methodName: "startTracking")
       // `pausesLocationUpdatesAutomatically = false` reduces — but does not
@@ -487,6 +557,47 @@ import CoreLocation
     default:
       return kCLDistanceFilterNone
     }
+  }
+
+  /// The trip's own accuracy settings, used by `configureAndStart` and when motion reduction ends.
+  private func fullLocationProfile(for options: TrackingOptions) -> LocationProfile {
+    // Apply battery-optimized distance filter: use explicit distanceFilter if set,
+    // otherwise apply defaults based on accuracy level
+    let distanceFilter: CLLocationDistance
+    if let filter = options.distanceFilter?.doubleValue, filter > 0 {
+      distanceFilter = options.clDistanceFilter
+    } else {
+      distanceFilter = defaultDistanceFilter(for: options.accuracy)
+    }
+    return LocationProfile(desiredAccuracy: options.clAccuracy, distanceFilter: distanceFilter)
+  }
+
+  /// The only writer of `desiredAccuracy`/`distanceFilter` after `configureAndStart`. Called on
+  /// `queue`; main only sets the properties, and FIFO order keeps successive profiles consistent.
+  /// Updates keep running, so a profile change never lets the app be suspended. `applied` runs on
+  /// main right after the properties are set, with the current time, even when no manager exists.
+  private func applyLocationProfile(_ profile: LocationProfile, applied: ((Date) -> Void)?) {
+    DispatchQueue.main.async { [weak self] in
+      if let manager = self?.locationManager {
+        manager.desiredAccuracy = profile.desiredAccuracy
+        manager.distanceFilter = profile.distanceFilter
+      }
+      applied?(Date())
+    }
+  }
+
+  /// Builds every `onLocationWarning` payload: `type`, `message`, `tripId` when known, and the
+  /// emission `timestamp` in milliseconds since 1970.
+  private func makeWarningEvent(type: String, message: String, tripId: String?) -> [String: Any] {
+    var eventData: [String: Any] = [
+      "type": type,
+      "message": message,
+      "timestamp": Date().timeIntervalSince1970 * 1000,
+    ]
+    if let tripId = tripId {
+      eventData["tripId"] = tripId
+    }
+    return eventData
   }
 
   private func formatLocationForEvent(location: CLLocation, tripId: String) -> [String: Any] {
@@ -559,5 +670,53 @@ import CoreLocation
       provider: provider,
       isFromMockProvider: isFromMockProvider
     )
+  }
+}
+
+// MARK: - Location Profiles
+
+/// Accuracy settings applied to the running location manager.
+private struct LocationProfile {
+  let desiredAccuracy: CLLocationAccuracy
+  let distanceFilter: CLLocationDistance
+
+  /// Keep-alive profile while motion reduction is active. Standard updates keep running and
+  /// `allowsBackgroundLocationUpdates` is unchanged, so the app stays alive and CoreMotion keeps delivering.
+  static let reduced = LocationProfile(desiredAccuracy: kCLLocationAccuracyThreeKilometers, distanceFilter: 500)
+}
+
+// MARK: - Motion Coordinator Host
+
+extension LocationManagerWrapper: MotionCoordinatorHost {
+  // Called on `queue` by the motion coordinator.
+
+  func motionCoordinatorApplyLocationProfile(reduced: Bool, applied: ((Date) -> Void)?) {
+    guard let options = _currentOptions else {
+      // No trip, so nothing to apply; still answer, so a requested full profile never stays pending.
+      if let applied = applied {
+        DispatchQueue.main.async { applied(Date()) }
+      }
+      return
+    }
+    #if DEBUG
+    NSLog("[BackgroundLocation] Motion gate applies the \(reduced ? "reduced" : "full") location profile")
+    #endif
+    applyLocationProfile(reduced ? LocationProfile.reduced : fullLocationProfile(for: options), applied: applied)
+  }
+
+  func motionCoordinatorFlushStorage() {
+    LocationStorage.shared.forceFlush()
+  }
+
+  func motionCoordinatorCanEmit() -> Bool {
+    return _isTracking && !LocationStorage.shared.hasValidStopToken()
+  }
+
+  func motionCoordinatorEmitWarning(_ warning: MotionWarning, tripId: String) {
+    onLocationWarning?(makeWarningEvent(type: warning.type, message: warning.message, tripId: tripId))
+  }
+
+  func motionCoordinatorEmitActivity(_ payload: [String: Any]) {
+    motionActivityHandler?(payload)
   }
 }

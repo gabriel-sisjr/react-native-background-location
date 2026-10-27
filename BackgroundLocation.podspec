@@ -16,7 +16,12 @@ Pod::Spec.new do |s|
   s.source_files = "ios/**/*.{h,m,mm,cpp,swift}"
   s.private_header_files = "ios/**/*.h"
 
-  s.frameworks = "CoreLocation", "CoreData"
+  # Motion activity (CoreMotion) is compiled in only when the app's Podfile sets
+  # `$BackgroundLocationMotionActivity = true` before its first `target`.
+  motion_activity = defined?($BackgroundLocationMotionActivity) && $BackgroundLocationMotionActivity == true
+  s.frameworks = motion_activity ? ["CoreLocation", "CoreData", "CoreMotion"] : ["CoreLocation", "CoreData"]
+  # Must be set before install_modules_dependencies(s), which merges and then reassigns pod_target_xcconfig.
+  s.pod_target_xcconfig = { "OTHER_SWIFT_FLAGS" => "$(inherited) -DBACKGROUND_LOCATION_MOTION" } if motion_activity
 
   s.resource_bundles = {
     'BackgroundLocationPrivacy' => ['ios/PrivacyInfo.xcprivacy'],

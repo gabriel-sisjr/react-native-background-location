@@ -1,7 +1,8 @@
 import plugin, { PluginError } from '../index';
+import type { BackgroundLocationPluginProps } from '../index';
 import { PluginError as SourcePluginError } from '../errors/PluginError';
 import { createBaseInfoPlist } from './fixtures/baseInfoPlist';
-import { runInfoPlistMod } from './utils/makeConfig';
+import { hasRegisteredMod, runInfoPlistMod } from './utils/makeConfig';
 import type { ConfigPlugin } from 'expo/config-plugins';
 
 const pkg = require('../../../package.json') as {
@@ -29,6 +30,35 @@ describe('published entry point (plugin/src/index.ts)', () => {
       'From the entry point'
     );
   });
+
+  it('forwards the motionActivity prop to the mods and registers the Podfile mod', async () => {
+    const config = plugin(baseExpoConfig(), {
+      motionActivity: { usageDescription: 'Motion copy from the entry point' },
+    });
+    const result = await runInfoPlistMod(config, createBaseInfoPlist());
+
+    expect(result.NSMotionUsageDescription).toBe(
+      'Motion copy from the entry point'
+    );
+    expect(hasRegisteredMod(config, 'ios', 'podfile')).toBe(true);
+  });
+
+  const propsWithoutMotionActivity: ReadonlyArray<
+    [label: string, props: BackgroundLocationPluginProps | undefined]
+  > = [
+    ['no props', undefined],
+    ['empty props', {}],
+    ['other props only', { locationWhenInUseUsageDescription: 'Copy' }],
+  ];
+
+  it.each(propsWithoutMotionActivity)(
+    'does not register the Podfile mod without the motionActivity prop (%s)',
+    (_label, props) => {
+      const config = plugin(baseExpoConfig(), props);
+
+      expect(hasRegisteredMod(config, 'ios', 'podfile')).toBe(false);
+    }
+  );
 
   it('records the package in the plugin history and runs only once', () => {
     const config = plugin(baseExpoConfig(), {});

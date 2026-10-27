@@ -41,6 +41,16 @@
       android:enabled="true"
       android:exported="false" />
 
+    <!--
+      Receiver for opt-in motion activity results and motion timers.
+      The library declares no permission for this feature: apps that enable it
+      declare the permissions themselves.
+    -->
+    <receiver
+      android:name=".motion.MotionActivityReceiver"
+      android:enabled="true"
+      android:exported="false" />
+
     <!-- Receiver for restoring geofences after device reboot -->
     <receiver
       android:name=".BootCompletedReceiver"

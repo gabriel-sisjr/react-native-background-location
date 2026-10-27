@@ -33,7 +33,8 @@ keywords:
 - **Full notification customization** -- Custom icons, colors, action buttons, and dynamic updates on Android
 - **Foreground-only mode** -- Track without requiring background location permission
 - **Geofencing support** -- Register geofence regions with transition monitoring and notifications
-- **Unified React hooks** -- `useBackgroundLocation`, `useLocationPermissions`, `useLocationUpdates`, and `useLocationTracking`
+- **Opt-in motion activity** -- Activity events (stationary, walking, running, cycling, automotive) and an optional reduction of location updates while the device is stationary; off by default. See the [Motion Activity guide](../guides/motion-activity.md)
+- **Unified React hooks** -- `useBackgroundLocation`, `useLocationPermissions`, `useLocationUpdates`, `useLocationTracking`, and `useMotionActivity`
 - **Fully typed TypeScript API** -- Complete type definitions for all methods, options, events, and hook return types
 - **Provider abstraction** -- Google Play Services primary with automatic Android Location API fallback
 - **Expo config plugin** -- Expo SDK 54+ projects get permissions, usage strings, and background modes configured on `expo prebuild`
@@ -53,6 +54,7 @@ keywords:
 | Max geofences | 100 | 20 |
 | Distance filtering | Supported | Supported |
 | Foreground-only mode | Supported | Supported |
+| Motion activity (opt-in) | Activity Recognition API (Google Play services) | CoreMotion, compiled in with a Podfile flag |
 
 ## Requirements
 

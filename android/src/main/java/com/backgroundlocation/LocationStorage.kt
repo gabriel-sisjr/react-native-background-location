@@ -4,6 +4,7 @@ import android.content.Context
 import com.backgroundlocation.database.LocationDatabase
 import com.backgroundlocation.database.LocationEntity
 import com.backgroundlocation.database.TrackingStateEntity
+import com.backgroundlocation.motion.MotionOptions
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
 import kotlinx.coroutines.*
@@ -91,9 +92,10 @@ class LocationStorage(context: Context) {
 
   /**
    * Flushes the location buffer to database
+   * Returns false when the batch could not be written (it is back in the buffer)
    */
-  private suspend fun flushBuffer() {
-    if (locationBuffer.isEmpty()) return
+  private suspend fun flushBuffer(): Boolean {
+    if (locationBuffer.isEmpty()) return true
 
     val batch = mutableListOf<LocationEntity>()
     while (batch.size < BATCH_SIZE * 2) { // Don't flush too many at once
@@ -109,8 +111,10 @@ class LocationStorage(context: Context) {
         android.util.Log.e("LocationStorage", "Failed to flush locations", e)
         // Re-add to buffer on failure
         batch.forEach { locationBuffer.add(it) }
+        return false
       }
     }
+    return true
   }
 
   /**
@@ -119,6 +123,19 @@ class LocationStorage(context: Context) {
   suspend fun forceFlush() {
     while (locationBuffer.isNotEmpty()) {
       flushBuffer()
+    }
+  }
+
+  /**
+   * Starts a flush of the buffered locations without waiting for it (fire-and-forget).
+   * It stops at the first batch that cannot be written; that batch stays buffered for the
+   * periodic flush, so a failing database never keeps it retrying in a loop.
+   */
+  fun flushAsync() {
+    scope.launch {
+      while (locationBuffer.isNotEmpty()) {
+        if (!flushBuffer()) break
+      }
     }
   }
   
@@ -205,7 +222,9 @@ class LocationStorage(context: Context) {
           accuracy = options?.accuracy?.value,
           waitForAccurateLocation = options?.waitForAccurateLocation,
           foregroundOnly = options?.foregroundOnly,
-          notificationOptionsJson = options?.notificationOptions?.toJsonString()
+          notificationOptionsJson = options?.notificationOptions?.toJsonString(),
+          distanceFilter = options?.distanceFilter,
+          motionOptionsJson = options?.motion?.toJsonString()
         )
         trackingStateDao.upsert(entity)
       } catch (e: Exception) {
@@ -231,7 +250,9 @@ class LocationStorage(context: Context) {
         accuracy = options?.accuracy?.value,
         waitForAccurateLocation = options?.waitForAccurateLocation,
         foregroundOnly = options?.foregroundOnly,
-        notificationOptionsJson = options?.notificationOptions?.toJsonString()
+        notificationOptionsJson = options?.notificationOptions?.toJsonString(),
+        distanceFilter = options?.distanceFilter,
+        motionOptionsJson = options?.motion?.toJsonString()
       )
       trackingStateDao.upsert(entity)
       android.util.Log.d("LocationStorage", "Tracking state saved synchronously: isActive=$isActive, tripId=$tripId")
@@ -253,7 +274,8 @@ class LocationStorage(context: Context) {
         TrackingState(false, null, null)
       } else {
         val hasAnyOption = entity.updateInterval != null || entity.accuracy != null ||
-          entity.notificationOptionsJson != null
+          entity.notificationOptionsJson != null || entity.distanceFilter != null ||
+          entity.motionOptionsJson != null
 
         val options = if (hasAnyOption) {
           val notificationOptions = entity.notificationOptionsJson?.let { jsonString ->
@@ -272,7 +294,10 @@ class LocationStorage(context: Context) {
             accuracy = entity.accuracy?.let { LocationAccuracy.fromString(it) },
             waitForAccurateLocation = entity.waitForAccurateLocation,
             foregroundOnly = entity.foregroundOnly,
-            notificationOptions = notificationOptions
+            distanceFilter = entity.distanceFilter,
+            notificationOptions = notificationOptions,
+            // A malformed JSON gives null: the restored session runs with motion activity off
+            motion = MotionOptions.fromJsonString(entity.motionOptionsJson)
           )
         } else null
 

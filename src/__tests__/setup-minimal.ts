@@ -38,6 +38,7 @@ jest.mock('react-native', () => ({
       ACCESS_BACKGROUND_LOCATION:
         'android.permission.ACCESS_BACKGROUND_LOCATION',
       POST_NOTIFICATIONS: 'android.permission.POST_NOTIFICATIONS',
+      ACTIVITY_RECOGNITION: 'android.permission.ACTIVITY_RECOGNITION',
     },
     RESULTS: {
       GRANTED: 'granted',
@@ -101,6 +102,13 @@ jest.mock('react-native', () => ({
 
 (global as any).simulateGeofenceTransitionEvent = (data: any) => {
   const callback = mockEventCallbacks.onGeofenceTransition;
+  if (callback) {
+    callback(data);
+  }
+};
+
+(global as any).simulateMotionActivityEvent = (data: any) => {
+  const callback = mockEventCallbacks.onMotionActivity;
   if (callback) {
     callback(data);
   }
@@ -170,6 +178,22 @@ jest.mock('../NativeBackgroundLocation', () => {
     clearGeofenceTransitions: jest.fn().mockResolvedValue(undefined),
     configureGeofenceNotifications: jest.fn().mockResolvedValue(undefined),
     getGeofenceNotificationConfig: jest.fn().mockResolvedValue('{}'),
+    checkMotionPermission: jest.fn(() => {
+      return Promise.resolve('granted');
+    }),
+    requestMotionPermission: jest.fn(() => {
+      return Promise.resolve('granted');
+    }),
+    getMotionActivityState: jest.fn(() => {
+      return Promise.resolve(
+        JSON.stringify({
+          tripId: null,
+          detection: 'OFF',
+          reduction: 'DISABLED',
+          lastActivity: null,
+        })
+      );
+    }),
   };
 
   return {

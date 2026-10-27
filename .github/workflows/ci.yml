@@ -73,6 +73,97 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
 
+  # Kotlin unit tests of the library module (JVM, Robolectric included), run
+  # through the example's Gradle wrapper with the same `yarn test:android` as
+  # locally. Deliberately:
+  #   - no `needs:`, so a failure elsewhere never turns this job into "skipped";
+  #   - no turbo: a cache hit would replay the log and restore no JUnit XML;
+  #   - no Gradle build cache: the Room schema export is a side effect of the
+  #     KSP task, which a FROM-CACHE result would skip.
+  android-unit-tests:
+    name: android unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Install JDK
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Finalize Android SDK
+        run: |
+          /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
+
+      # Own key prefix, so the `-gradle-` restore key of build-android never
+      # picks up this smaller cache; the second restore key warms a cold key
+      # from build-android's cache (same paths, same wrapper).
+      - name: Cache Gradle
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches
+          key: ${{ runner.os }}-android-unit-tests-gradle-${{ hashFiles('example/android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-android-unit-tests-gradle-
+            ${{ runner.os }}-gradle-
+
+      # Robolectric downloads its android-all-instrumented jar (about 150 MB)
+      # into ~/.m2 when the tests start, outside the Gradle caches above. Its
+      # own key leaves the Gradle cache keys of every job untouched.
+      - name: Cache Robolectric
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ runner.os }}-robolectric-${{ hashFiles('android/build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-robolectric-
+
+      # Apps opt in to activity recognition through their own manifest or the
+      # Expo plugin prop; the library manifest must never declare it. Keep this
+      # the step's only command: bash -e does not stop on a `!` command.
+      - name: Assert the library manifest declares no ACTIVITY_RECOGNITION
+        run: '! grep -q ACTIVITY_RECOGNITION android/src/main/AndroidManifest.xml'
+
+      - name: Run Kotlin unit tests
+        run: yarn test:android
+
+      # Gradle 8 exits 0 when no test runs at all, so the JUnit XML is the
+      # evidence: tests ran, none failed, and every listed class is present.
+      - name: Assert JUnit results
+        run: |
+          bash scripts/assert-junit-results.sh android/build/test-results/testDebugUnitTest \
+            MotionGateTest MotionClassifierTest MotionOptionsTest MotionPermissionsTest \
+            MotionPendingIntentsTest MotionSessionTest LocationDatabaseMigrationTest \
+            AlarmMotionTimersTest MotionActivityReceiverTest MotionPendingIntentsRoundTripTest \
+            LocationStorageTest
+
+      # KSP exports the Room schema into android/schemas on every build; a
+      # modified or untracked file there means the committed schema is stale.
+      - name: Assert the Room schema export is committed
+        run: |
+          git status --porcelain -- android/schemas
+          test -z "$(git status --porcelain -- android/schemas)"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-unit-test-reports
+          path: |
+            android/build/test-results/testDebugUnitTest/
+            android/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
+          retention-days: 14
+
   build-library:
     runs-on: ubuntu-latest
 
@@ -193,6 +284,12 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      # Pure Swift motion logic compiled with swiftc for macOS (seconds). It
+      # sits before the turbo check so it also runs when the example build is
+      # replayed from cache.
+      - name: Run iOS motion unit tests
+        run: yarn test:ios
+
       - name: Cache turborepo for iOS
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
@@ -233,9 +330,20 @@ jobs:
           bundle exec pod repo update --verbose
           bundle exec pod install --project-directory=ios
 
+      # The bare example is built without the Podfile motion flag, like every
+      # app that does not opt in: no CoreMotion framework, no Swift condition.
+      - name: Assert motion activity is compiled out
+        if: env.turbo_cache_hit != 1 && steps.cocoapods-cache.outputs.cache-hit != 'true'
+        run: bash scripts/assert-ios-motion-compile.sh off example/ios
+
       - name: Build example for iOS
         run: |
           yarn turbo run build:ios --cache-dir="${{ env.TURBO_CACHE_DIR }}"
+
+      # Only after a real build: a turbo cache hit leaves no binary to inspect.
+      - name: Assert the library binary references no CoreMotion class
+        if: env.turbo_cache_hit != 1
+        run: bash scripts/assert-ios-motion-compile.sh off example/ios --binary
 
   # ---------------------------------------------------------------------------
   # Expo config plugin
@@ -244,7 +352,9 @@ jobs:
   #                                plugin only, no native toolchain (~2-3 min)
   #   expo android build           ./gradlew :app:assembleDebug on the prebuilt
   #                                example-expo (one ABI) + merged-manifest check
-  #   expo ios build               pod install + xcodebuild for the iOS Simulator
+  #   expo ios build               pod install + xcodebuild for the iOS Simulator,
+  #                                with motion activity compiled in (the
+  #                                example-expo plugin prop)
   #   expo tarball (sdk-N)         the packed npm tarball installed with plain
   #                                npm into a fresh Expo SDK N app, then prebuild
   #                                + value-level assertions
@@ -426,6 +536,11 @@ jobs:
           done
           exit 1
 
+      # example-expo sets the motionActivity plugin prop, so the Podfile line
+      # the plugin adds must compile the CoreMotion code into the pod.
+      - name: Assert motion activity is compiled in
+        run: bash scripts/assert-ios-motion-compile.sh on example-expo/ios
+
       # Expo derives the project name from app.config.ts (example-expo becomes
       # exampleexpo), so discover the workspace instead of hard-coding it.
       - name: Build example-expo for the iOS Simulator
@@ -445,6 +560,9 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             build
+
+      - name: Assert the library binary references CoreMotion
+        run: bash scripts/assert-ios-motion-compile.sh on example-expo/ios --binary
 
   expo-tarball-compat:
     name: expo tarball (sdk-${{ matrix.sdk }})

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 4
 title: Types & Interfaces
-description: Complete TypeScript type and interface reference for @gabriel-sisjr/react-native-background-location — tracking, geofencing, notifications, permissions, and hook types.
+description: Complete TypeScript type and interface reference for @gabriel-sisjr/react-native-background-location — tracking, motion activity, geofencing, notifications, permissions, and hook types.
 keywords:
   - react-native
   - background-location
@@ -10,6 +10,7 @@ keywords:
   - interfaces
   - Coords
   - TrackingOptions
+  - MotionActivityOptions
   - GeofenceRegion
   - NotificationOptions
   - PermissionState
@@ -30,6 +31,12 @@ import type {
   NotificationAction,
   NotificationActionEvent,
   NotificationOptions,
+  MotionActivityOptions,
+  MotionReductionOptions,
+  MotionActivityEvent,
+  MotionActivityState,
+  MotionActivityListener,
+  MotionActivitySubscription,
   GeofenceRegion,
   GeofenceTransitionEvent,
   LocationPermissionState,
@@ -46,6 +53,8 @@ import type {
   UseGeofencingOptions,
   UseGeofencingReturn,
   UseGeofenceEventsOptions,
+  UseMotionActivityOptions,
+  UseMotionActivityResult,
 } from '@gabriel-sisjr/react-native-background-location';
 ```
 
@@ -165,14 +174,34 @@ Union type for warning categories emitted by the location service.
 type LocationWarningType =
   | 'SERVICE_TIMEOUT'
   | 'TASK_REMOVED'
-  | 'LOCATION_UNAVAILABLE';
+  | 'LOCATION_UNAVAILABLE'
+  | 'LOCATION_UPDATES_PAUSED'
+  | 'LOCATION_UPDATES_RESUMED'
+  | 'PERMISSION_REVOKED'
+  | 'PERMISSION_DOWNGRADED'
+  | 'MOTION_LOCATION_REDUCED'
+  | 'MOTION_LOCATION_RESTORED'
+  | 'MOTION_ACTIVITY_UNAVAILABLE'
+  | 'MOTION_PERMISSION_NOT_GRANTED';
 ```
 
-| Value                    | Description                                                           |
-| ------------------------ | --------------------------------------------------------------------- |
-| `'SERVICE_TIMEOUT'`      | Android 15+ foreground service timeout reached; service is restarting |
-| `'TASK_REMOVED'`         | App was swiped from recents; tracking continues in background         |
-| `'LOCATION_UNAVAILABLE'` | GPS signal lost or location services disabled                         |
+| Value                             | Platform | Description                                                                                       |
+| --------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| `'SERVICE_TIMEOUT'`               | Android  | Android 15+ foreground service timeout reached; service is restarting                             |
+| `'TASK_REMOVED'`                  | Android  | App was swiped from recents; tracking continues in background                                     |
+| `'LOCATION_UNAVAILABLE'`          | Both     | GPS signal lost or location services disabled                                                     |
+| `'LOCATION_UPDATES_PAUSED'`       | iOS      | iOS paused location updates; the library resumes them for trips that are not `foregroundOnly`     |
+| `'LOCATION_UPDATES_RESUMED'`      | iOS      | iOS resumed location updates                                                                      |
+| `'PERMISSION_REVOKED'`            | iOS      | Location permission revoked while tracking; tracking stops                                        |
+| `'PERMISSION_DOWNGRADED'`         | iOS      | Location permission downgraded to When In Use; background tracking may stop when the app is suspended |
+| `'MOTION_LOCATION_REDUCED'`       | Both     | Device stationary; location updates reduced (`motionActivity.reduceWhenStationary`)               |
+| `'MOTION_LOCATION_RESTORED'`      | Both     | Full-accuracy location updates restored after a reduction                                         |
+| `'MOTION_ACTIVITY_UNAVAILABLE'`   | Both     | Motion activity cannot run; tracking continues at full accuracy                                   |
+| `'MOTION_PERMISSION_NOT_GRANTED'` | Both     | Motion permission missing or revoked; tracking continues at full accuracy                         |
+
+The four iOS warnings were emitted before 1.2.0 but were missing from the union. The `MOTION_*` warnings are emitted only by sessions that enable `motionActivity`; their exact messages are listed in the [Motion Activity guide](../guides/motion-activity.md#warnings).
+
+> **Note:** New members may be added in minor releases. Code that switches exhaustively over `LocationWarningType` (for example with a `never` check) should keep a `default` branch.
 
 ---
 
@@ -188,17 +217,19 @@ interface LocationWarningEvent {
   type: LocationWarningType;
   /** Human-readable description of the warning */
   message: string;
-  /** Timestamp when the warning was emitted */
+  /** Time the native layer emitted the warning, in milliseconds since Unix epoch */
   timestamp: number;
 }
 ```
 
-| Property    | Type                  | Required | Description                      |
-| ----------- | --------------------- | -------- | -------------------------------- |
-| `tripId`    | `string`              | Yes      | Trip identifier for this warning |
-| `type`      | `LocationWarningType` | Yes      | Warning category                 |
-| `message`   | `string`              | Yes      | Human-readable description       |
-| `timestamp` | `number`              | Yes      | Timestamp when emitted           |
+| Property    | Type                  | Required | Description                                                                    |
+| ----------- | --------------------- | -------- | ------------------------------------------------------------------------------ |
+| `tripId`    | `string`              | Yes      | Trip identifier for this warning                                               |
+| `type`      | `LocationWarningType` | Yes      | Warning category                                                               |
+| `message`   | `string`              | Yes      | Human-readable description                                                     |
+| `timestamp` | `number`              | Yes      | Time the native layer emitted the warning, in milliseconds since Unix epoch    |
+
+> **Note:** Since 1.2.0 both platforms send `timestamp` with every warning. Earlier versions declared the field but never sent it.
 
 ---
 
@@ -258,6 +289,7 @@ interface TrackingOptions {
   notificationOptions?: NotificationOptions;
   foregroundOnly?: boolean;
   onUpdateInterval?: number;
+  motionActivity?: boolean | MotionActivityOptions;
 }
 ```
 
@@ -269,10 +301,133 @@ interface TrackingOptions {
 | `accuracy`                | `LocationAccuracy`                                          | `HIGH_ACCURACY`               | Both     | Location accuracy priority level                                                                                                                     |
 | `activityType`            | [`LocationActivityType`](./enums.md#locationactivitytype)   | `LocationActivityType.OTHER`  | iOS      | Maps to `CLLocationManager.activityType`. Controls how iOS treats the tracking activity (e.g., pausing on inactivity for `AUTOMOTIVE_NAVIGATION`).   |
 | `waitForAccurateLocation` | `boolean`                                                   | `false`                       | Android  | Whether to delay updates until accurate location is available                                                                                        |
-| `distanceFilter`          | `number`                                                    | `0`                           | Android  | Minimum distance in meters between updates. `0` = no filter.                                                                                         |
+| `distanceFilter`          | `number`                                                    | `0`                           | Both     | Minimum distance in meters between updates. `0` = no filter (on iOS, `0` falls back to 50 m for `BALANCED_POWER_ACCURACY` and 200 m for `LOW_POWER`). |
 | `notificationOptions`     | `NotificationOptions`                                       | —                             | Both     | Foreground service notification configuration                                                                                                        |
-| `foregroundOnly`          | `boolean`                                                   | `false`                       | Android  | Foreground-only mode. Does not require background location permission.                                                                               |
+| `foregroundOnly`          | `boolean`                                                   | `false`                       | Both     | Foreground-only mode. Does not require background location permission.                                                                               |
 | `onUpdateInterval`        | `number`                                                    | `undefined`                   | Both     | Throttle interval for the `onLocationUpdate` callback in milliseconds. Locations are still collected at `updateInterval` rate.                       |
+| `motionActivity`          | `boolean \| MotionActivityOptions`                          | `undefined` (off)             | Both     | Opt-in motion activity detection and, optionally, the reduction of location updates while stationary. See [`MotionActivityOptions`](#motionactivityoptions). |
+
+> **Note:** `maxWaitTime` and `waitForAccurateLocation` are accepted and kept for crash recovery, but the Android location request does not apply them yet.
+
+---
+
+## Motion Activity Types
+
+Types of the opt-in motion activity feature. See the [Motion Activity guide](../guides/motion-activity.md) for the behavior and the platform setup.
+
+### `MotionActivityOptions`
+
+Value of `TrackingOptions.motionActivity` when it is an object. `true` is the same as `{}`; `false`, `null` or omitted turns the feature off.
+
+```ts
+interface MotionActivityOptions {
+  sampleInterval?: number;
+  reduceWhenStationary?: boolean | MotionReductionOptions;
+}
+```
+
+| Property               | Type                                | Default            | Range (clamped)  | Platform | Description                                                                                                  |
+| ---------------------- | ----------------------------------- | ------------------ | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------ |
+| `sampleInterval`       | `number`                            | `30000` (30 s)     | 10000 – 300000   | Android  | Activity Recognition sampling interval in milliseconds. Ignored on iOS, where CoreMotion reports changes as they happen. |
+| `reduceWhenStationary` | `boolean \| MotionReductionOptions` | `undefined` (off)  | —                | Both     | Reduces (never stops) location updates while the device is stationary. `true` uses the defaults of [`MotionReductionOptions`](#motionreductionoptions). Does not apply to `foregroundOnly` trips or to `PASSIVE`/`NO_POWER` accuracy. |
+
+A malformed `sampleInterval` falls back to the default; a `reduceWhenStationary` that is neither a boolean nor an object turns the reduction off. In development builds both log one `[BackgroundLocation]` warning.
+
+---
+
+### `MotionReductionOptions`
+
+Options of the reduction of location updates while stationary. Durations are in milliseconds; out-of-range values are clamped, and a malformed duration turns the reduction off.
+
+```ts
+interface MotionReductionOptions {
+  stationaryDelay?: number;
+  automotiveCooldown?: number;
+  maxReducedDuration?: number;
+  notificationText?: string;
+}
+```
+
+| Property             | Type     | Default                                       | Range (clamped)   | Platform | Description                                                                                                     |
+| -------------------- | -------- | --------------------------------------------- | ----------------- | -------- | --------------------------------------------------------------------------------------------------------------- |
+| `stationaryDelay`    | `number` | `300000` (5 min)                              | 60000 – 3600000   | Both     | Continuous high-confidence `STATIONARY` time required before location updates are reduced                       |
+| `automotiveCooldown` | `number` | `600000` (10 min)                             | 120000 – 3600000  | Both     | Minimum time since the last vehicle evidence, and since the session started, before reducing                    |
+| `maxReducedDuration` | `number` | `1800000` (30 min)                            | 300000 – 3600000  | Both     | Longest reduced period before one full-accuracy fix is forced and recorded; the reduction then continues if the device has not moved |
+| `notificationText`   | `string` | `'Location updates reduced while stationary'` | non-blank         | Android  | Foreground notification text while reduced; the base text returns on restore. Blank strings are ignored         |
+
+---
+
+### `MotionActivityEvent`
+
+Payload of the `onMotionActivity` event, delivered while a session with `motionActivity` enabled is running.
+
+```ts
+interface MotionActivityEvent {
+  tripId: string;
+  activity: MotionActivityType;
+  confidence: MotionConfidence;
+  timestamp: number;
+}
+```
+
+| Property     | Type                                                  | Description                                          |
+| ------------ | ----------------------------------------------------- | ---------------------------------------------------- |
+| `tripId`     | `string`                                              | Trip identifier of the tracking session              |
+| `activity`   | [`MotionActivityType`](./enums.md#motionactivitytype) | Detected activity                                    |
+| `confidence` | [`MotionConfidence`](./enums.md#motionconfidence)     | Confidence of the detection                          |
+| `timestamp`  | `number`                                              | Time of the detection, in milliseconds since Unix epoch |
+
+Consecutive events of a session never repeat the same `activity` and `confidence` pair; the first event of a session is always emitted.
+
+---
+
+### `MotionActivityState`
+
+Snapshot returned by `getMotionActivityState()`.
+
+```ts
+interface MotionActivityState {
+  tripId: string | null;
+  detection: MotionDetectionStatus;
+  reduction: MotionReductionStatus;
+  lastActivity: MotionActivityEvent | null;
+}
+```
+
+| Property       | Type                                                        | Description                                               |
+| -------------- | ----------------------------------------------------------- | --------------------------------------------------------- |
+| `tripId`       | `string \| null`                                            | Trip of the active session, or `null` when there is none  |
+| `detection`    | [`MotionDetectionStatus`](./enums.md#motiondetectionstatus) | Motion activity detection status                          |
+| `reduction`    | [`MotionReductionStatus`](./enums.md#motionreductionstatus) | Status of the reduction of location updates               |
+| `lastActivity` | `MotionActivityEvent \| null`                               | Most recent event of the session, if any                  |
+
+Without an active session the state is `{ tripId: null, detection: OFF, reduction: DISABLED, lastActivity: null }`.
+
+---
+
+### `MotionActivityListener`
+
+Listener passed to `addMotionActivityListener()`.
+
+```ts
+type MotionActivityListener = (event: MotionActivityEvent) => void;
+```
+
+---
+
+### `MotionActivitySubscription`
+
+Subscription returned by `addMotionActivityListener()`.
+
+```ts
+interface MotionActivitySubscription {
+  remove(): void;
+}
+```
+
+| Property   | Type         | Description                                                   |
+| ---------- | ------------ | ------------------------------------------------------------- |
+| `remove`   | `() => void` | Stops delivering events to the listener. Safe to call twice   |
 
 ---
 
@@ -818,3 +973,43 @@ interface UseGeofenceEventsOptions {
 | `onTransition` | `(event: GeofenceTransitionEvent) => void` | —       | Callback when a geofence transition is detected (after filters are applied)             |
 | `filter`       | `GeofenceTransitionType[]`                 | —       | Only emit events matching these transition types. If omitted, all transitions fire.     |
 | `geofenceId`   | `string`                                   | —       | Only emit events for this specific geofence identifier. If omitted, all geofences fire. |
+
+---
+
+### `UseMotionActivityOptions`
+
+Options for the [`useMotionActivity`](./hooks/useMotionActivity.md) hook.
+
+```ts
+interface UseMotionActivityOptions {
+  tripId?: string;
+  onMotionActivity?: (event: MotionActivityEvent) => void;
+}
+```
+
+| Property           | Type                                   | Default | Description                                                                 |
+| ------------------ | -------------------------------------- | ------- | --------------------------------------------------------------------------- |
+| `tripId`           | `string`                               | —       | Only keep events, and the hydrated state, of this trip. If omitted, all trips |
+| `onMotionActivity` | `(event: MotionActivityEvent) => void` | —       | Callback for every motion activity event kept by the hook                   |
+
+---
+
+### `UseMotionActivityResult`
+
+Return type for the [`useMotionActivity`](./hooks/useMotionActivity.md) hook.
+
+```ts
+interface UseMotionActivityResult {
+  lastActivity: MotionActivityEvent | null;
+  detection: MotionDetectionStatus;
+  reduction: MotionReductionStatus;
+  refresh: () => Promise<void>;
+}
+```
+
+| Property       | Type                          | Description                                                                                  |
+| -------------- | ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `lastActivity` | `MotionActivityEvent \| null` | Most recent event seen by the hook. Not cleared when tracking stops; reset when `tripId` changes |
+| `detection`    | `MotionDetectionStatus`       | Motion activity detection status                                                             |
+| `reduction`    | `MotionReductionStatus`       | Status of the reduction of location updates while stationary                                 |
+| `refresh`      | `() => Promise<void>`         | Re-reads the native state through `getMotionActivityState()`                                 |

@@ -31,6 +31,14 @@ export interface TrackingOptionsSpec {
   foregroundOnly?: boolean;
   distanceFilter?: number;
   notificationOptions?: string; // JSON-serialized NotificationOptions - Codegen does not support complex objects
+  // Motion activity (opt-in): every motion* key is absent when the feature is off
+  motionActivityEnabled?: boolean;
+  motionSampleInterval?: number; // milliseconds, Android only
+  motionReduceWhenStationary?: boolean;
+  motionStationaryDelay?: number; // milliseconds
+  motionAutomotiveCooldown?: number; // milliseconds
+  motionMaxReducedDuration?: number; // milliseconds
+  motionReducedNotificationText?: string; // Android only
 }
 
 export interface Spec extends TurboModule {
@@ -182,6 +190,27 @@ export interface Spec extends TurboModule {
    * @returns JSON-serialized NotificationOptions object, or '{}' if not configured
    */
   getGeofenceNotificationConfig(): Promise<string>;
+
+  // --- Motion Activity Methods ---
+
+  /**
+   * Checks current motion activity permission status without prompting
+   * @returns Motion permission status string: 'granted' | 'denied' | 'undetermined' | 'unavailable'
+   */
+  checkMotionPermission(): Promise<string>;
+
+  /**
+   * Requests motion activity permission from the user
+   * @returns Motion permission status string: 'granted' | 'denied' | 'undetermined' | 'unavailable'
+   */
+  requestMotionPermission(): Promise<string>;
+
+  /**
+   * Returns the current motion activity state of the tracking session
+   * @returns JSON-serialized object: { tripId: string | null, detection: string, reduction: string,
+   * lastActivity: { tripId, activity, confidence, timestamp } | null }
+   */
+  getMotionActivityState(): Promise<string>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('BackgroundLocation');

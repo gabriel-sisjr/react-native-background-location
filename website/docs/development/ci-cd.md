@@ -58,17 +58,50 @@ Beta releases: Manual trigger via GitHub Actions UI
 | --- | --- |
 | `lint` | ESLint, `tsc` for the library and `tsc` for the Expo plugin sources and tests (`yarn typecheck:plugin:tests`) |
 | `test` | Jest unit tests with coverage (the `lib` and `plugin` projects); fails if the plugin test project is not collected |
-| `build-library` | `yarn prepare` (Expo config plugin, then library), then packs the npm tarball once, checks its contents and uploads it as the `npm-tarball` artifact |
+| `android-unit-tests` (shown as `android unit tests`) | Kotlin unit tests of the library module (`yarn test:android`, JDK 17, 30-minute timeout), then assertions on the JUnit results, the library manifest and the Room schema export (see [Android Unit Tests Job](#android-unit-tests-job)) |
+| `build-library` | `yarn prepare` (Expo config plugin, then library), then packs the npm tarball once, checks its contents (no `android/src/test/`, `android/src/androidTest/` or `ios-tests/`) and uploads it as the `npm-tarball` artifact |
 | `build-android` | Native Android compilation of the example app |
-| `build-ios` | Native iOS compilation of the example app (macOS runner) |
-| `expo prebuild (android)` and `expo prebuild (ios)` | `expo prebuild` on `example-expo/` with the plugin built from the checkout, then value-level assertions on the generated project (`scripts/assert-expo-prebuild-output.sh`). Both run on Ubuntu: prebuild needs neither CocoaPods nor Xcode |
-| `expo android build` | Prebuild, then `./gradlew :app:assembleDebug` of `example-expo` (one ABI) and assertions on the merged `AndroidManifest.xml` |
-| `expo ios build` | Prebuild, `pod install` and `xcodebuild` for the iOS Simulator (macOS runner) |
+| `build-ios` | `yarn test:ios`, then native iOS compilation of the example app (macOS runner) with motion activity compiled out, asserted after `pod install` and on the built binary (see [Motion Activity Compile Checks](#motion-activity-compile-checks)) |
+| `expo prebuild (android)` and `expo prebuild (ios)` | `expo prebuild` on `example-expo/` with the plugin built from the checkout, then value-level assertions on the generated project (`scripts/assert-expo-prebuild-output.sh`, which runs `scripts/assert-expo-prebuild-output.mjs`). Both run on Ubuntu: prebuild needs neither CocoaPods nor Xcode |
+| `expo android build` | Prebuild, then `./gradlew :app:assembleDebug` of `example-expo` (one ABI) and assertions on the merged `AndroidManifest.xml`: the motion receiver is `exported="false"` and the library's own merged manifest has no `ACTIVITY_RECOGNITION` |
+| `expo ios build` | Prebuild, `pod install` and `xcodebuild` for the iOS Simulator (macOS runner), with motion activity compiled in through the `example-expo` plugin prop and asserted before and after the build |
 | `expo tarball (sdk-54)` to `expo tarball (sdk-58)` | The tarball packed by `build-library`, installed with plain `npm install` into a fresh Expo SDK 54 to 58 app, then `expo prebuild` and the same assertions (no props, all props, pre-existing config) |
 
 The Expo jobs run the plugin the way a user does. The native builds (`expo android build` and `expo ios build`) cover Expo SDK 54, the SDK `example-expo` uses; SDK 55 to 58 are verified up to the prebuild by the tarball jobs. To run the same checks on your machine, see "Working on the Expo Config Plugin" in the [Contributing guide](./contributing.md).
 
+The prebuild and tarball assertions follow the `motionActivity` plugin prop. With the prop they expect both activity-recognition permissions (the Play services one with `android:maxSdkVersion="28"`), `NSMotionUsageDescription` (the prop's `usageDescription`, else the app's own value, else the library default) and exactly one Podfile flag line; without it, none of them. `example-expo` sets `motionActivity: {}`.
+
 **Duration:** roughly 10-20 minutes; the native build jobs run in parallel and take the longest
+
+### Android Unit Tests Job
+
+The `android-unit-tests` job runs on Ubuntu with JDK 17 and a 30-minute timeout. After the setup steps (checkout, dependencies, JDK, Android SDK licences, Gradle cache), it:
+
+1. Asserts that the library manifest declares no `ACTIVITY_RECOGNITION`: apps opt in through their own manifest or the Expo plugin prop.
+2. Runs `yarn test:android`, the same command as on a local machine.
+3. Runs `scripts/assert-junit-results.sh` on `android/build/test-results/testDebugUnitTest`. Gradle 8 exits 0 when no test runs, so the JUnit XML is the evidence: the step fails on 0 tests, on any failure or error, and when a required class is missing (`MotionGateTest`, `MotionClassifierTest`, `MotionOptionsTest`, `MotionPermissionsTest`, `MotionPendingIntentsTest`, `MotionSessionTest`, `LocationDatabaseMigrationTest`, `AlarmMotionTimersTest`, `MotionActivityReceiverTest`, `MotionPendingIntentsRoundTripTest`, `LocationStorageTest`).
+4. Asserts that the Room schema export is committed. KSP writes `android/schemas/` during the build, so `git status --porcelain -- android/schemas` must print nothing.
+5. Uploads the JUnit XML and HTML reports as the `android-unit-test-reports` artifact, also when an earlier step failed.
+
+The job differs from the build jobs on purpose:
+
+- **No `needs:`** -- A failure elsewhere never turns it into "skipped".
+- **No turbo** -- A turbo cache hit would replay the log and restore no JUnit XML.
+- **No Gradle build cache** -- The schema export is a side effect of the KSP task, which a `FROM-CACHE` result would skip. The Gradle wrapper and dependency caches under `~/.gradle` are still cached, under a key of their own.
+
+### Motion Activity Compile Checks
+
+`scripts/assert-ios-motion-compile.sh` proves which way the opt-in CoreMotion code of the pod was compiled. After `pod install` it checks the pod's xcconfig (`-DBACKGROUND_LOCATION_MOTION`) and the `CoreMotion` framework entry; with `--binary`, after the Xcode build, it runs `nm -u` on the built library.
+
+```bash
+bash scripts/assert-ios-motion-compile.sh off example/ios               # build-ios, after pod install
+bash scripts/assert-ios-motion-compile.sh off example/ios --binary      # build-ios, after the build
+bash scripts/assert-ios-motion-compile.sh on example-expo/ios           # expo ios build, after pod install
+bash scripts/assert-ios-motion-compile.sh on example-expo/ios --binary  # expo ios build, after the build
+```
+
+- `build-ios` runs `yarn test:ios` right after setup, before the turbo cache check, so the Swift motion tests also run when the example build is replayed from the cache. The bare example is built without the Podfile flag, like every app that does not opt in: `off` means no `-DBACKGROUND_LOCATION_MOTION`, no `CoreMotion` framework and no CoreMotion class in `nm -u`. The `pod install` check runs only when the pods were installed in that run, and the binary check only after a real build (a turbo cache hit leaves no binary to inspect).
+- `expo ios build` asserts `on`: `example-expo` sets the `motionActivity` plugin prop, so the Podfile line the plugin adds must compile the CoreMotion code in, and the binary must reference `CMMotionActivityManager`.
 
 ---
 
@@ -83,7 +116,7 @@ The Expo jobs run the plugin the way a user does. The native builds (`expo andro
 1. Check if version changed (compare with npm registry)
 2. Build package (`yarn prepare`: Expo config plugin, then library)
 3. Type-check the plugin sources and tests (`yarn typecheck:plugin:tests`)
-4. Verify tarball contents: pack with `npm pack --ignore-scripts`, then `scripts/verify-expo-tarball.sh contents` (required files such as `app.plugin.js` and `plugin/build/`, no sources or tests, the `package.json` contract and the iOS privacy manifest)
+4. Verify tarball contents: pack with `npm pack --ignore-scripts`, then `scripts/verify-expo-tarball.sh contents` (required files such as `app.plugin.js` and `plugin/build/`, no sources or tests (Kotlin test sources and `ios-tests/` included), the `package.json` contract and the iOS privacy manifest)
 5. Run unit tests
 6. Publish to npm with production tag. `npm publish` first runs the `prepublishOnly` hook (`yarn typecheck`, `yarn typecheck:plugin:tests`, `yarn lint`, `yarn test`, then the plugin and library builds) and runs `prepare` once more while packing. This is the only step of the workflow that runs `yarn lint` and the root `yarn typecheck`, so a lint or type error that steps 2-5 do not cover fails the release here, before anything is uploaded
 7. Create git tag (e.g., `v1.2.3`)
@@ -350,11 +383,13 @@ yarn lint
 yarn typecheck
 yarn typecheck:plugin:tests
 yarn test
+yarn test:android   # needs JDK 17 and the Android SDK
+yarn test:ios       # needs macOS with the Xcode command line tools
 yarn prepare
 ./scripts/verify-expo-tarball.sh all --sdk 54
 ```
 
-The last command reproduces the `build-library` tarball check and an `expo tarball (sdk-54)` job. The Expo prebuild and native build jobs are reproduced step by step in "Working on the Expo Config Plugin" in the [Contributing guide](./contributing.md).
+The last command reproduces the `build-library` tarball check and an `expo tarball (sdk-54)` job. `yarn test:android` and `yarn test:ios` run the test steps of the `android-unit-tests` and `build-ios` jobs. The Expo prebuild and native build jobs are reproduced step by step in "Working on the Expo Config Plugin" in the [Contributing guide](./contributing.md).
 
 #### Pre-release not triggered
 

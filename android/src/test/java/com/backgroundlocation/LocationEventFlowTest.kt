@@ -115,6 +115,46 @@ class LocationEventFlowTest {
     }
 
     @Test
+    fun `warning events carry a timestamp`() = runTest {
+        val before = System.currentTimeMillis()
+
+        LocationEventFlow.events.test {
+            LocationEventEmitter.emitWarning("trip-ts", "SERVICE_TIMEOUT", "Restarting")
+
+            val received = awaitItem()
+            assertTrue(received is LocationEvent.Warning)
+            val warning = received as LocationEvent.Warning
+            val after = System.currentTimeMillis()
+            assertTrue("timestamp ${warning.timestamp} outside [$before, $after]", warning.timestamp in before..after)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+
+        val explicit = LocationEvent.Warning(tripId = null, warningType = "X", message = "m", timestamp = 42L)
+        assertEquals(42L, explicit.timestamp)
+    }
+
+    @Test
+    fun `emit MotionActivity event and verify fields`() = runTest {
+        LocationEventFlow.events.test {
+            LocationEventEmitter.emitMotionActivity("trip-motion", "STATIONARY", "HIGH", 1_700_000_000_000L)
+
+            val received = awaitItem()
+            assertEquals(
+                LocationEvent.MotionActivity(
+                    tripId = "trip-motion",
+                    activity = "STATIONARY",
+                    confidence = "HIGH",
+                    timestamp = 1_700_000_000_000L
+                ),
+                received
+            )
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `no replay - late subscriber receives no historical events`() = runTest {
         // Emit events before any subscriber exists
         LocationEventFlow.emit(LocationEvent.Update(tripId = "trip-old", locationData = Bundle()))

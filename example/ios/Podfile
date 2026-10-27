@@ -16,6 +16,11 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
+# Motion activity (CoreMotion) support in @gabriel-sisjr/react-native-background-location.
+# CI builds the example with it off; `EXAMPLE_MOTION_ACTIVITY=1 bundle exec pod install`
+# compiles it in for device tests.
+$BackgroundLocationMotionActivity = ENV['EXAMPLE_MOTION_ACTIVITY'] == '1'
+
 target 'BackgroundLocationExample' do
   config = use_native_modules!
 
@@ -26,6 +31,21 @@ target 'BackgroundLocationExample' do
   )
 
   post_install do |installer|
+    # React Native's prepare_react_native_project! disables CocoaPods deterministic UUIDs
+    # (install! 'cocoapods', :deterministic_uuids => false), so the Pods project keeps sequential
+    # object IDs; that is why this override is needed. CocoaPods stabilizes target UUIDs right
+    # before post_install and leaves a nearly empty UUID pool. When a hook adds objects after the
+    # pool runs dry (the MapLibre Swift package below), numbering restarts at index 0 and can reuse
+    # an existing UUID, the root object's included, after which Xcode reports the Pods project as
+    # damaged. Skip UUIDs already in use; when no generated UUID is in use this changes nothing.
+    if (pods_project = installer.pods_project)
+      def pods_project.generate_uuid
+        uuid = super
+        uuid = super while objects_by_uuid.key?(uuid)
+        uuid
+      end
+    end
+
     # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
     react_native_post_install(
       installer,

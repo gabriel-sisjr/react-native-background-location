@@ -10,7 +10,8 @@
 # Commands:
 #   contents <tarball>
 #       Static checks on the tarball (seconds, offline): required files shipped,
-#       sources/tests/tooling not shipped, package.json contract (exports map,
+#       sources/tests/tooling not shipped (the Kotlin test sources and the iOS
+#       gate runner in ios-tests/ included), package.json contract (exports map,
 #       `expo` is an optional peer, no `@expo/config-plugins` peer, react-native
 #       peer untouched, no install-time scripts), the plugin build imports
 #       `expo/config-plugins`, and ios/PrivacyInfo.xcprivacy declares the
@@ -28,11 +29,16 @@
 #       scripts/assert-expo-prebuild-output.sh against the generated project.
 #
 #       Variants (the plugin entry in app.json):
-#         defaults     no props -> library default usage strings
-#         props        every prop set -> overrides win
-#         preexisting  no props, but ios.infoPlist and android.permissions
-#                      already declare overlapping values -> no duplicates, the
-#                      app's own values and background modes are preserved
+#         defaults     no props -> library default usage strings, and no motion
+#                      activity permission, NSMotionUsageDescription or Podfile
+#                      flag
+#         props        every prop set, motionActivity with its own usage string
+#                      included -> overrides win
+#         preexisting  only `motionActivity: {}`, while ios.infoPlist and
+#                      android.permissions already declare overlapping values
+#                      (ACTIVITY_RECOGNITION and NSMotionUsageDescription
+#                      included) -> no duplicates, the app's own values and
+#                      background modes are preserved
 #         newarch-off  opt-in, SDK 54 only (later SDKs cannot disable the New
 #                      Architecture): `newArchEnabled: false` must make
 #                      prebuild fail with a plugin error (the guard)
@@ -202,7 +208,12 @@ FORBIDDEN_PATTERNS=(
   '^package/react-native\.config\.js$'
   '^package/android/(build|gradle)/'
   '^package/android/gradlew'
+  # Kotlin unit and instrumented tests; package.json "files" excludes them.
+  '^package/android/src/test/'
+  '^package/android/src/androidTest/'
   '^package/ios/build/'
+  # The swiftc runner for the iOS gate tests; "files" never lists it.
+  '^package/ios-tests/'
   '(^|/)\.DS_Store$'
 )
 
@@ -368,6 +379,9 @@ if (variant === "defaults") {
     temporaryUsageDescriptions: {
       AccurateFix: "Tarball check: accurate fix.",
       Navigation: "Tarball check: navigation."
+    },
+    motionActivity: {
+      usageDescription: "Tarball check: motion activity."
     }
   }]);
 } else if (variant === "newarch-off") {
@@ -376,14 +390,16 @@ if (variant === "defaults") {
 } else if (variant === "preexisting") {
   expo.ios.infoPlist = {
     UIBackgroundModes: ["location", "fetch"],
-    NSLocationWhenInUseUsageDescription: "Declared by the app in ios.infoPlist."
+    NSLocationWhenInUseUsageDescription: "Declared by the app in ios.infoPlist.",
+    NSMotionUsageDescription: "Motion usage declared by the app in ios.infoPlist."
   };
   expo.android.permissions = [
     "android.permission.ACCESS_FINE_LOCATION",
     "android.permission.ACCESS_COARSE_LOCATION",
-    "android.permission.POST_NOTIFICATIONS"
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.ACTIVITY_RECOGNITION"
   ];
-  expo.plugins.push(PLUGIN);
+  expo.plugins.push([PLUGIN, { motionActivity: {} }]);
 } else {
   throw new Error("unknown variant " + variant);
 }
@@ -410,11 +426,18 @@ console.log("exports OK: " + name + "@" + pkg.version);
 '
 
 TYPES_SMOKE_TS="import plugin from '@gabriel-sisjr/react-native-background-location/app.plugin';
-import type { BackgroundLocationPluginProps } from '@gabriel-sisjr/react-native-background-location/app.plugin';
+import type {
+  BackgroundLocationPluginProps,
+  MotionActivityPluginProps,
+} from '@gabriel-sisjr/react-native-background-location/app.plugin';
 
+export const motionActivity: MotionActivityPluginProps = {
+  usageDescription: 'types smoke',
+};
 export const props: BackgroundLocationPluginProps = {
   locationWhenInUseUsageDescription: 'types smoke',
   temporaryUsageDescriptions: { AccurateFix: 'types smoke' },
+  motionActivity,
 };
 export default plugin;
 "

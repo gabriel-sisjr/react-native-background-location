@@ -12,13 +12,24 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
+import com.backgroundlocation.motion.AlarmMotionTimers
+import com.backgroundlocation.motion.AndroidMotionPlatform
+import com.backgroundlocation.motion.FlowMotionEventSink
+import com.backgroundlocation.motion.GmsMotionRecognitionClient
+import com.backgroundlocation.motion.MotionGate
+import com.backgroundlocation.motion.MotionHost
+import com.backgroundlocation.motion.MotionOptions
+import com.backgroundlocation.motion.MotionPendingIntents
+import com.backgroundlocation.motion.MotionSession
 import com.backgroundlocation.provider.LocationProvider
 import com.backgroundlocation.provider.LocationProviderFactory
 import com.backgroundlocation.provider.LocationUpdateCallback
+import com.backgroundlocation.provider.ReducedLocationProfile
 import com.backgroundlocation.processor.LocationProcessor
 import com.backgroundlocation.processor.DefaultLocationProcessor
 import kotlinx.coroutines.runBlocking
@@ -33,11 +44,22 @@ class LocationService : Service() {
   private var locationProcessor: LocationProcessor = DefaultLocationProcessor()
   private lateinit var storage: LocationStorage
   private var currentTripId: String? = null
+  // Replaced on the main thread (start, notification updates)
+  @Volatile
   private var trackingOptions: TrackingOptions = TrackingOptions()
 
   // Flag to prevent location events after stop is requested
   @Volatile
   private var isStopRequested: Boolean = false
+
+  // Opt-in motion activity session (main thread only). Creating it creates no
+  // Activity Recognition client; that only happens when a trip enables the feature.
+  private val motionSession: MotionSession by lazy { createMotionSession() }
+
+  // Notification content text while location updates are reduced (null = base text).
+  // Set by the motion session on the main thread, where every notification post happens.
+  @Volatile
+  private var reducedNotificationText: String? = null
 
   override fun onCreate() {
     super.onCreate()
@@ -76,6 +98,8 @@ class LocationService : Service() {
     if (isRestartLoopDetected()) {
       android.util.Log.e("LocationService", "Restart loop detected, stopping service")
       storage.saveTrackingState(null, false)
+      // No session will start: drop motion registrations and alarms left by a previous process
+      MotionPendingIntents.removeStale(this)
       stopSelf()
       return START_NOT_STICKY
     }
@@ -111,6 +135,9 @@ class LocationService : Service() {
     currentTripId = tripId
     android.util.Log.d("LocationService", "Starting location tracking for tripId: $tripId")
 
+    // A new start always shows the base notification text
+    reducedNotificationText = null
+
     // Now that we have options, create proper notification channel and update notification
     try {
       createNotificationChannel()
@@ -121,11 +148,19 @@ class LocationService : Service() {
       android.util.Log.e("LocationService", "Failed to update notification, continuing with minimal", e)
     }
 
+    // Every start begins a fresh motion session; ending a reduced one restores full accuracy
+    // and announces it (SESSION_RESTART)
+    motionSession.stop(MotionSession.StopReason.RESTART)
+
     // Check last known location to verify GPS is working
     checkLastKnownLocation()
 
     // Start location updates
     startLocationUpdates()
+
+    // Opt-in motion activity: registers after location updates. With the feature off it only
+    // removes stale registrations; it never throws and never stops tracking.
+    motionSession.start(tripId, trackingOptions)
 
     // Use START_REDELIVER_INTENT for more predictable restart behavior
     // If killed, system will redeliver the original intent
@@ -148,6 +183,9 @@ class LocationService : Service() {
       }
     }
 
+    // Motion activity options travel as one JSON string; a parse failure turns the feature off
+    val motionOptions = MotionOptions.fromJsonString(bundle.getString("motionOptions"))
+
     return TrackingOptions(
       updateInterval = if (bundle.containsKey("updateInterval")) bundle.getLong("updateInterval") else null,
       fastestInterval = if (bundle.containsKey("fastestInterval")) bundle.getLong("fastestInterval") else null,
@@ -156,7 +194,8 @@ class LocationService : Service() {
       waitForAccurateLocation = if (bundle.containsKey("waitForAccurateLocation")) bundle.getBoolean("waitForAccurateLocation") else null,
       foregroundOnly = if (bundle.containsKey("foregroundOnly")) bundle.getBoolean("foregroundOnly") else null,
       distanceFilter = if (bundle.containsKey("distanceFilter")) bundle.getFloat("distanceFilter") else null,
-      notificationOptions = notificationOptions
+      notificationOptions = notificationOptions,
+      motion = motionOptions
     )
   }
 
@@ -193,6 +232,9 @@ class LocationService : Service() {
   override fun onTimeout(startId: Int, fgsType: Int) {
     super.onTimeout(startId, fgsType)
     android.util.Log.w("LocationService", "Foreground service timeout reached for type: $fgsType, startId: $startId")
+
+    // The restarted service begins a fresh motion session: announce the end of a reduction first
+    motionSession.stop(MotionSession.StopReason.RESTART)
 
     currentTripId?.let { tripId ->
       // Emit warning event to React Native
@@ -304,6 +346,8 @@ class LocationService : Service() {
 
           override fun onLocationAvailabilityChanged(available: Boolean) {
             if (!available) {
+              // While reduced, availability describes the low-power keep-alive request: not reported
+              if (locationProvider.isReduced()) return
               android.util.Log.w("LocationService", "Location not available")
               emitLocationUnavailableWarning()
             }
@@ -343,17 +387,43 @@ class LocationService : Service() {
       return
     }
 
+    // Motion activity reduction: a fix taken while updates are reduced (or older than the last
+    // full-accuracy restore) only feeds the displacement check. It is never stored or emitted,
+    // so the processor filter does not apply to it. The gate only sees a full-accuracy fix
+    // once it has been recorded.
+    motionSession.routeFix(
+      fix = location,
+      fixElapsedRealtimeNanos = location.elapsedRealtimeNanos,
+      record = ::recordLocation,
+      feed = ::feedMotionGate
+    )
+  }
+
+  /**
+   * Applies the processor filter and transformation, then stores and emits the location.
+   * Returns the recorded location, or null when it was filtered or a stop was requested.
+   */
+  private fun recordLocation(location: Location): Location? {
     // Apply processor filtering
     if (!locationProcessor.shouldStore(location)) {
       android.util.Log.d("LocationService", "Location filtered by processor")
-      return
+      return null
     }
 
     // Apply processor transformation
     val processedLocation = locationProcessor.process(location)
 
     // Handle the processed location
-    handleLocation(processedLocation)
+    return processedLocation.takeIf { handleLocation(it) }
+  }
+
+  /**
+   * Feeds a classified fix with its own accuracy to the motion gate (no coordinates are logged).
+   * The session widens a full-accuracy fix by the trip's distance filter.
+   */
+  private fun feedMotionGate(location: Location, kind: MotionGate.FixKind) {
+    val accuracy = if (location.hasAccuracy()) location.accuracy.toDouble() else Double.POSITIVE_INFINITY
+    motionSession.onFix(location.latitude, location.longitude, accuracy, kind)
   }
 
   /**
@@ -391,22 +461,25 @@ class LocationService : Service() {
     )
   }
 
-  private fun handleLocation(location: Location) {
+  /**
+   * Stores and emits a location. Returns true when the location was recorded.
+   */
+  private fun handleLocation(location: Location): Boolean {
     // CRITICAL: Check if stop was requested - prevent location events after stopTracking()
     if (isStopRequested) {
       android.util.Log.d("LocationService", "Stop requested - ignoring location update")
-      return
+      return false
     }
 
     // Also check the global stop token for extra safety
     if (isStopTokenSet(this)) {
       android.util.Log.d("LocationService", "Stop token set - ignoring location update")
       isStopRequested = true // Cache locally to avoid repeated SharedPreferences reads
-      return
+      return false
     }
 
     android.util.Log.d("LocationService", "Handling location: lat=${location.latitude}, lng=${location.longitude}, tripId=$currentTripId")
-    currentTripId?.let { tripId ->
+    return currentTripId?.let { tripId ->
       // Extract all available location data
       val accuracy = if (location.hasAccuracy()) location.accuracy else null
       val altitude = if (location.hasAltitude()) location.altitude else null
@@ -453,7 +526,8 @@ class LocationService : Service() {
       
       // Emit location update event to React Native
       sendLocationUpdateEvent(tripId, location)
-    }
+      true
+    } ?: false
   }
   
   /**
@@ -548,7 +622,8 @@ class LocationService : Service() {
 
     val builder = NotificationCompat.Builder(this, effectiveChannelId)
       .setContentTitle(trackingOptions.getNotificationTitleOrDefault())
-      .setContentText(trackingOptions.getNotificationTextOrDefault())
+      // While location updates are reduced the motion text replaces the base text
+      .setContentText(reducedNotificationText ?: trackingOptions.getNotificationTextOrDefault())
       .setSmallIcon(smallIconResId)
       .setContentIntent(pendingIntent)
       .setOngoing(true)
@@ -621,6 +696,9 @@ class LocationService : Service() {
       .putInt(KEY_RESTART_COUNT, 0)
       .apply()
 
+    // End the motion session silently: remove both registrations and cancel every alarm
+    motionSession.stop(MotionSession.StopReason.STOP)
+
     // Cleanup location provider
     locationProvider.cleanup()
     android.util.Log.d("LocationService", "Location provider cleaned up")
@@ -629,6 +707,9 @@ class LocationService : Service() {
   /**
    * Updates the notification content while tracking is active
    * Merges new title/text into trackingOptions, rebuilds and re-posts the notification
+   * While location updates are reduced, the title changes at once and the new text is
+   * shown when full-accuracy updates are restored
+   * Runs on the main thread, like every other post of the foreground notification
    * Does NOT recreate the notification channel
    * Does NOT persist to database - dynamic updates are transient
    */
@@ -658,7 +739,72 @@ class LocationService : Service() {
     android.util.Log.d("LocationService", "Stopping location updates immediately")
     isStopRequested = true
     locationProvider.removeLocationUpdates()
+    // Silent motion teardown: no warning after an explicit stop
+    motionSession.stop(MotionSession.StopReason.STOP)
     android.util.Log.d("LocationService", "Location updates stopped immediately")
+  }
+
+  /**
+   * Builds the motion session of this instance with its platform seams.
+   */
+  private fun createMotionSession(): MotionSession {
+    val appContext = applicationContext
+    return MotionSession(
+      platform = AndroidMotionPlatform(appContext),
+      clientFactory = { GmsMotionRecognitionClient(appContext) },
+      timers = AlarmMotionTimers(appContext),
+      host = object : MotionHost {
+        override fun applyReducedProfile() {
+          locationProvider.reduceLocationUpdates(ReducedLocationProfile.STATIONARY)
+        }
+
+        override fun applyFullProfile() {
+          locationProvider.restoreLocationUpdates()
+        }
+
+        override fun flushStorage() {
+          storage.flushAsync()
+        }
+
+        override fun showReducedNotification(text: String) {
+          reducedNotificationText = text
+          repostNotification()
+        }
+
+        override fun showBaseNotification() {
+          reducedNotificationText = null
+          repostNotification()
+        }
+      },
+      sink = FlowMotionEventSink,
+      removeStale = { MotionPendingIntents.removeStale(appContext) },
+      isStopRequested = { isMotionStopRequested() },
+      elapsedRealtimeNanos = { SystemClock.elapsedRealtimeNanos() }
+    )
+  }
+
+  /**
+   * Stop flag or persisted stop token, as checked by handleLocation()
+   */
+  private fun isMotionStopRequested(): Boolean {
+    if (isStopRequested) return true
+    if (isStopTokenSet(this)) {
+      isStopRequested = true
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Re-posts the foreground notification with the current content
+   */
+  private fun repostNotification() {
+    try {
+      val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      notificationManager.notify(NOTIFICATION_ID, createNotification())
+    } catch (e: Exception) {
+      android.util.Log.e("LocationService", "Failed to re-post notification", e)
+    }
   }
 
   /**
@@ -771,19 +917,27 @@ class LocationService : Service() {
 
     /**
      * Updates the notification on the active service instance
-     * Returns true if an active instance was found and updated, false otherwise
+     * Returns true if an active instance was found, false otherwise
+     * The update runs on the main thread, where every notification post happens, and is
+     * skipped when that instance was destroyed in the meantime
      */
     fun updateNotification(title: String, text: String): Boolean {
-      synchronized(instanceLock) {
-        return activeInstance?.let { service ->
+      val service = synchronized(instanceLock) { activeInstance }
+      if (service == null) {
+        android.util.Log.d("LocationService", "No active instance to update notification")
+        return false
+      }
+      Handler(Looper.getMainLooper()).post {
+        // A notification posted for a destroyed instance would outlive the service
+        val stillActive = synchronized(instanceLock) { activeInstance === service }
+        if (stillActive) {
           service.updateNotificationContent(title, text)
-          android.util.Log.d("LocationService", "Called updateNotification on active instance")
-          true
-        } ?: run {
-          android.util.Log.d("LocationService", "No active instance to update notification")
-          false
+        } else {
+          android.util.Log.d("LocationService", "Instance stopped before the notification update ran")
         }
       }
+      android.util.Log.d("LocationService", "Posted updateNotification to the active instance")
+      return true
     }
 
     /**
@@ -797,7 +951,19 @@ class LocationService : Service() {
           android.util.Log.d("LocationService", "Called immediate stop on active instance")
         } ?: run {
           android.util.Log.d("LocationService", "No active instance to stop")
+          // A killed process may have left motion registrations and alarms behind
+          MotionPendingIntents.removeStale(context)
         }
+      }
+    }
+
+    /**
+     * Motion session of the active instance while motion activity is enabled, or null.
+     * Used by MotionActivityReceiver on the main thread.
+     */
+    internal fun activeMotionSession(): MotionSession? {
+      synchronized(instanceLock) {
+        return activeInstance?.motionSession?.takeIf { it.isActive }
       }
     }
 
@@ -817,6 +983,7 @@ class LocationService : Service() {
         if (options.foregroundOnly != null) putBoolean("foregroundOnly", options.foregroundOnly)
         if (options.distanceFilter != null) putFloat("distanceFilter", options.distanceFilter)
         options.notificationOptions?.let { putString("notificationOptions", it.toJsonString()) }
+        options.motion?.let { putString("motionOptions", it.toJsonString()) }
       }
 
       val intent = Intent(context, LocationService::class.java).apply {

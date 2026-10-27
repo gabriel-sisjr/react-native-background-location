@@ -34,6 +34,8 @@
     "!android/gradlew",
     "!android/gradlew.bat",
     "!android/local.properties",
+    "!android/src/test",
+    "!android/src/androidTest",
     "!**/__tests__",
     "!**/__fixtures__",
     "!**/__mocks__",
@@ -42,6 +44,8 @@
   "scripts": {
     "example": "yarn workspace react-native-background-location-example",
     "test": "jest",
+    "test:android": "cd example/android && ./gradlew :gabriel-sisjr_react-native-background-location:testDebugUnitTest --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a",
+    "test:ios": "bash scripts/run-ios-unit-tests.sh",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib plugin/build",

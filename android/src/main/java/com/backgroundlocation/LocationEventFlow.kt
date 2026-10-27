@@ -8,7 +8,26 @@ import kotlinx.coroutines.flow.SharedFlow
 sealed interface LocationEvent {
     data class Update(val tripId: String, val locationData: Bundle) : LocationEvent
     data class Error(val tripId: String?, val errorType: String, val message: String) : LocationEvent
-    data class Warning(val tripId: String?, val warningType: String, val message: String) : LocationEvent
+
+    /** [timestamp] is taken when the warning is created (milliseconds since epoch). */
+    data class Warning(
+        val tripId: String?,
+        val warningType: String,
+        val message: String,
+        val timestamp: Long = System.currentTimeMillis()
+    ) : LocationEvent
+
+    /**
+     * Motion activity of a tracking session. [activity] and [confidence] carry the wire values of
+     * the TypeScript `MotionActivityType` and `MotionConfidence` enums; [timestamp] is in
+     * milliseconds since epoch.
+     */
+    data class MotionActivity(
+        val tripId: String,
+        val activity: String,
+        val confidence: String,
+        val timestamp: Long
+    ) : LocationEvent
 }
 
 object LocationEventFlow {

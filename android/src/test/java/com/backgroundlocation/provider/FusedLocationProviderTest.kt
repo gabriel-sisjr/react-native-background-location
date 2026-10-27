@@ -20,6 +20,9 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -261,5 +264,141 @@ class FusedLocationProviderTest {
         // We verify by calling removeLocationUpdates again - it should be a no-op (no second remove call).
         provider.removeLocationUpdates()
         verify(exactly = 1) { fusedClient.removeLocationUpdates(any<LocationCallback>()) }
+    }
+
+    // --- Reduced profile (motion activity) ---
+
+    private val reducedProfile = ReducedLocationProfile(
+        priority = Priority.PRIORITY_LOW_POWER,
+        intervalMs = 60_000L,
+        fastestIntervalMs = 30_000L,
+        minDistanceM = 0f
+    )
+
+    /** Records every LocationRequest sent to the fused client, in order. */
+    private fun captureRequests(): MutableList<LocationRequest> {
+        val requests = mutableListOf<LocationRequest>()
+        every {
+            fusedClient.requestLocationUpdates(
+                capture(requests),
+                capture(callbackSlot),
+                any<Looper>()
+            )
+        } returns mockk<Task<Void>>(relaxed = true)
+        return requests
+    }
+
+    private fun requestFullAccuracy() {
+        provider.requestLocationUpdates(
+            intervalMs = 5000L,
+            fastestIntervalMs = 3000L,
+            priority = Priority.PRIORITY_HIGH_ACCURACY,
+            distanceFilter = 10f,
+            callback = updateCallback
+        )
+    }
+
+    @Test
+    fun `reduce re-registers once with the reduced profile and the same update callback`() {
+        val requests = captureRequests()
+        requestFullAccuracy()
+        val fullCallback = callbackSlot.captured
+
+        provider.reduceLocationUpdates(reducedProfile)
+
+        verify(exactly = 1) { fusedClient.removeLocationUpdates(fullCallback) }
+        assertEquals(2, requests.size)
+        assertEquals(Priority.PRIORITY_LOW_POWER, requests[1].priority)
+        assertEquals(60_000L, requests[1].intervalMillis)
+        assertEquals(30_000L, requests[1].minUpdateIntervalMillis)
+        assertTrue(provider.isReduced())
+
+        // Fixes of the reduced request still reach the same update callback
+        val location = mockk<Location>(relaxed = true)
+        val locationResult = mockk<LocationResult>()
+        every { locationResult.locations } returns listOf(location)
+        callbackSlot.captured.onLocationResult(locationResult)
+        verify(exactly = 1) { updateCallback.onLocationUpdate(location) }
+    }
+
+    @Test
+    fun `second reduce is a no-op`() {
+        val requests = captureRequests()
+        requestFullAccuracy()
+
+        provider.reduceLocationUpdates(reducedProfile)
+        provider.reduceLocationUpdates(reducedProfile)
+
+        assertEquals(2, requests.size)
+        verify(exactly = 1) { fusedClient.removeLocationUpdates(any<LocationCallback>()) }
+    }
+
+    @Test
+    fun `restore re-applies the last full request`() {
+        val requests = captureRequests()
+        requestFullAccuracy()
+        provider.reduceLocationUpdates(reducedProfile)
+        val reducedCallback = callbackSlot.captured
+
+        provider.restoreLocationUpdates()
+
+        verify(exactly = 1) { fusedClient.removeLocationUpdates(reducedCallback) }
+        assertEquals(3, requests.size)
+        assertSame(requests[0], requests[2])
+        assertEquals(Priority.PRIORITY_HIGH_ACCURACY, requests[2].priority)
+        assertEquals(5000L, requests[2].intervalMillis)
+        assertEquals(3000L, requests[2].minUpdateIntervalMillis)
+        assertFalse(provider.isReduced())
+    }
+
+    @Test
+    fun `restore without reduce is a no-op`() {
+        val requests = captureRequests()
+        requestFullAccuracy()
+
+        provider.restoreLocationUpdates()
+
+        assertEquals(1, requests.size)
+        verify(exactly = 0) { fusedClient.removeLocationUpdates(any<LocationCallback>()) }
+    }
+
+    @Test
+    fun `reduce after remove is a no-op`() {
+        val requests = captureRequests()
+        requestFullAccuracy()
+        provider.removeLocationUpdates()
+
+        provider.reduceLocationUpdates(reducedProfile)
+        provider.restoreLocationUpdates()
+
+        assertEquals(1, requests.size)
+        assertFalse(provider.isReduced())
+    }
+
+    @Test
+    fun `reduce without any request is a no-op`() {
+        provider.reduceLocationUpdates(reducedProfile)
+
+        verify(exactly = 0) {
+            fusedClient.requestLocationUpdates(
+                any<LocationRequest>(),
+                any<LocationCallback>(),
+                any<Looper>()
+            )
+        }
+        assertFalse(provider.isReduced())
+    }
+
+    @Test
+    fun `request clears the reduced state`() {
+        val requests = captureRequests()
+        requestFullAccuracy()
+        provider.reduceLocationUpdates(reducedProfile)
+
+        requestFullAccuracy()
+
+        assertFalse(provider.isReduced())
+        provider.restoreLocationUpdates()
+        assertEquals(3, requests.size)
     }
 }

@@ -133,4 +133,98 @@ describe('withIosUsageStrings', () => {
     expect(modes.filter((m) => m === 'location').length).toBe(1);
     expect(secondResult).toEqual(firstResult);
   });
+
+  describe('NSMotionUsageDescription (motionActivity prop)', () => {
+    const DEFAULT_MOTION =
+      'Allow $(PRODUCT_NAME) to use motion activity to detect when you are stationary or driving.';
+
+    it('does not write the key without the prop', async () => {
+      const config = withBackgroundLocation(baseExpoConfig(), {});
+      const result = await runInfoPlistMod(config, createBaseInfoPlist());
+
+      expect(result).not.toHaveProperty('NSMotionUsageDescription');
+    });
+
+    it('leaves an existing value untouched without the prop', async () => {
+      const config = withBackgroundLocation(baseExpoConfig(), {});
+      const seeded = createBaseInfoPlist();
+      seeded.NSMotionUsageDescription = 'Declared by the app';
+
+      const result = await runInfoPlistMod(config, seeded);
+
+      expect(result.NSMotionUsageDescription).toBe('Declared by the app');
+    });
+
+    it('adds only NSMotionUsageDescription when the prop is present', async () => {
+      const withoutProp = await runInfoPlistMod(
+        withBackgroundLocation(baseExpoConfig(), {}),
+        createBaseInfoPlist()
+      );
+      const withProp = await runInfoPlistMod(
+        withBackgroundLocation(baseExpoConfig(), { motionActivity: {} }),
+        createBaseInfoPlist()
+      );
+
+      const { NSMotionUsageDescription, ...rest } = withProp;
+      expect(NSMotionUsageDescription).toBe(DEFAULT_MOTION);
+      expect(rest).toEqual(withoutProp);
+    });
+
+    it('motionActivity.usageDescription wins over an existing plist value', async () => {
+      const config = withBackgroundLocation(baseExpoConfig(), {
+        motionActivity: { usageDescription: 'Custom motion copy' },
+      });
+      const seeded = createBaseInfoPlist();
+      seeded.NSMotionUsageDescription = 'Pre-existing plist value';
+
+      const result = await runInfoPlistMod(config, seeded);
+
+      expect(result.NSMotionUsageDescription).toBe('Custom motion copy');
+    });
+
+    it('an existing plist value wins over the default when usageDescription is omitted', async () => {
+      const config = withBackgroundLocation(baseExpoConfig(), {
+        motionActivity: {},
+      });
+      const seeded = createBaseInfoPlist();
+      seeded.NSMotionUsageDescription = 'Pre-existing plist value';
+
+      const result = await runInfoPlistMod(config, seeded);
+
+      expect(result.NSMotionUsageDescription).toBe('Pre-existing plist value');
+    });
+
+    it('falls back to the library default when neither the prop nor the plist sets it', async () => {
+      const config = withBackgroundLocation(baseExpoConfig(), {
+        motionActivity: {},
+      });
+      const result = await runInfoPlistMod(config, createBaseInfoPlist());
+
+      expect(result.NSMotionUsageDescription).toBe(DEFAULT_MOTION);
+    });
+
+    it('is idempotent on a second pass', async () => {
+      const firstResult = await runInfoPlistMod(
+        withBackgroundLocation(baseExpoConfig(), {
+          motionActivity: { usageDescription: 'Custom motion copy' },
+        }),
+        createBaseInfoPlist()
+      );
+      // The mod mutates its input in place, so compare against a deep copy.
+      const afterFirstPass = JSON.parse(JSON.stringify(firstResult)) as Record<
+        string,
+        unknown
+      >;
+
+      const secondResult = await runInfoPlistMod(
+        withBackgroundLocation(baseExpoConfig(), {
+          motionActivity: { usageDescription: 'Custom motion copy' },
+        }),
+        firstResult
+      );
+
+      expect(secondResult).toEqual(afterFirstPass);
+      expect(secondResult.NSMotionUsageDescription).toBe('Custom motion copy');
+    });
+  });
 });
