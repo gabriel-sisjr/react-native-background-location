@@ -31,5 +31,11 @@ export type {
 export { useGeofenceEvents } from './useGeofenceEvents';
 export type { UseGeofenceEventsOptions } from './useGeofenceEvents';
 
+export { useMotionActivity } from './useMotionActivity';
+export type {
+  UseMotionActivityOptions,
+  UseMotionActivityResult,
+} from '../types';
+
 // Alias: geofencing uses the same location permissions
 export { useLocationPermissions as useGeofencePermissions } from './useLocationPermissions';

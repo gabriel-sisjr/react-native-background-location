@@ -1,7 +1,11 @@
 package com.backgroundlocation
 
+import com.backgroundlocation.motion.MotionOptions
+
 /**
  * Data class representing tracking configuration options.
+ *
+ * [motion] holds the opt-in motion activity options; `null` means the feature is off.
  */
 data class TrackingOptions(
   val updateInterval: Long? = null,
@@ -11,7 +15,8 @@ data class TrackingOptions(
   val waitForAccurateLocation: Boolean? = null,
   val foregroundOnly: Boolean? = null,
   val distanceFilter: Float? = null,
-  val notificationOptions: NotificationOptions? = null
+  val notificationOptions: NotificationOptions? = null,
+  val motion: MotionOptions? = null
 ) {
   companion object {
     // Default values

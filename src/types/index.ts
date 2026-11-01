@@ -9,6 +9,11 @@ export {
   LocationActivityType,
   NotificationPriority,
   NotificationPermissionStatus,
+  MotionActivityType,
+  MotionConfidence,
+  MotionPermissionStatus,
+  MotionDetectionStatus,
+  MotionReductionStatus,
 } from './enums';
 
 // Tracking types
@@ -40,6 +45,18 @@ export type {
   UseLocationUpdatesOptions,
   UseLocationUpdatesResult,
 } from './hooks';
+
+// Motion activity types
+export type {
+  MotionActivityOptions,
+  MotionReductionOptions,
+  MotionActivityEvent,
+  MotionActivityState,
+  MotionActivityListener,
+  MotionActivitySubscription,
+  UseMotionActivityOptions,
+  UseMotionActivityResult,
+} from './motion';
 
 // Notification types
 export type { NotificationOptions } from './notifications';

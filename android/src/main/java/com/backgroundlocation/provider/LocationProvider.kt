@@ -31,6 +31,23 @@ interface LocationProvider {
     fun removeLocationUpdates()
 
     /**
+     * Switches the active request to [profile] (a reduction, never a stop) and keeps the
+     * same callback. No-op without an active request or while already reduced.
+     */
+    fun reduceLocationUpdates(profile: ReducedLocationProfile)
+
+    /**
+     * Re-applies the parameters of the last [requestLocationUpdates] call.
+     * No-op unless the request is currently reduced.
+     */
+    fun restoreLocationUpdates()
+
+    /**
+     * True while the active request runs with a [ReducedLocationProfile]
+     */
+    fun isReduced(): Boolean
+
+    /**
      * Get last known location (may be null)
      */
     fun getLastLocation(callback: (Location?) -> Unit)

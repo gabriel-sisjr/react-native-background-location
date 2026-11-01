@@ -151,6 +151,52 @@ Notification permission is separate from location permission:
 - Only visual notification display is affected (e.g., geofence transition alerts)
 - iOS shows the notification permission dialog **once**. If the user denies, they must re-enable it in Settings
 
+## Optional: Motion Activity (CoreMotion)
+
+Skip this section unless you enable the opt-in `motionActivity` tracking option. On iOS, motion activity is a compile-time opt-in: by default the library compiles no CoreMotion code into your app and does not link the `CoreMotion` framework.
+
+### Podfile Flag
+
+Set the flag in `ios/Podfile` **before the first `target`**, so it is already defined when CocoaPods reads the library's podspec:
+
+```ruby
+$BackgroundLocationMotionActivity = true
+
+target 'YourApp' do
+  # ...
+end
+```
+
+Then reinstall the pods:
+
+```bash
+cd ios && pod install && cd ..
+```
+
+With the flag set, the podspec links the `CoreMotion` framework and adds the Swift compiler flag `-DBACKGROUND_LOCATION_MOTION`, which turns on the library's motion activity code at compile time.
+
+### Motion Usage Description
+
+With the flag on, add `NSMotionUsageDescription` to `Info.plist`. iOS shows this text in the Motion & Fitness permission prompt:
+
+```xml
+<key>NSMotionUsageDescription</key>
+<string>We use motion activity to detect when you are stationary or driving.</string>
+```
+
+If the key is missing or blank, a trip started with `motionActivity` emits a `MOTION_ACTIVITY_UNAVAILABLE` warning and tracking continues at full accuracy. Request the permission itself at runtime with `requestMotionPermission()` while the app is in the foreground (see [Permissions](./permissions.md#motion-activity-permission-optional)).
+
+### Without the Flag
+
+- No CoreMotion code is compiled or linked, and your app does not need `NSMotionUsageDescription` because of this library.
+- If your JavaScript enables `motionActivity` anyway, tracking starts at full accuracy with a `MOTION_ACTIVITY_UNAVAILABLE` warning saying that motion activity is not compiled into this app, and `checkMotionPermission()` / `requestMotionPermission()` resolve `UNAVAILABLE`.
+
+> Using Expo? Add the `motionActivity` prop of the [Expo config plugin](../guides/expo-config-plugin.md#motionactivity) instead. It sets the Podfile flag and `NSMotionUsageDescription` for you.
+
+The library's `PrivacyInfo.xcprivacy` is unchanged by this option: CoreMotion has no required-reason API category, and the library never transmits motion data. If your app uploads or shares motion-derived data, declare that yourself in your App Store privacy details and your app's privacy manifest (for example, as Fitness data).
+
+See the [Motion Activity guide](../guides/motion-activity.md#ios-setup) for how detection works on iOS.
+
 ## iOS Platform Behavior
 
 Unlike Android, iOS handles background location differently:
@@ -223,6 +269,10 @@ pod install
 cd ..
 ```
 
+### Pods Project Damaged After Upgrading
+
+If Xcode reports that the `Pods` project is damaged after you upgrade the library and run `pod install`, and your Podfile has a `post_install` hook that adds objects to the Pods project (for example MapLibre's), see [Xcode reports that the Pods project is damaged after upgrading](../troubleshooting.md#xcode-reports-that-the-pods-project-is-damaged-after-upgrading).
+
 ### Core Data Model Not Found
 
 **Symptom:** App crashes with "Failed to load Core Data model 'BackgroundLocationModel'"
@@ -269,6 +319,7 @@ After setup, verify the following:
 - [ ] Location updates arrive when tracking starts
 - [ ] Blue status bar indicator appears during background tracking
 - [ ] App continues to receive location updates when backgrounded (with Always permission)
+- [ ] If you use motion activity: the `Podfile` sets `$BackgroundLocationMotionActivity = true` before the first `target`, and `Info.plist` contains `NSMotionUsageDescription`
 
 ## Next Steps
 

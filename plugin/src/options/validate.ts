@@ -1,5 +1,8 @@
 import { PluginError } from '../errors/PluginError';
-import type { BackgroundLocationPluginProps } from './types';
+import type {
+  BackgroundLocationPluginProps,
+  MotionActivityPluginProps,
+} from './types';
 
 /**
  * Every option the plugin accepts. Anything else is rejected with
@@ -11,11 +14,40 @@ const KNOWN_PROPS = [
   'locationAlwaysAndWhenInUseUsageDescription',
   'locationAlwaysUsageDescription',
   'temporaryUsageDescriptions',
+  'motionActivity',
 ] as const;
+
+/**
+ * Every key accepted inside the `motionActivity` object, rejected the same
+ * way as the top-level options.
+ */
+const KNOWN_MOTION_ACTIVITY_PROPS = ['usageDescription'] as const;
 
 /** `typeof null` is `'object'`; report it as `null` so the message is not misleading. */
 function typeName(value: unknown): string {
   return value === null ? 'null' : typeof value;
+}
+
+/** Formats option names as a comma-separated list of code spans. */
+function formatKeys(keys: readonly string[]): string {
+  return keys.map((key) => `\`${key}\``).join(', ');
+}
+
+function assertNoUnknownKeys(
+  value: Record<string, unknown>,
+  knownKeys: readonly string[],
+  prefix: string
+): void {
+  const unknownKeys = Object.keys(value)
+    .filter((key) => !knownKeys.includes(key))
+    .map((key) => `${prefix}${key}`);
+  if (unknownKeys.length > 0) {
+    throw new PluginError(
+      'UNKNOWN_PROP',
+      `Unknown plugin option${unknownKeys.length > 1 ? 's' : ''}: ${formatKeys(unknownKeys)}. Supported options: ${formatKeys(knownKeys.map((key) => `${prefix}${key}`))}.`,
+      { unknownKeys }
+    );
+  }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -74,6 +106,34 @@ function assertOptionalStringRecord(
   return value as Record<string, string>;
 }
 
+/**
+ * `motionActivity` opts in by presence: absent means "not requested", and a
+ * plain object (even `{}`) means "requested". Every other value is rejected,
+ * `true` included, so the opt-in is always written the same way.
+ */
+function assertOptionalMotionActivity(
+  value: unknown
+): MotionActivityPluginProps | undefined {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value)) {
+    const received = Array.isArray(value) ? 'array' : typeName(value);
+    throw new PluginError(
+      'INVALID_MOTION_ACTIVITY',
+      `\`motionActivity\` must be a plain object (use \`{}\` to opt in with the default usage string). Received ${received}.`,
+      { fieldName: 'motionActivity', value }
+    );
+  }
+
+  assertNoUnknownKeys(value, KNOWN_MOTION_ACTIVITY_PROPS, 'motionActivity.');
+
+  const usageDescription = assertOptionalNonEmptyString(
+    value.usageDescription,
+    'motionActivity.usageDescription',
+    'INVALID_USAGE_DESCRIPTION'
+  );
+  return usageDescription === undefined ? {} : { usageDescription };
+}
+
 export function validatePluginProps(
   raw: unknown
 ): BackgroundLocationPluginProps {
@@ -86,18 +146,7 @@ export function validatePluginProps(
     );
   }
 
-  const unknownKeys = Object.keys(raw).filter(
-    (key) => !(KNOWN_PROPS as readonly string[]).includes(key)
-  );
-  if (unknownKeys.length > 0) {
-    const list = (keys: readonly string[]) =>
-      keys.map((key) => `\`${key}\``).join(', ');
-    throw new PluginError(
-      'UNKNOWN_PROP',
-      `Unknown plugin option${unknownKeys.length > 1 ? 's' : ''}: ${list(unknownKeys)}. Supported options: ${list(KNOWN_PROPS)}.`,
-      { unknownKeys }
-    );
-  }
+  assertNoUnknownKeys(raw, KNOWN_PROPS, '');
 
   return {
     locationWhenInUseUsageDescription: assertOptionalNonEmptyString(
@@ -119,5 +168,6 @@ export function validatePluginProps(
       raw.temporaryUsageDescriptions,
       'temporaryUsageDescriptions'
     ),
+    motionActivity: assertOptionalMotionActivity(raw.motionActivity),
   };
 }

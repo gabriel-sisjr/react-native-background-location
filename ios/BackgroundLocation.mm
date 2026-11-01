@@ -156,6 +156,33 @@
     dict[@"notificationOptions"] = notificationOptions;
   }
 
+  // Motion activity (opt-in). motionSampleInterval and motionReducedNotificationText are
+  // Android-only and are not transported; validation happens in Swift.
+  auto motionActivityEnabled = options.motionActivityEnabled();
+  if (motionActivityEnabled.has_value()) {
+    dict[@"motionActivityEnabled"] = @(motionActivityEnabled.value());
+  }
+
+  auto motionReduceWhenStationary = options.motionReduceWhenStationary();
+  if (motionReduceWhenStationary.has_value()) {
+    dict[@"motionReduceWhenStationary"] = @(motionReduceWhenStationary.value());
+  }
+
+  auto motionStationaryDelay = options.motionStationaryDelay();
+  if (motionStationaryDelay.has_value()) {
+    dict[@"motionStationaryDelay"] = @(motionStationaryDelay.value());
+  }
+
+  auto motionAutomotiveCooldown = options.motionAutomotiveCooldown();
+  if (motionAutomotiveCooldown.has_value()) {
+    dict[@"motionAutomotiveCooldown"] = @(motionAutomotiveCooldown.value());
+  }
+
+  auto motionMaxReducedDuration = options.motionMaxReducedDuration();
+  if (motionMaxReducedDuration.has_value()) {
+    dict[@"motionMaxReducedDuration"] = @(motionMaxReducedDuration.value());
+  }
+
   return dict;
 }
 
@@ -179,6 +206,10 @@
 
   [LocationManagerWrapper shared].onLocationWarning = ^(NSDictionary *eventData) {
     [weakSelf emitEventWithName:@"onLocationWarning" body:eventData];
+  };
+
+  [LocationManagerWrapper shared].onMotionActivity = ^(NSDictionary *eventData) {
+    [weakSelf emitEventWithName:@"onMotionActivity" body:eventData];
   };
 
   [GeofenceEventEmitter shared].onGeofenceTransition = ^(NSDictionary *eventData) {
@@ -362,6 +393,40 @@
       resolve(@"denied");
     }
   }];
+}
+
+// MARK: - Motion Activity Methods
+
+- (void)checkMotionPermission:(RCTPromiseResolveBlock)resolve
+                       reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    resolve([[LocationManagerWrapper shared] checkMotionPermission]);
+  } @catch (NSException *exception) {
+    reject(@"CHECK_MOTION_PERMISSION_ERROR", [NSString stringWithFormat:@"Failed to check motion permission: %@", exception.reason], nil);
+  }
+}
+
+- (void)requestMotionPermission:(RCTPromiseResolveBlock)resolve
+                         reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    [[LocationManagerWrapper shared] requestMotionPermissionWithCompletion:^(NSString * _Nonnull status) {
+      resolve(status);
+    }];
+  } @catch (NSException *exception) {
+    reject(@"REQUEST_MOTION_PERMISSION_ERROR", [NSString stringWithFormat:@"Failed to request motion permission: %@", exception.reason], nil);
+  }
+}
+
+- (void)getMotionActivityState:(RCTPromiseResolveBlock)resolve
+                        reject:(RCTPromiseRejectBlock)reject
+{
+  @try {
+    resolve([[LocationManagerWrapper shared] motionActivityStateJSON]);
+  } @catch (NSException *exception) {
+    reject(@"GET_MOTION_STATE_ERROR", [NSString stringWithFormat:@"Failed to get motion activity state: %@", exception.reason], nil);
+  }
 }
 
 // MARK: - Geofencing Methods

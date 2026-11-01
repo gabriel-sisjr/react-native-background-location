@@ -35,9 +35,9 @@ graph TD
 
 The public-facing layer that application code consumes directly. It provides:
 
-- **Functions** -- `startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`, and the full geofencing API.
-- **React hooks** -- `useLocationPermissions`, `useBackgroundLocation`, `useLocationTracking`, `useLocationUpdates`, `useGeofencing`, `useGeofenceEvents`.
-- **Types and enums** -- `LocationAccuracy`, `NotificationPriority`, `TrackingOptions`, `Coords`, `GeofenceRegion`, and others.
+- **Functions** -- `startTracking`, `stopTracking`, `isTracking`, `getLocations`, `clearTrip`, `updateNotification`, the full geofencing API, and the opt-in motion activity functions (`addMotionActivityListener`, `checkMotionPermission`, `requestMotionPermission`, `getMotionActivityState`).
+- **React hooks** -- `useLocationPermissions`, `useBackgroundLocation`, `useLocationTracking`, `useLocationUpdates`, `useGeofencing`, `useGeofenceEvents`, `useMotionActivity`.
+- **Types and enums** -- `LocationAccuracy`, `NotificationPriority`, `TrackingOptions`, `Coords`, `GeofenceRegion`, the motion activity enums (`MotionActivityType`, `MotionConfidence`, `MotionPermissionStatus`, `MotionDetectionStatus`, `MotionReductionStatus`), and others.
 - **Error classes** -- `GeofenceError` with typed `GeofenceErrorCode` discriminator.
 
 This layer handles enum-to-string conversion, JSON serialization of complex objects, input validation, and graceful degradation when the native module is unavailable (e.g., simulators).
@@ -51,6 +51,7 @@ This layer handles enum-to-string conversion, JSON serialization of complex obje
 - **No TypeScript enums** -- Enum values are passed as plain strings. The TypeScript layer converts enums before crossing the bridge.
 - **No complex object arrays** -- Geofence regions and notification actions are JSON-serialized into strings.
 - **Inline interface definitions** -- `TrackingOptionsSpec` and `PermissionStatusResult` are defined directly in the spec file for Codegen compatibility.
+- **Flat optional keys** -- The `motionActivity` option crosses the bridge as optional `motion*` primitives (`motionActivityEnabled`, `motionStationaryDelay` and so on). None of them is present when the feature is off.
 
 ### Layer 3: Native Implementations
 
@@ -65,6 +66,7 @@ Each platform implements the TurboModule spec using platform-idiomatic patterns:
 | Crash recovery | WorkManager (`RecoveryWorker`) | Significant location monitoring (`RecoveryManager`) |
 | Location provider | Dual: FusedLocationProvider / AndroidLocationProvider | CLLocationManager |
 | Geofencing | GeofencingClient (Google Play Services) | CLLocationManager region monitoring |
+| Motion activity (opt-in) | Activity Recognition API (Google Play services) in the `motion/` package, driven by `LocationService` | CoreMotion in `ios/Motion/`, driven by `MotionCoordinator`; compiled in only with the Podfile flag |
 
 ## Key Design Decisions
 
@@ -100,6 +102,31 @@ A counter in SharedPreferences tracks service restarts within a 1-hour window. I
 
 Both platforms buffer location writes and flush in batches (up to 10 items, or every 5 seconds). This reduces I/O overhead during high-frequency GPS updates. A `forceFlush()` call guarantees consistency before any read operation.
 
+### Opt-In Motion Activity
+
+Motion activity detection, and the reduction of location updates while the device is stationary, are off by default. With `motionActivity` absent, `false` or `null`, the library behaves as in 1.1.0: no Activity Recognition client (except, on Android, to remove a registration left by an earlier session), no CoreMotion call, no motion permission check or prompt, no `onMotionActivity` event and no `MOTION_*` warning.
+
+```mermaid
+graph TD
+    subgraph ANDROIDMOT["Android, always compiled"]
+        LSVC["LocationService<br/>(foreground service)"] --> MSESS["MotionSession<br/>(motion/ package)"]
+        MRCV["MotionActivityReceiver<br/>(non-exported)"] --> MSESS
+        MSESS --> ARAPI["Activity Recognition API<br/>(Google Play services)"]
+        MSESS --> AGATE["MotionGate"]
+    end
+    subgraph IOSMOT["iOS, CoreMotion behind the Podfile flag"]
+        LMWR["LocationManagerWrapper"] --> MCOORD["MotionCoordinator<br/>(ios/Motion/)"]
+        MCOORD --> CMSRC["CoreMotionActivitySource<br/>(CMMotionActivityManager)"]
+        MCOORD --> IGATE["MotionGate"]
+    end
+```
+
+- **Android** -- The `motion/` package is always compiled, but the foreground service creates an Activity Recognition client only for a trip that enables the feature, or to remove a registration left by an earlier session. The library manifest adds a non-exported receiver and no permission: the app declares `ACTIVITY_RECOGNITION` itself.
+- **iOS** -- The CoreMotion code is compiled in only when the app's Podfile sets `$BackgroundLocationMotionActivity = true` (the Expo `motionActivity` plugin prop adds that line). Without it, no CoreMotion code is compiled or linked, and the app needs no `NSMotionUsageDescription` because of this library.
+- **Degrade, never stop** -- The reduction switches to a coarse, low-power location profile while the foreground service (Android) or the standard location updates (iOS) keep running. A detection failure (no Google Play services, no permission, not compiled in) becomes at most one `onLocationWarning` per session, and tracking continues at full accuracy. `startTracking()` never throws, rejects or prompts because of motion.
+
+See the [Motion Activity guide](../guides/motion-activity.md) for setup, behaviour and warnings.
+
 ## Technology Stack
 
 | Component | Technology | Rationale |
@@ -112,10 +139,12 @@ Both platforms buffer location writes and flush in batches (up to 10 items, or e
 | Android background | Foreground Service + WorkManager | Reliable background execution, OS compliance |
 | Android location | Google Play Services (FusedLocationProvider) | Battery-efficient, fused sensor data |
 | Android fallback | Android LocationManager | Devices without Google Play Services |
+| Android motion (opt-in) | Activity Recognition API (Google Play services) | System activity classifier; inexact `AlarmManager` alarms for the reduction timers, no exact-alarm permission |
 | iOS module | Swift + Objective-C++ bridge | Modern Swift with TurboModule bridge compatibility |
 | iOS persistence | Core Data (SQLite) | Apple-native, thread-safe, schema migration |
 | iOS location | CLLocationManager | Only official iOS location API |
 | iOS recovery | Significant location monitoring | System-managed, low-power app relaunch |
+| iOS motion (opt-in) | CoreMotion (`CMMotionActivityManager`) | System activity classifier; compiled in only with the Podfile flag |
 | Build system | react-native-builder-bob | CommonJS + ESM + TypeScript declarations |
 | Monorepo | Yarn 3.6.1 + Turborepo | Workspace management, parallel builds |
 
@@ -123,16 +152,17 @@ Both platforms buffer location writes and flush in batches (up to 10 items, or e
 
 ### Event System
 
-Both platforms emit the same four event types to JavaScript:
+Both platforms emit the same five event types to JavaScript:
 
 | Event | Description |
 |-------|-------------|
 | `onLocationUpdate` | New location coordinate received |
 | `onLocationError` | Fatal error (permission revoked, provider error) |
-| `onLocationWarning` | Non-fatal warning (service timeout, task removed, GPS lost) |
+| `onLocationWarning` | Non-fatal warning (service timeout, task removed, GPS lost, motion activity reduction and availability); every payload carries a `timestamp` |
 | `onNotificationAction` | Notification action button pressed |
+| `onMotionActivity` | Detected motion activity changed; only for a trip started with `motionActivity` enabled |
 
-The event names and payload shapes are identical on both platforms, providing a unified API surface for hooks like `useLocationUpdates` and `useGeofenceEvents`.
+The event names and payload shapes are identical on both platforms, providing a unified API surface for hooks like `useLocationUpdates`, `useGeofenceEvents` and `useMotionActivity`.
 
 ### Permission Model
 
@@ -140,13 +170,17 @@ The library provides a cross-platform permission flow through `useLocationPermis
 
 - **Android**: Requests `ACCESS_FINE_LOCATION`, then `ACCESS_BACKGROUND_LOCATION` (API 29+), then `POST_NOTIFICATIONS` (API 33+).
 - **iOS**: Requests "When In Use" first, then escalates to "Always" via a two-step flow with a `shouldIgnoreNextAuthCallback` guard to handle iOS delegate timing.
+- **Motion activity (opt-in)**: Separate from the location flow and not covered by `useLocationPermissions`. `checkMotionPermission()` never prompts; `requestMotionPermission()` shows the Android 10+ `ACTIVITY_RECOGNITION` dialog (through `PermissionsAndroid`) or, while access is undetermined, the iOS Motion & Fitness prompt. `startTracking()` never prompts for it.
 
 ### Persistence and Recovery
 
 Both platforms persist tracking state (active status, trip ID, options) to the database. On crash or system kill, the recovery mechanism reads this state and resumes tracking automatically. The stop token prevents recovery after an intentional stop.
+
+The motion options are part of this state: on Android in the `tracking_state` table (Room schema v2; Android recovery now also restores `distanceFilter`), on iOS in `UserDefaults` next to the Core Data state. The reduction state is never persisted: a recovered trip restarts motion detection through the normal path, without prompting, at full accuracy.
 
 ## Next Steps
 
 - [Data Flow](./data-flow.md) -- Detailed data flow from hook to native and back.
 - [Android Native Architecture](./android-native.md) -- Deep dive into the Android implementation.
 - [iOS Native Architecture](./ios-native.md) -- Deep dive into the iOS implementation.
+- [Motion Activity](../guides/motion-activity.md) -- Setup and behaviour of the opt-in motion activity feature.

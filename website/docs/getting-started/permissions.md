@@ -125,7 +125,9 @@ These must be declared in `AndroidManifest.xml` (see [Installation](./installati
 | `FOREGROUND_SERVICE_LOCATION` | Android 14+ (API 34+) | Foreground service type declaration  |
 | `POST_NOTIFICATIONS`          | Android 13+ (API 33+) | Show foreground service notification |
 
-> Using Expo? The [Expo config plugin](../guides/expo-config-plugin.md) injects the six permissions above plus `RECEIVE_BOOT_COMPLETED` (used to restore geofences after a device reboot; the library's own manifest declares it, so bare projects get it through manifest merging).
+The activity-recognition permissions of the optional motion activity feature are **not** in this list, and the library's manifest declares neither of them. Your app declares them only if it uses motion activity (see [Motion Activity Permission](#motion-activity-permission-optional)).
+
+> Using Expo? The [Expo config plugin](../guides/expo-config-plugin.md) injects the six permissions above plus `RECEIVE_BOOT_COMPLETED` (used to restore geofences after a device reboot; the library's own manifest declares it, so bare projects get it through manifest merging). Only with its `motionActivity` prop does it also add the two activity-recognition permissions.
 
 ### Runtime Permission Flow
 
@@ -427,6 +429,80 @@ if (!permissionStatus.notification.hasPermission) {
 }
 ```
 
+## Motion Activity Permission (Optional)
+
+The opt-in `motionActivity` tracking option needs one more permission. If you do not enable motion activity, skip this section: the library never checks or requests this permission.
+
+`useLocationPermissions` does **not** cover it. Use `checkMotionPermission()` (never prompts) and `requestMotionPermission()` instead, after the location permissions and before `startTracking()`.
+
+### Android
+
+| API Level         | Permission                                               | Grant                                                |
+| ----------------- | -------------------------------------------------------- | ---------------------------------------------------- |
+| 29+ (Android 10+) | `android.permission.ACTIVITY_RECOGNITION`                | Runtime: request it with `requestMotionPermission()` |
+| 28 and lower      | `com.google.android.gms.permission.ACTIVITY_RECOGNITION` | Install time: granted when declared                  |
+
+Your **app** declares both in `AndroidManifest.xml`; the library's manifest declares neither:
+
+```xml
+<uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+<uses-permission
+    android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+    android:maxSdkVersion="28" />
+```
+
+Detection also needs Google Play services. Without it, the status is `UNAVAILABLE`.
+
+> Using Expo? The `motionActivity` prop of the [Expo config plugin](../guides/expo-config-plugin.md#motionactivity) adds both entries.
+
+> **Important:** Google Play treats `ACTIVITY_RECOGNITION` as health-related sensitive data. Show a prominent in-app disclosure of what is detected, why, and whether it leaves the device, and call `requestMotionPermission()` only after the user accepts it. See [Google Play Compliance](../production/google-play-compliance.md#prominent-disclosure-and-consent).
+
+### iOS
+
+iOS uses the Motion & Fitness permission. It is available only when the CoreMotion code is compiled in (the `$BackgroundLocationMotionActivity = true` Podfile flag, or the Expo `motionActivity` prop) and `Info.plist` contains `NSMotionUsageDescription`. See [iOS Setup](./ios-setup.md#optional-motion-activity-coremotion).
+
+### Checking and Requesting
+
+```typescript
+import {
+  checkMotionPermission,
+  requestMotionPermission,
+  MotionPermissionStatus,
+} from '@gabriel-sisjr/react-native-background-location';
+
+// After the location permissions are granted, before startTracking():
+let motion = await checkMotionPermission(); // never prompts
+
+if (
+  (motion === MotionPermissionStatus.DENIED ||
+    motion === MotionPermissionStatus.UNDETERMINED) &&
+  // Google Play: your own disclosure screen, resolving true when the user accepts
+  (await showMotionDisclosure())
+) {
+  motion = await requestMotionPermission();
+}
+```
+
+Both functions resolve a `MotionPermissionStatus`:
+
+| Status                            | Android                                                                                                        | iOS                                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `GRANTED` (`'granted'`)           | Granted                                                                                                        | Authorized                                                                                            |
+| `DENIED` (`'denied'`)             | Not granted, including "never ask again". On Android 9 and lower: the Play services permission is not declared | Denied or restricted                                                                                  |
+| `UNDETERMINED` (`'undetermined'`) | Never returned                                                                                                 | Not requested yet, or requested while the app was not in the foreground                               |
+| `UNAVAILABLE` (`'unavailable'`)   | Google Play services not available                                                                             | Not compiled in (no Podfile flag), `NSMotionUsageDescription` missing or blank, or no motion hardware |
+
+`requestMotionPermission()` returns `GRANTED` and `UNAVAILABLE` as they are, without a dialog. Otherwise, on Android 10+ it shows the system dialog (through `PermissionsAndroid`) and resolves `GRANTED` or `DENIED`; on Android 9 and lower it returns the current status, because that permission is granted at install time. On iOS it shows the Motion & Fitness prompt only while the status is undetermined and only when the app is in the foreground; otherwise it returns the current status. When the user has not answered (for example, it was called while the app was not active), it resolves `UNDETERMINED`, so call it with the app in the foreground. Both functions resolve `UNAVAILABLE`, with a console warning, when the native module is not linked.
+
+### Behavior During Tracking
+
+- `startTracking()` never prompts for the motion permission and never fails because of it. Without the permission, the trip runs at full accuracy and emits a `MOTION_PERMISSION_NOT_GRANTED` warning.
+- A permission granted during a trip takes effect at the next `startTracking()`.
+- On Google Play, `ACTIVITY_RECOGNITION` also requires the Health apps declaration in Play Console, and motion-derived data that leaves the device goes in the Data safety form under Health and fitness > Fitness info. See [Motion Activity](../production/google-play-compliance.md#motion-activity-optional) in Google Play Compliance.
+- If your app sends motion-derived data off the device, also declare it in your App Store privacy details.
+
+See [Motion Activity Permission](../guides/permission-handling.md#motion-activity-permission) in the Permission Handling guide for a complete example, and the [Motion Activity guide](../guides/motion-activity.md#requesting-the-permission) for the feature itself.
+
 ## Permission Decision Tree
 
 Use this to determine the minimum permissions your app needs:
@@ -457,6 +533,7 @@ Before publishing to Google Play with background location:
 1. **In-app disclosure:** Show a prominent explanation before requesting background location
 2. **Privacy policy:** Disclose location data collection, background access, and data retention
 3. **Play Console declarations:** Complete Data Safety Form and Sensitive App Permissions form
+4. **Motion activity (if enabled):** Show a prominent disclosure and get the user's consent before `requestMotionPermission()`, and complete the Health apps declaration
 
 See the [Production guide](../production/google-play-compliance.md) for complete compliance details.
 

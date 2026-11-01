@@ -275,6 +275,30 @@ Your app must also have its own `PrivacyInfo.xcprivacy`. If your app links locat
 </dict>
 ```
 
+## Motion Activity (Optional)
+
+Motion activity is opt-in and off by default. This section applies only if your app enables it on iOS (see [iOS Setup](../guides/motion-activity.md#ios-setup)).
+
+### NSMotionUsageDescription
+
+`NSMotionUsageDescription` is required only when the library's CoreMotion code is compiled in, that is when your Podfile sets `$BackgroundLocationMotionActivity = true` or your Expo config sets the plugin prop `motionActivity`. Default builds reference no CoreMotion API, so they need no `NSMotionUsageDescription` because of this library.
+
+Shown when `requestMotionPermission()` asks for the Motion & Fitness permission. Explain the benefit to the user, following [Writing Effective Descriptions](#writing-effective-descriptions):
+
+```xml
+<key>NSMotionUsageDescription</key>
+<string>We use motion activity to detect when you stop moving, so trip tracking uses less battery while you are stationary.</string>
+```
+
+With Expo, the plugin takes the value from `motionActivity.usageDescription`, then from a value already in `Info.plist` or `ios.infoPlist`, and otherwise uses the default `Allow $(PRODUCT_NAME) to use motion activity to detect when you are stationary or driving.` Set `usageDescription` to describe your own app's benefit.
+
+If the key is missing or blank, the app does not crash: the library emits a `MOTION_ACTIVITY_UNAVAILABLE` warning and tracking continues at full accuracy.
+
+### Privacy Declarations for Motion Data
+
+- The library's `PrivacyInfo.xcprivacy` is unchanged by motion activity, and the library never transmits motion data.
+- If your app uploads or shares motion-derived data (for example detected activities or stationary periods), declare it yourself in your App Store privacy details and in your app-level privacy manifest, for example as Fitness data.
+
 ## Background Location Justification Text
 
 When submitting your app, Apple may ask you to justify background location usage in the review notes or in a separate form. Prepare this text.
@@ -413,6 +437,7 @@ const tripId = await startTracking({
 - [ ] App correctly handles denied permission (no crash, graceful fallback)
 - [ ] `requestPermissions()` from the hook triggers the system escalation prompt from "When In Use" to "Always"
 - [ ] Geofence registration works correctly after permissions are granted via `requestPermissions()`
+- [ ] If motion activity is compiled in: `NSMotionUsageDescription` is present and descriptive
 
 ### Background Behavior
 
@@ -429,6 +454,7 @@ const tripId = await startTracking({
 - [ ] Privacy Nutrition Labels are configured in App Store Connect
 - [ ] Privacy policy is updated and linked in App Store Connect
 - [ ] Privacy policy is accessible from within the app
+- [ ] If motion-derived data is uploaded or shared: it is declared in the privacy details and the app-level manifest (for example as Fitness data)
 
 ### Data Handling
 
@@ -450,4 +476,5 @@ const tripId = await startTracking({
 - [iOS Background Behavior](./ios-background-behavior.md) -- How iOS handles background location
 - [Google Play Compliance](./google-play-compliance.md) -- Android equivalent requirements
 - [Platform Comparison](./platform-comparison.md) -- Android vs iOS differences
+- [Motion Activity](../guides/motion-activity.md) -- Opt-in motion activity setup, including the iOS compile-time flag
 - [Apple App Store Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) -- Official Apple documentation

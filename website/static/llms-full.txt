@@ -14,6 +14,8 @@ npm install @gabriel-sisjr/react-native-background-location
 
 Requirements: React Native >= 0.73.0, React >= 18.2.0, TurboModules enabled.
 Expo (optional): SDK 54+ with a development build (Expo Go is not supported); add the config plugin, see https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/expo-config-plugin
+Motion activity (optional, off by default): Android apps declare `android.permission.ACTIVITY_RECOGNITION` and `com.google.android.gms.permission.ACTIVITY_RECOGNITION` (`android:maxSdkVersion="28"`); iOS apps set `$BackgroundLocationMotionActivity = true` before the first `target` in the Podfile, run `pod install` and add `NSMotionUsageDescription`; Expo apps add the plugin prop `motionActivity: {}` (optional `usageDescription`). See https://gabriel-sisjr.github.io/react-native-background-location/docs/guides/motion-activity
+Google Play treats `ACTIVITY_RECOGNITION` as health-related sensitive data: show a prominent in-app disclosure and get the user's affirmative consent before `requestMotionPermission()`, complete the Health apps declaration in Play Console, and declare motion-derived data that leaves the device in the Data safety form under "Health and fitness > Fitness info". See https://gabriel-sisjr.github.io/react-native-background-location/docs/production/google-play-compliance
 
 ## Quick Start
 
@@ -30,7 +32,8 @@ function TrackingScreen() {
 
   const handleStart = async () => {
     await requestPermissions();
-    await startTracking({
+    // The trip ID comes first; pass undefined to let the library generate one
+    await startTracking('trip-1', {
       accuracy: LocationAccuracy.HIGH_ACCURACY,
       distanceFilter: 50,
       updateInterval: 5000,
@@ -62,8 +65,10 @@ function startTracking(tripId: string, options?: TrackingOptions): Promise<strin
 Starts background location tracking. Returns the trip ID (auto-generated UUID if not provided).
 
 Parameters:
-- `tripId` (optional string) — Custom trip identifier. If omitted, a UUID is auto-generated.
+- `tripId` (optional string) — Custom trip identifier. If omitted, a UUID is auto-generated. It is always the first argument: a `tripId` key inside the options object is ignored.
 - `options` (optional TrackingOptions) — Tracking configuration.
+
+Never prompts for the motion permission and never rejects because of motion activity: problems are reported as `MOTION_*` warnings and tracking continues at full accuracy.
 
 ### stopTracking
 
@@ -103,7 +108,43 @@ Deletes all stored location data for the given trip ID.
 function updateNotification(title: string, text: string): Promise<void>;
 ```
 
-Updates the Android foreground service notification while tracking is active. No-op on iOS.
+Updates the Android foreground service notification while tracking is active. No-op on iOS. While motion activity has reduced location updates, the title changes at once and the new text is shown when full accuracy is restored.
+
+## Motion Activity Functions
+
+Opt-in, enabled per session with `TrackingOptions.motionActivity`. Each function warns and returns a fallback when the native module is not available.
+
+### addMotionActivityListener
+
+```typescript
+function addMotionActivityListener(listener: MotionActivityListener): MotionActivitySubscription;
+```
+
+Subscribes to `onMotionActivity` events (`MotionActivityEvent`). Returns `{ remove(): void }`. Events arrive only while a session with `motionActivity` enabled runs; consecutive events never repeat the same activity and confidence.
+
+### checkMotionPermission
+
+```typescript
+function checkMotionPermission(): Promise<MotionPermissionStatus>;
+```
+
+Never prompts. Android: `GRANTED`, `DENIED`, or `UNAVAILABLE` without Google Play services (API 29+ checks `ACTIVITY_RECOGNITION`, API 28 and lower the Play services permission). iOS: `GRANTED`, `DENIED`, `UNDETERMINED`, or `UNAVAILABLE` (CoreMotion not compiled in, `NSMotionUsageDescription` missing or blank, no motion hardware).
+
+### requestMotionPermission
+
+```typescript
+function requestMotionPermission(): Promise<MotionPermissionStatus>;
+```
+
+Call before `startTracking` (tracking never prompts; a permission granted mid-trip takes effect at the next start), and on Google Play only after the user accepted your motion disclosure. Android API 29+: system dialog through `PermissionsAndroid` (`GRANTED` or `DENIED`); API 28 and lower: current status (install-time permission). iOS: Motion & Fitness prompt while undetermined, app in the foreground; resolves `UNDETERMINED` when the user has not answered (for example, called while the app is not active).
+
+### getMotionActivityState
+
+```typescript
+function getMotionActivityState(): Promise<MotionActivityState>;
+```
+
+Returns `{ tripId, detection, reduction, lastActivity }`. Without a session: `{ tripId: null, detection: OFF, reduction: DISABLED, lastActivity: null }`.
 
 ## Geofencing Functions
 
@@ -239,22 +280,85 @@ function useGeofenceEvents(options?: UseGeofenceEventsOptions): void;
 
 Real-time geofence transition listener. Options: `{ onTransition, transitionTypes?, geofenceId? }`
 
+### useMotionActivity
+
+```typescript
+function useMotionActivity(options?: UseMotionActivityOptions): UseMotionActivityResult;
+```
+
+Read-only motion activity observer (never starts detection or prompts). Options: `{ tripId?, onMotionActivity? }`. Returns: `{ lastActivity, detection, reduction, refresh() }`. Hydrates through `getMotionActivityState()` on mount, on `tripId` change, when the app becomes active, on every `MOTION_*` warning, and on the first `onMotionActivity` event of a trip whose last-read state is not `RUNNING` (at most once per trip). A stop emits no event or warning: call `refresh()` after `stopTracking()`. With a native build that predates motion activity, it skips the automatic reads and logs `[BackgroundLocation] motion activity is not available in this native build; rebuild the app to use it.` once per JS session.
+
 ## Types
 
 ### TrackingOptions
 ```typescript
 interface TrackingOptions {
-  updateInterval?: number;       // ms between updates (default: 10000)
-  fastestInterval?: number;      // min ms between updates
-  maxWaitTime?: number;          // max ms to batch updates
+  updateInterval?: number;       // ms between updates (default: 5000, Android)
+  fastestInterval?: number;      // min ms between updates (Android)
+  maxWaitTime?: number;          // max ms to batch updates (Android)
   accuracy?: LocationAccuracy;   // default: HIGH_ACCURACY
-  waitForAccurateLocation?: boolean;
-  distanceFilter?: number;       // meters, 0 = disabled
-  foregroundOnly?: boolean;      // no background permission needed
+  activityType?: LocationActivityType; // iOS CLLocationManager hint, default: OTHER
+  waitForAccurateLocation?: boolean;   // Android
+  distanceFilter?: number;       // meters, 0 = disabled (Android and iOS)
+  foregroundOnly?: boolean;      // no background permission needed (Android and iOS)
   onUpdateInterval?: number;     // ms throttle for hook callbacks
   notificationOptions?: NotificationOptions;
+  motionActivity?: boolean | MotionActivityOptions; // opt-in, default: off
 }
 ```
+
+### MotionActivityOptions / MotionReductionOptions
+```typescript
+interface MotionActivityOptions {
+  sampleInterval?: number;       // Android only, ms, default 30000, clamped to [10000, 300000]
+  reduceWhenStationary?: boolean | MotionReductionOptions; // default: off; true = defaults
+}
+
+interface MotionReductionOptions {
+  stationaryDelay?: number;      // ms, default 300000, clamped to [60000, 3600000]
+  automotiveCooldown?: number;   // ms, default 600000, clamped to [120000, 3600000]
+  maxReducedDuration?: number;   // ms, default 1800000, clamped to [300000, 3600000]
+  notificationText?: string;     // Android only, default 'Location updates reduced while stationary'
+}
+```
+
+The reduction degrades (never stops) location updates while the device is stationary: Android `PRIORITY_LOW_POWER` (60 s interval), iOS 3 km accuracy with a 500 m distance filter. It starts only after `stationaryDelay` of high-confidence STATIONARY and `automotiveCooldown` without vehicle evidence (also counted from the session start); keep-alive fixes are never stored or emitted; one full-accuracy fix is forced every `maxReducedDuration`; movement, vehicle evidence, displacement, detection loss and Android service restarts restore full accuracy, and every session (including a recovered one) starts at full accuracy. Not applied to `foregroundOnly` trips or `PASSIVE`/`NO_POWER` accuracy. Displacement means the keep-alive fix is farther from the anchor than max(100 m, the sum of both accuracies), where a full-accuracy fix counts with its accuracy plus the trip's distance filter. Android timers are inexact allow-while-idle alarms: up to about 75% late outside Doze (defaults: stationary delay up to about 8.75 min, cooldown 17.5, max reduced 52.5, probe 3.5), later in Doze; a timer that cannot be armed ends detection for the session (full accuracy, one `MOTION_ACTIVITY_UNAVAILABLE`: `Motion activity could not start (AlarmManager). Location tracking continues at full accuracy.`). iOS max-reduced and probe timers follow wall-clock time. The defaults are the recommended fleet settings.
+
+### MotionActivityEvent / MotionActivityState
+```typescript
+interface MotionActivityEvent {
+  tripId: string;
+  activity: MotionActivityType;
+  confidence: MotionConfidence;
+  timestamp: number;             // ms since epoch, time of the detection
+}
+
+interface MotionActivityState {
+  tripId: string | null;
+  detection: MotionDetectionStatus;
+  reduction: MotionReductionStatus;
+  lastActivity: MotionActivityEvent | null;
+}
+```
+
+### LocationWarningEvent
+```typescript
+type LocationWarningType =
+  | 'SERVICE_TIMEOUT' | 'TASK_REMOVED' | 'LOCATION_UNAVAILABLE'
+  | 'LOCATION_UPDATES_PAUSED' | 'LOCATION_UPDATES_RESUMED'   // iOS
+  | 'PERMISSION_REVOKED' | 'PERMISSION_DOWNGRADED'           // iOS
+  | 'MOTION_LOCATION_REDUCED' | 'MOTION_LOCATION_RESTORED'
+  | 'MOTION_ACTIVITY_UNAVAILABLE' | 'MOTION_PERMISSION_NOT_GRANTED';
+
+interface LocationWarningEvent {
+  tripId: string;
+  type: LocationWarningType;
+  message: string;
+  timestamp: number;             // ms since epoch, sent on both platforms for every warning
+}
+```
+
+New members may be added in minor releases: keep a `default` branch in exhaustive switches.
 
 ### Coords
 ```typescript
@@ -340,12 +444,28 @@ interface NotificationOptions {
 ### GeofenceErrorCode
 - `INVALID_REGION`, `DUPLICATE_IDENTIFIER`, `LIMIT_EXCEEDED`, `MONITORING_FAILED`, `NOT_AVAILABLE`, `PERMISSION_DENIED`, `PLAY_SERVICES_UNAVAILABLE`
 
+### MotionActivityType
+- `STATIONARY`, `WALKING`, `RUNNING`, `CYCLING`, `AUTOMOTIVE`, `UNKNOWN` (unrelated to `LocationActivityType`; on iOS a car at a red light is `AUTOMOTIVE`)
+
+### MotionConfidence
+- `LOW`, `MEDIUM`, `HIGH` (Android: below 50, 50-74, 75 and above; transitions are `HIGH`)
+
+### MotionPermissionStatus
+- `GRANTED` (`'granted'`), `DENIED` (`'denied'`), `UNDETERMINED` (`'undetermined'`, iOS only), `UNAVAILABLE` (`'unavailable'`)
+
+### MotionDetectionStatus
+- `OFF`, `RUNNING`, `UNAVAILABLE`, `PERMISSION_NOT_GRANTED`
+
+### MotionReductionStatus
+- `DISABLED`, `NOT_APPLICABLE` (`foregroundOnly` or `PASSIVE`/`NO_POWER`), `UNAVAILABLE`, `MONITORING`, `REDUCED`
+
 ## Platform Support
 
 | Feature | Android | iOS |
 |---------|---------|-----|
 | Background tracking | Foreground service | CLLocationManager |
-| Persistence | Room DB | Core Data |
+| Persistence | Room DB (schema v2, additive migrations) | Core Data |
+| Motion activity (opt-in) | Activity Recognition API (Google Play services) | CoreMotion, compiled in only with the Podfile flag |
 | Geofencing | GeofencingClient (100 max) | CLLocationManager (20 max) |
 | Notifications | Full customization | System blue bar |
 | Crash recovery | WorkManager | Significant location monitoring |

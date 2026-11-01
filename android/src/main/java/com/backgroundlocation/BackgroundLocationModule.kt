@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import com.backgroundlocation.motion.AndroidMotionPlatform
+import com.backgroundlocation.motion.MotionOptions
+import com.backgroundlocation.motion.MotionStateStore
 import com.facebook.react.bridge.*
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.modules.core.DeviceEventManagerModule
@@ -128,6 +131,7 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
           is LocationEvent.Update -> handleLocationUpdate(event)
           is LocationEvent.Error -> handleLocationError(event)
           is LocationEvent.Warning -> handleLocationWarning(event)
+          is LocationEvent.MotionActivity -> handleMotionActivity(event)
         }
       }
       .launchIn(moduleScope)
@@ -210,12 +214,31 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
         event.tripId?.let { putString("tripId", it) }
         putString("type", event.warningType)
         putString("message", event.message)
+        putDouble("timestamp", event.timestamp.toDouble())
       }
       reactApplicationContext
         .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
         .emit("onLocationWarning", eventData)
     } catch (e: Exception) {
       android.util.Log.e("BackgroundLocationModule", "Failed to emit location warning", e)
+    }
+  }
+
+  private fun handleMotionActivity(event: LocationEvent.MotionActivity) {
+    if (!reactApplicationContext.hasActiveReactInstance()) return
+
+    try {
+      val eventData = Arguments.createMap().apply {
+        putString("tripId", event.tripId)
+        putString("activity", event.activity)
+        putString("confidence", event.confidence)
+        putDouble("timestamp", event.timestamp.toDouble())
+      }
+      reactApplicationContext
+        .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+        .emit("onMotionActivity", eventData)
+    } catch (e: Exception) {
+      android.util.Log.e("BackgroundLocationModule", "Failed to emit motion activity", e)
     }
   }
 
@@ -397,7 +420,9 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
       waitForAccurateLocation = if (options.hasKey("waitForAccurateLocation")) options.getBoolean("waitForAccurateLocation") else null,
       foregroundOnly = if (options.hasKey("foregroundOnly")) options.getBoolean("foregroundOnly") else null,
       distanceFilter = if (options.hasKey("distanceFilter")) options.getDouble("distanceFilter").toFloat() else null,
-      notificationOptions = notificationOptions
+      notificationOptions = notificationOptions,
+      // Opt-in motion activity: null (off) unless motionActivityEnabled is true; never throws
+      motion = MotionOptions.fromReadableMap(options)
     )
   }
 
@@ -600,6 +625,42 @@ class BackgroundLocationModule(reactContext: ReactApplicationContext) :
     } catch (e: Exception) {
       promise.reject("REQUEST_NOTIFICATION_PERMISSION_ERROR", e.message, e)
     }
+  }
+
+  // --- Motion Activity Methods ---
+
+  /**
+   * Checks the motion activity permission without prompting.
+   * Play services unavailable -> "unavailable"; granted -> "granted"; otherwise "denied".
+   * API 29+ checks ACTIVITY_RECOGNITION; API 28 and older check the Play services permission.
+   * Creates no Activity Recognition client.
+   */
+  override fun checkMotionPermission(promise: Promise) {
+    try {
+      promise.resolve(AndroidMotionPlatform(reactApplicationContext).permissionStatus().wireValue)
+    } catch (e: Exception) {
+      promise.reject("CHECK_MOTION_PERMISSION_ERROR", e.message, e)
+    }
+  }
+
+  /**
+   * Returns the same status as checkMotionPermission. The native module never prompts on
+   * Android: the JS layer requests ACTIVITY_RECOGNITION through PermissionsAndroid.
+   */
+  override fun requestMotionPermission(promise: Promise) {
+    try {
+      promise.resolve(AndroidMotionPlatform(reactApplicationContext).permissionStatus().wireValue)
+    } catch (e: Exception) {
+      promise.reject("REQUEST_MOTION_PERMISSION_ERROR", e.message, e)
+    }
+  }
+
+  /**
+   * Returns the JSON snapshot of the motion activity state published by the tracking service:
+   * {"tripId":..,"detection":..,"reduction":..,"lastActivity":{..}|null}
+   */
+  override fun getMotionActivityState(promise: Promise) {
+    promise.resolve(MotionStateStore.json)
   }
 
   /**

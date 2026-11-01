@@ -28,8 +28,9 @@ Background location tracking and geofencing require multiple permissions:
 | Foreground location | `ACCESS_FINE_LOCATION` | WhenInUse authorization |
 | Background location | `ACCESS_BACKGROUND_LOCATION` (Android 10+) | Always authorization |
 | Notifications | `POST_NOTIFICATIONS` (Android 13+) | `UNUserNotificationCenter` |
+| Motion activity (optional) | `ACTIVITY_RECOGNITION` (Android 10+) | Motion & Fitness |
 
-The `useLocationPermissions` hook manages all of these in a single, sequential flow.
+The `useLocationPermissions` hook manages the location and notification permissions in a single, sequential flow. It does not cover the optional motion activity permission, which has its own functions (see [Motion Activity Permission](#motion-activity-permission)).
 
 ## Basic Usage
 
@@ -401,6 +402,123 @@ function App() {
 }
 ```
 
+## Motion Activity Permission
+
+The opt-in `motionActivity` tracking option needs its own permission: `ACTIVITY_RECOGNITION` on Android 10+ (a separate Google Play services permission, granted at install time, on Android 9 and lower) and Motion & Fitness on iOS. `useLocationPermissions` neither requests nor reports it. Use `checkMotionPermission()`, which never prompts, and `requestMotionPermission()`, and call them **after** the location permissions and **before** `startTracking()`. If your app does not enable motion activity, skip this section.
+
+On Google Play, `ACTIVITY_RECOGNITION` is health-related sensitive data: show a prominent disclosure of what is detected, why, and whether it leaves the device, and call `requestMotionPermission()` only after the user accepts it. The example below does this; see [Google Play Compliance](../production/google-play-compliance.md#motion-activity-optional) for the Play Console declarations.
+
+The manifest entries, the iOS Podfile flag and `NSMotionUsageDescription` are covered in [Permissions](../getting-started/permissions.md#motion-activity-permission-optional).
+
+### Handling Each Status
+
+| Status | Meaning | What to do |
+|--------|---------|------------|
+| `GRANTED` | Permission granted | Start tracking with `motionActivity` |
+| `DENIED` | Android: not granted. "Never ask again" is also reported as `DENIED`. iOS: denied or restricted | Explain what motion activity adds and offer `Linking.openSettings()`. On Android 9 and lower, `DENIED` means the Play services permission is missing from your manifest |
+| `UNDETERMINED` | iOS only: not requested yet, or requested while the app was not in the foreground | Request it again from a user action, with the app in the foreground |
+| `UNAVAILABLE` | Android: Google Play services not available. iOS: CoreMotion not compiled in, `NSMotionUsageDescription` missing or blank, or no motion hardware | Do not retry. Track without motion activity, or fix the build setup |
+
+### Example
+
+This screen requests the location permissions first, then shows the motion disclosure and requests the motion permission, and starts the trip whatever the outcome is:
+
+```tsx
+import { Alert, AppState, Button, Linking } from 'react-native';
+import {
+  checkMotionPermission,
+  requestMotionPermission,
+  startTracking,
+  useLocationPermissions,
+  useLocationUpdates,
+  MotionPermissionStatus,
+} from '@gabriel-sisjr/react-native-background-location';
+
+// Prominent disclosure with affirmative consent (required by Google Play).
+function showMotionDisclosure(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Motion Activity',
+      'This app uses physical activity data (stationary, walking, running, ' +
+        'cycling or in a vehicle) to reduce location updates while your ' +
+        'vehicle is parked. The data stays on this device.',
+      [
+        { text: 'Decline', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'Accept & Continue', onPress: () => resolve(true) },
+      ],
+      { cancelable: false }
+    );
+  });
+}
+
+// Resolves null when the user declines the disclosure.
+async function ensureMotionPermission(): Promise<MotionPermissionStatus | null> {
+  const current = await checkMotionPermission(); // never prompts
+  if (
+    current === MotionPermissionStatus.GRANTED ||
+    current === MotionPermissionStatus.UNAVAILABLE
+  ) {
+    return current; // nothing to request
+  }
+  // DENIED or UNDETERMINED. The iOS prompt needs the app in the foreground.
+  if (AppState.currentState !== 'active') {
+    return current;
+  }
+  if (!(await showMotionDisclosure())) {
+    return null; // no consent: do not request the permission
+  }
+  return requestMotionPermission();
+}
+
+function StartTripButton() {
+  const { requestPermissions } = useLocationPermissions();
+
+  useLocationUpdates({
+    onLocationWarning: (warning) => {
+      if (warning.type === 'MOTION_PERMISSION_NOT_GRANTED') {
+        // The trip continues at full accuracy, without motion activity.
+        console.warn(warning.message);
+      }
+    },
+  });
+
+  const handleStart = async () => {
+    // 1. Location (and notification) permissions first.
+    const locationGranted = await requestPermissions();
+    if (!locationGranted) return;
+
+    // 2. Then the motion disclosure and permission, before startTracking().
+    const motion = await ensureMotionPermission();
+    if (motion === null) {
+      // Declined in the disclosure: track without motion activity.
+      await startTracking('trip-1');
+      return;
+    }
+    if (motion === MotionPermissionStatus.DENIED) {
+      // DENIED also covers Android "never ask again", where only Settings can change it.
+      Alert.alert(
+        'Motion & Fitness',
+        'Motion activity is off. You can allow it in Settings.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      );
+    }
+
+    // 3. Start the trip whatever the motion status is: startTracking() never
+    //    prompts for the motion permission and never fails because of it.
+    await startTracking('trip-1', { motionActivity: true });
+  };
+
+  return <Button title="Start trip" onPress={handleStart} />;
+}
+```
+
+### The `MOTION_PERMISSION_NOT_GRANTED` Warning
+
+`startTracking()` never prompts for the motion permission and never throws or rejects because of it. When the permission is missing at the start of a trip, the session emits a `MOTION_PERMISSION_NOT_GRANTED` warning through `onLocationWarning` and tracking continues at full accuracy, without motion activity. The same warning type reports a permission revoked during a trip. A permission granted during a trip takes effect at the next `startTracking()`. The [Motion Activity guide](./motion-activity.md#warnings) lists the exact messages.
+
 ## Best Practices
 
 ### 1. Request Permissions Before Tracking
@@ -518,6 +636,11 @@ import {
   // Enums
   LocationPermissionStatus,
   NotificationPermissionStatus,
+
+  // Motion activity permission (optional)
+  checkMotionPermission,
+  requestMotionPermission,
+  MotionPermissionStatus,
 } from '@gabriel-sisjr/react-native-background-location';
 
 import type {
@@ -534,3 +657,4 @@ import type {
 - [Background Tracking](./background-tracking.md) -- Start tracking after permissions are granted
 - [Geofencing](./geofencing.md) -- Geofencing requires "Always" permission on iOS
 - [Notification Customization](./notification-customization.md) -- Android notification setup
+- [Motion Activity](./motion-activity.md) -- Optional motion activity detection and its setup

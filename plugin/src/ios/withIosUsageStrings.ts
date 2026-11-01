@@ -15,6 +15,8 @@ const DEFAULT_ALWAYS_AND_WHEN_IN_USE =
   'Allow $(PRODUCT_NAME) to access your location, even when the app is in the background.';
 const DEFAULT_ALWAYS =
   'Allow $(PRODUCT_NAME) to access your location at all times.';
+const DEFAULT_MOTION =
+  'Allow $(PRODUCT_NAME) to use motion activity to detect when you are stationary or driving.';
 
 /**
  * iOS Info.plist injector for background-location.
@@ -31,6 +33,11 @@ const DEFAULT_ALWAYS =
  *    `NSLocationTemporaryUsageDescriptionDictionary`, so a purpose string is
  *    available for temporary precise-location requests. When the prop is
  *    omitted, the dictionary is left untouched.
+ * 4. Only when the `motionActivity` prop is present, populates
+ *    `NSMotionUsageDescription` with the same precedence chain
+ *    (`motionActivity.usageDescription → existing plist value → library
+ *    default`). Without the prop the key is never written, so apps that do
+ *    not use motion activity keep the plist they had.
  *
  * The mod is idempotent — calling the plugin chain twice produces a
  * byte-identical plist.
@@ -76,6 +83,14 @@ export const withIosUsageStrings: ConfigPlugin<
         ...existing,
         ...props.temporaryUsageDescriptions,
       };
+    }
+
+    // 4. Motion usage string — opt-in through the `motionActivity` prop.
+    if (props.motionActivity) {
+      plist.NSMotionUsageDescription =
+        props.motionActivity.usageDescription ??
+        plist.NSMotionUsageDescription ??
+        DEFAULT_MOTION;
     }
 
     return cfg;

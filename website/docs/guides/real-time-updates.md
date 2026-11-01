@@ -216,17 +216,44 @@ This also resets the internal "cleared" flag, allowing future auto re-hydrations
 
 ## Warning Events
 
-Both platforms emit warnings for non-critical issues that do not stop tracking.
+Both platforms emit warnings for non-critical issues. Tracking continues after every warning except `PERMISSION_REVOKED`, which ends the iOS session.
 
 ### Warning Types
+
+`LocationWarningType` has 11 members:
 
 | Type | Platform | Description | Action |
 |------|----------|-------------|--------|
 | `SERVICE_TIMEOUT` | Android 15+ | Foreground service timeout reached | Service auto-restarts, no action needed |
 | `TASK_REMOVED` | Android | App swiped from recents | Tracking continues, inform user if needed |
 | `LOCATION_UNAVAILABLE` | Both | GPS signal lost or disabled | Prompt user to check settings |
-| `PERMISSION_REVOKED` | iOS | User revoked location permission | Guide user to Settings |
+| `LOCATION_UPDATES_PAUSED` | iOS | iOS paused location updates to save battery | None; the library resumes updates unless the trip is `foregroundOnly` |
+| `LOCATION_UPDATES_RESUMED` | iOS | iOS resumed location updates | None |
+| `PERMISSION_REVOKED` | iOS | Location permission revoked or denied while tracking; tracking stops | Guide user to Settings |
 | `PERMISSION_DOWNGRADED` | iOS | User downgraded from Always to WhenInUse | Guide user to Settings |
+| `MOTION_LOCATION_REDUCED` | Both | Device stationary; location updates reduced (`motionActivity.reduceWhenStationary`) | None; fewer points are recorded until the device moves |
+| `MOTION_LOCATION_RESTORED` | Both | Full-accuracy location updates restored after a reduction | None |
+| `MOTION_ACTIVITY_UNAVAILABLE` | Both | Motion activity cannot run; tracking continues at full accuracy | Read `message` for the cause; see [Troubleshooting](../troubleshooting.md#motion-activity) |
+| `MOTION_PERMISSION_NOT_GRANTED` | Both | Motion permission missing or revoked; tracking continues at full accuracy | Call `requestMotionPermission()` before `startTracking()` |
+
+The four `MOTION_*` types are emitted only for trips that enable the opt-in `motionActivity` option. Their exact messages are listed under [Warnings](./motion-activity.md#warnings) in the Motion Activity guide.
+
+### Warning Payload
+
+Every warning is a `LocationWarningEvent`:
+
+```typescript
+interface LocationWarningEvent {
+  tripId: string;
+  type: LocationWarningType;
+  message: string;
+  timestamp: number; // ms since epoch, set when the native layer emits the warning
+}
+```
+
+Since 1.2.0, `timestamp` is sent on both platforms for every warning type. Earlier versions declared the field but did not send it.
+
+> **Note:** New `LocationWarningType` members can be added in minor releases. Keep a `default` branch in every `switch` over `warning.type`.
 
 ### Handling Warnings
 
@@ -249,6 +276,16 @@ useLocationUpdates({
           'Location Unavailable',
           'Please ensure GPS is enabled and you have a clear view of the sky.'
         );
+        break;
+
+      case 'MOTION_PERMISSION_NOT_GRANTED':
+        // Motion activity is off for this trip; tracking continues at full accuracy
+        console.log('Motion activity off:', warning.message);
+        break;
+
+      default:
+        // Every other type, including members added in later minor releases
+        console.log(`Warning [${warning.type}]: ${warning.message}`);
         break;
     }
   },
@@ -278,6 +315,43 @@ function TrackingWithWarnings() {
   );
 }
 ```
+
+## Motion Activity Events
+
+Trips that enable the opt-in `motionActivity` option also emit `onMotionActivity` events. `useLocationUpdates` does not receive them: use the [`useMotionActivity`](../api-reference/hooks/useMotionActivity.md) hook or [`addMotionActivityListener`](../api-reference/functions.md#motion-activity-functions).
+
+Each event is a `MotionActivityEvent`:
+
+```typescript
+interface MotionActivityEvent {
+  tripId: string;
+  activity: MotionActivityType; // STATIONARY, WALKING, RUNNING, CYCLING, AUTOMOTIVE or UNKNOWN
+  confidence: MotionConfidence; // LOW, MEDIUM or HIGH
+  timestamp: number; // time of the detection, ms since epoch
+}
+```
+
+- **When:** only while a tracking session with motion activity enabled is active. Nothing is emitted after `stopTracking()`.
+- **De-duplication:** within a session, a detection with the same `activity` and `confidence` as the previous event is not emitted again. The first event of each session is always emitted.
+- **Sources:** on Android, periodic samples (every `sampleInterval`, default 30 seconds) and activity transitions (only when an activity is entered); on iOS, every CoreMotion update.
+
+```typescript
+import {
+  addMotionActivityListener,
+  startTracking,
+} from '@gabriel-sisjr/react-native-background-location';
+
+const subscription = addMotionActivityListener((event) => {
+  console.log(event.tripId, event.activity, event.confidence);
+});
+
+await startTracking('trip-1', { motionActivity: true });
+
+// Later, when the screen no longer needs the events
+subscription.remove();
+```
+
+Setup, the motion permission and the optional stationary reduction are covered in the [Motion Activity guide](./motion-activity.md).
 
 ## Notification Action Buttons
 
@@ -493,3 +567,4 @@ No. The hook automatically receives real-time events and re-hydrates from the da
 - [Background Tracking](./background-tracking.md) -- Full tracking lifecycle and TrackingOptions
 - [Notification Customization](./notification-customization.md) -- Configure action buttons and notification appearance
 - [Battery Optimization](./battery-optimization.md) -- Manage memory and battery for long sessions
+- [Motion Activity](./motion-activity.md) -- Opt-in motion activity events and the stationary reduction

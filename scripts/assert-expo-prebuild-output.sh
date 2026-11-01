@@ -21,28 +21,50 @@
 #   android         app AndroidManifest.xml right after `expo prebuild`:
 #                   the 7 library permissions each declared exactly once, no
 #                   duplicated <uses-permission>, no unexpected location
-#                   permission, and newArchEnabled is not false.
+#                   permission, the motion permissions (below), and
+#                   newArchEnabled is not false.
 #   android-merged  the manifest Gradle produced (after `./gradlew
 #                   :app:assembleDebug`): the 7 permissions once each, the
-#                   library service/receivers merged exactly once. The library
-#                   manifest is merged by Gradle, never at prebuild time, so this
-#                   is the only place those components can be asserted.
+#                   motion permissions (below), the library service/receivers
+#                   merged exactly once (the motion receiver with
+#                   android:exported="false"), and the library module's own
+#                   merged manifest (android/build/intermediates/merged_manifest/
+#                   debug/processDebugManifest) never mentions
+#                   ACTIVITY_RECOGNITION. The library manifest is merged by
+#                   Gradle, never at prebuild time, so this is the only place
+#                   those components can be asserted.
 #   ios             Info.plist usage strings (expected value = plugin prop, else
 #                   the app's ios.infoPlist value, else the library default),
 #                   NSLocationTemporaryUsageDescriptionDictionary, UIBackgroundModes
 #                   containing "location" exactly once, CocoaPods deployment target
 #                   >= 16.0 and never lowered below the SDK default
 #                   (Podfile.properties.json / Podfile fallback), app target
-#                   IPHONEOS_DEPLOYMENT_TARGET >= 16.0 in project.pbxproj, and
+#                   IPHONEOS_DEPLOYMENT_TARGET >= 16.0 in project.pbxproj, the
+#                   motion usage string and Podfile flag (below), and
 #                   newArchEnabled is not false.
+#
+#   Motion activity follows the `motionActivity` plugin prop:
+#     set      android.permission.ACTIVITY_RECOGNITION and
+#              com.google.android.gms.permission.ACTIVITY_RECOGNITION each
+#              declared once, the Play services one with
+#              android:maxSdkVersion="28" unless the app declares it itself;
+#              NSMotionUsageDescription = prop usageDescription, else the app's
+#              ios.infoPlist value, else the library default; the Podfile sets
+#              `$BackgroundLocationMotionActivity = true` exactly once, before
+#              the first target.
+#     not set  neither permission and no NSMotionUsageDescription unless the app
+#              declares them (then exactly its own value, once); the Podfile
+#              never mentions BackgroundLocationMotionActivity.
 #
 # Options:
 #   --project-dir <dir>  Expo project root. Default: $EXPO_PROJECT_DIR, else
 #                        <repo>/example-expo.
-#   --props-json <json>  Expected plugin props as JSON (ios only). Default: read
-#                        from the project's own config via `expo config --json
-#                        --type prebuild`, so the expectation follows app.json /
-#                        app.config.ts and never drifts from it.
+#   --props-json <json>  Expected plugin props as JSON (any platform; the app's
+#                        own android.permissions and ios.infoPlist are then
+#                        taken as empty). Default: read from the project's own
+#                        config via `expo config --json --type prebuild`, so the
+#                        expectation follows app.json / app.config.ts and never
+#                        drifts from it.
 #   --props-file <file>  Same as --props-json, read from a file.
 #   --verbose            Print every passed check, not only failures.
 #

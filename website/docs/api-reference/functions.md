@@ -1,7 +1,7 @@
 ---
 sidebar_position: 1
 title: Tracking Functions
-description: API reference for location tracking functions — startTracking, stopTracking, isTracking, getLocations, clearTrip, and updateNotification.
+description: API reference for location tracking functions — startTracking, stopTracking, isTracking, getLocations, clearTrip, updateNotification, and the motion activity functions.
 keywords:
   - react-native
   - background-location
@@ -12,11 +12,13 @@ keywords:
   - getLocations
   - clearTrip
   - updateNotification
+  - motion activity
+  - requestMotionPermission
 ---
 
 # Tracking Functions
 
-Core functions for managing background location tracking sessions. All functions are async and handle native module unavailability gracefully by logging a warning and returning safe fallback values.
+Core functions for managing background location tracking sessions. All functions are async (except `addMotionActivityListener`, which returns a subscription) and handle native module unavailability gracefully by logging a warning and returning safe fallback values.
 
 ```ts
 import {
@@ -95,7 +97,16 @@ const tripId = await startTracking('trip-abc-123', {
   accuracy: LocationAccuracy.BALANCED_POWER_ACCURACY,
   fastestInterval: 5000,
 });
+
+// Opt-in motion activity, with the reduction while stationary
+const tripId = await startTracking('trip-abc-123', {
+  motionActivity: { reduceWhenStationary: true },
+});
 ```
+
+> **Note:** The trip ID is always the first argument. A `tripId` key inside the options object is not a tracking option and is ignored.
+
+> **Note:** `startTracking` never prompts for the motion permission and never rejects because of motion activity. When detection cannot run, tracking continues at full accuracy and a `MOTION_*` warning is emitted. See [Motion Activity Functions](#motion-activity-functions) and the [Motion Activity guide](../guides/motion-activity.md).
 
 ---
 
@@ -270,6 +281,8 @@ function updateNotification(title: string, text: string): Promise<void>
 
 > **Important:** Changes made with `updateNotification` are transient. If the service restarts (e.g., due to crash recovery), the notification reverts to the configuration provided in `TrackingOptions.notificationOptions` when `startTracking` was called.
 
+> **Android note:** While motion activity has reduced location updates, the notification shows `motionActivity.reduceWhenStationary.notificationText`. Calling `updateNotification` in that state changes the title at once and stores the new text, which is shown when full-accuracy updates are restored.
+
 ### Usage
 
 ```ts
@@ -278,4 +291,222 @@ await updateNotification(
   'Trip in Progress',
   `${distanceTraveled} km traveled`
 );
+```
+
+---
+
+## Motion Activity Functions
+
+Functions of the opt-in motion activity feature, enabled per session with `TrackingOptions.motionActivity`. See the [Motion Activity guide](../guides/motion-activity.md) for the platform setup and the reduction of location updates while stationary. Like the tracking functions, each one logs `BackgroundLocation not available - running in simulator or module not linked?` and returns a safe fallback when the native module is not available.
+
+```ts
+import {
+  addMotionActivityListener,
+  checkMotionPermission,
+  requestMotionPermission,
+  getMotionActivityState,
+} from '@gabriel-sisjr/react-native-background-location';
+```
+
+React components can use the [`useMotionActivity`](./hooks/useMotionActivity.md) hook instead of the listener and the state function.
+
+---
+
+## `addMotionActivityListener`
+
+Subscribes to `onMotionActivity` events. Events are delivered only while a tracking session with `motionActivity` enabled is running, and never after `stopTracking()`.
+
+**Platform:** Android and iOS
+
+### Signature
+
+```ts
+function addMotionActivityListener(
+  listener: MotionActivityListener
+): MotionActivitySubscription
+```
+
+### Parameters
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `listener` | `(event: MotionActivityEvent) => void` | Yes | Called with every motion activity event of every trip |
+
+### Return Value
+
+`MotionActivitySubscription` — an object with a `remove()` method that stops the delivery. Calling `remove()` more than once is safe.
+
+The event is `MotionActivityEvent`:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `tripId` | `string` | Trip of the session |
+| `activity` | `MotionActivityType` | `STATIONARY`, `WALKING`, `RUNNING`, `CYCLING`, `AUTOMOTIVE` or `UNKNOWN` |
+| `confidence` | `MotionConfidence` | `LOW`, `MEDIUM` or `HIGH` |
+| `timestamp` | `number` | Time of the detection, in milliseconds since epoch |
+
+Consecutive events of a session never repeat the same `activity` and `confidence` pair.
+
+> **Note:** When the native module is unavailable, logs a warning and returns a subscription that does nothing.
+
+### Usage
+
+```ts
+const subscription = addMotionActivityListener((event) => {
+  if (event.tripId === currentTripId) {
+    console.log(`${event.activity} (${event.confidence})`);
+  }
+});
+
+// When the screen or service no longer needs events
+subscription.remove();
+```
+
+---
+
+## `checkMotionPermission`
+
+Returns the motion activity permission status without prompting.
+
+**Platform:** Android and iOS
+
+### Signature
+
+```ts
+function checkMotionPermission(): Promise<MotionPermissionStatus>
+```
+
+### Parameters
+
+None.
+
+### Return Value
+
+`Promise<MotionPermissionStatus>`:
+
+| Status | Android | iOS |
+|--------|---------|-----|
+| `GRANTED` | `ACTIVITY_RECOGNITION` granted (API 29+), or the Play services permission granted (API 28 and lower) | Motion & Fitness authorized |
+| `DENIED` | Not granted | Denied or restricted |
+| `UNDETERMINED` | Never returned | The user has not been asked yet |
+| `UNAVAILABLE` | Google Play services is not available | CoreMotion not compiled in (Podfile flag off), `NSMotionUsageDescription` missing or blank, or no motion hardware |
+
+> **Note:** When the native module is unavailable, logs a warning and returns `UNAVAILABLE`.
+
+### Usage
+
+```ts
+const status = await checkMotionPermission();
+
+if (status === MotionPermissionStatus.GRANTED) {
+  await startTracking('trip-abc-123', { motionActivity: true });
+}
+```
+
+---
+
+## `requestMotionPermission`
+
+Requests the motion activity permission. Call it before `startTracking` with `motionActivity` enabled: tracking never prompts, and a permission granted during a trip takes effect at the next `startTracking`.
+
+**Platform:** Android and iOS
+
+### Signature
+
+```ts
+function requestMotionPermission(): Promise<MotionPermissionStatus>
+```
+
+### Parameters
+
+None.
+
+### Return Value
+
+`Promise<MotionPermissionStatus>` — the status after the request.
+
+| Platform | Behavior |
+|----------|----------|
+| Android 10+ (API 29+) | Returns the current status when it is `GRANTED` or `UNAVAILABLE`. Otherwise shows the system dialog for `ACTIVITY_RECOGNITION` and returns `GRANTED`, or `DENIED` (also after "Don't ask again") |
+| Android 9 and lower | Returns the current status: the Play services permission is granted at install time when declared in the manifest |
+| iOS | Shows the Motion & Fitness prompt while the status is `UNDETERMINED`, and only with the app in the foreground; otherwise returns the current status. Resolves `UNDETERMINED` when the prompt could not be answered (for example the app was not active) |
+
+The location permissions are handled separately by [`useLocationPermissions`](./hooks/useLocationPermissions.md), which does not cover motion activity.
+
+> **Important:** Google Play treats `ACTIVITY_RECOGNITION` as health-related sensitive data. Call `requestMotionPermission()` only after the user has accepted a prominent in-app disclosure of what is detected, why, and whether it leaves the device. See [Prominent Disclosure and Consent](../production/google-play-compliance.md#prominent-disclosure-and-consent).
+
+> **Note:** When the native module is unavailable, logs a warning and returns `UNAVAILABLE`.
+
+### Usage
+
+```ts
+import { Linking } from 'react-native';
+
+// After the user accepted your motion disclosure (Google Play)
+const status = await requestMotionPermission();
+
+switch (status) {
+  case MotionPermissionStatus.GRANTED:
+    break;
+  case MotionPermissionStatus.DENIED:
+    // Tracking still works at full accuracy; offer the settings screen
+    Linking.openSettings();
+    break;
+  default:
+    // UNDETERMINED (iOS, app not active) or UNAVAILABLE
+    break;
+}
+```
+
+---
+
+## `getMotionActivityState`
+
+Returns a snapshot of the motion activity state of the current tracking session.
+
+**Platform:** Android and iOS
+
+### Signature
+
+```ts
+function getMotionActivityState(): Promise<MotionActivityState>
+```
+
+### Parameters
+
+None.
+
+### Return Value
+
+`Promise<MotionActivityState>`:
+
+```ts
+interface MotionActivityState {
+  tripId: string | null;
+  detection: MotionDetectionStatus;
+  reduction: MotionReductionStatus;
+  lastActivity: MotionActivityEvent | null;
+}
+```
+
+| `reduction` | When |
+|-------------|------|
+| `DISABLED` | Reduction not requested, or no session |
+| `NOT_APPLICABLE` | Reduction requested, but the trip is `foregroundOnly` or uses `PASSIVE`/`NO_POWER` accuracy |
+| `UNAVAILABLE` | Reduction requested, but detection did not start or was lost |
+| `MONITORING` | Full-accuracy updates; waiting for a sustained stationary period |
+| `REDUCED` | Location updates are reduced while the device is stationary (also during the periodic full-accuracy probe) |
+
+Without a session, or when the native state cannot be parsed, the result is the OFF state: `{ tripId: null, detection: OFF, reduction: DISABLED, lastActivity: null }`.
+
+> **Note:** When the native module is unavailable, logs a warning and returns the OFF state.
+
+### Usage
+
+```ts
+const state = await getMotionActivityState();
+
+if (state.reduction === MotionReductionStatus.REDUCED) {
+  console.log(`Trip ${state.tripId} is parked; updates are reduced`);
+}
 ```

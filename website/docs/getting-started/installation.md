@@ -122,6 +122,27 @@ With the config plugin you do **not** follow the Android and iOS setup sections 
 
 See the [Expo config plugin guide](../guides/expo-config-plugin.md) for the options, the supported SDK versions and troubleshooting.
 
+## Motion Activity (Optional)
+
+Motion activity detection (the `motionActivity` tracking option) is opt-in and off by default. If you do not use it, skip this section: nothing below is needed. The library's own Android manifest declares no activity-recognition permission, and on iOS no CoreMotion code is compiled into your app unless you turn it on.
+
+To use it, add the setup for your platform, then request the runtime permission with `requestMotionPermission()` before `startTracking()` (see [Permissions](./permissions.md#motion-activity-permission-optional)).
+
+**Android (bare React Native).** Declare both activity-recognition permissions in your app's `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+<uses-permission
+    android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+    android:maxSdkVersion="28" />
+```
+
+**iOS (bare React Native).** Set `$BackgroundLocationMotionActivity = true` in `ios/Podfile` before the first `target`, run `pod install`, and add `NSMotionUsageDescription` to `Info.plist`. See [iOS Setup](./ios-setup.md#optional-motion-activity-coremotion).
+
+**Expo.** Add the `motionActivity` prop to the plugin entry (`{}` keeps the default usage string) and run `npx expo prebuild --clean`. See [`motionActivity`](../guides/expo-config-plugin.md#motionactivity) in the Expo config plugin guide.
+
+The [Motion Activity guide](../guides/motion-activity.md#setup) covers the complete setup and how detection behaves.
+
 ## Verifying the Installation
 
 After installation and setup, verify the library is linked correctly:

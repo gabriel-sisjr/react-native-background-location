@@ -1,11 +1,12 @@
 ---
 sidebar_position: 8
 title: Battery Optimization
-description: Battery management guide for background location tracking — distanceFilter optimization, accuracy trade-offs, Android manufacturer-specific issues, Doze mode, iOS background behavior, and recommended settings per use case.
+description: Battery management guide for background location tracking — distanceFilter optimization, accuracy trade-offs, motion-based reduction while stationary, Android manufacturer-specific issues, Doze mode, iOS background behavior, and recommended settings per use case.
 keywords:
   - battery optimization
   - distanceFilter
   - accuracy
+  - motion activity
   - Doze mode
   - Xiaomi
   - Huawei
@@ -161,6 +162,25 @@ function getTrackingOptions(currentSpeed: number): TrackingOptions {
   }
 }
 ```
+
+## Reducing Updates While Stationary
+
+A distance filter suppresses updates while the device is still, but the GPS keeps running. For vehicles that spend long periods parked, the opt-in motion activity feature can degrade the location request itself while the device is stationary and restore it on the first sign of movement:
+
+```typescript
+import { startTracking } from '@gabriel-sisjr/react-native-background-location';
+
+await startTracking('trip-42', {
+  distanceFilter: 50,
+  motionActivity: { reduceWhenStationary: true },
+});
+```
+
+- The reduction starts after 5 minutes of high-confidence `STATIONARY` and 10 minutes without vehicle evidence (both configurable). Each vehicle evidence restarts the 10 minutes, so red lights and stop-and-go traffic do not trigger it.
+- It is a degrade, never a stop: Android switches to `PRIORITY_LOW_POWER` (60 s interval) and iOS to 3 km accuracy with a 500 m distance filter, keeping the session alive.
+- While reduced, no fixes are recorded except one forced full-accuracy fix every 30 minutes (configurable), and `MOTION_LOCATION_REDUCED` / `MOTION_LOCATION_RESTORED` warnings mark the reduced periods.
+
+It needs the motion permission and a one-time setup on each platform. Read the [Motion Activity guide](./motion-activity.md), in particular its [risk profile](./motion-activity.md#risk-profile), before enabling it in production.
 
 ## Handling SERVICE_TIMEOUT (Android 15+)
 
@@ -369,9 +389,11 @@ const batteryEfficientOptions: TrackingOptions = {
 
 ### iOS Automatic Pause
 
-iOS can automatically pause location updates when it detects the user is stationary. This is enabled by default and dramatically saves battery. Updates resume automatically when movement is detected.
+The library sets `pausesLocationUpdatesAutomatically = false`, so iOS does not pause updates just because the device stopped moving. iOS can still pause them when its own motion classifier decides that the activity configured with `activityType` has ended (most often with `AUTOMOTIVE_NAVIGATION`).
 
-> **Note:** When iOS pauses updates, no warning event is emitted. Updates simply resume when movement is detected. This is normal behavior.
+When iOS pauses updates, the library emits a `LOCATION_UPDATES_PAUSED` warning and, for trips that are not `foregroundOnly`, resumes the updates immediately. `LOCATION_UPDATES_RESUMED` is emitted when iOS reports that updates resumed. Both warnings are observability signals; tracking continues.
+
+> **Note:** To save battery while a device is parked without ending the session, use the opt-in [motion activity reduction](./motion-activity.md#reducing-location-updates-while-stationary). Its warnings are `MOTION_LOCATION_REDUCED` and `MOTION_LOCATION_RESTORED`; it never emits `LOCATION_UPDATES_PAUSED`.
 
 ### iOS Low Power Mode
 
@@ -387,7 +409,7 @@ Your app cannot override Low Power Mode. Handle reduced update frequency gracefu
 
 1. **Use `BALANCED_POWER_ACCURACY`** unless you need meter-level precision
 2. **Use `distanceFilter`** to avoid updates when stationary
-3. **Allow automatic pause** (enabled by default) unless continuous tracking is critical
+3. **Reduce updates while parked** with the opt-in `motionActivity.reduceWhenStationary` instead of stopping and restarting tracking
 4. **Do not poll for locations** -- use the event-driven `useLocationUpdates` hook
 
 ## In-App Battery Help Screen
@@ -501,5 +523,6 @@ Before release, test on devices from problematic manufacturers. Emulators do not
 ## Next Steps
 
 - [Crash Recovery](./crash-recovery.md) -- How the library recovers from service kills
+- [Motion Activity](./motion-activity.md) -- Reducing location updates while the device is stationary
 - [Background Tracking](./background-tracking.md) -- TrackingOptions and distance filter configuration
 - [Real-Time Updates](./real-time-updates.md) -- Handling SERVICE_TIMEOUT warnings

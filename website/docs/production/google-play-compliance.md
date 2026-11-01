@@ -1,7 +1,7 @@
 ---
 sidebar_position: 1
 title: Google Play Compliance
-description: Google Play Store requirements for apps using background location — in-app disclosure, privacy policy, Play Console declarations, manifest entries, and common rejection reasons.
+description: Google Play Store requirements for apps using background location — in-app disclosure, privacy policy, Play Console declarations, manifest entries, the health-related motion activity permission, and common rejection reasons.
 keywords:
   - google play
   - background location
@@ -10,6 +10,8 @@ keywords:
   - data safety
   - disclosure
   - ACCESS_BACKGROUND_LOCATION
+  - ACTIVITY_RECOGNITION
+  - health apps declaration
   - foreground service
   - android
 ---
@@ -357,6 +359,109 @@ const tripId = await startTracking(undefined, {
 - Tracking stops when app is backgrounded
 - Gaps in route when user switches apps
 
+## Motion Activity (Optional)
+
+Motion activity is opt-in and off by default. If your app enables it on Android, the app declares and requests the activity recognition permission itself; the library manifest adds none.
+
+Google Play lists `ACTIVITY_RECOGNITION` among the permissions it considers in scope of **health-related sensitive data**, and its Health apps policy also covers apps that are not primarily health apps but have health-related features and access health data. Treat the permission that way even if your app uses motion activity only to save battery. On Google Play, an app that enables motion activity therefore also needs:
+
+1. A [prominent disclosure with affirmative consent](#prominent-disclosure-and-consent) before `requestMotionPermission()`
+2. An accurate [Health apps declaration](#health-apps-declaration) in Play Console
+3. A [Data safety](#data-safety-for-motion-data) entry when motion-derived data leaves the device
+
+### Manifest Entries
+
+Add both entries to your app's `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+<uses-permission
+    android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION"
+    android:maxSdkVersion="28" />
+```
+
+- `ACTIVITY_RECOGNITION` is a runtime permission on Android 10+ (API 29+). Request it with `requestMotionPermission()` before `startTracking()`; `startTracking()` never prompts.
+- On Android 9 (API 28) and lower, the Google Play services permission, limited by `android:maxSdkVersion="28"`, is granted at install time when declared.
+- With Expo, the `motionActivity` config plugin prop adds both entries (see [Expo Setup](../guides/motion-activity.md#expo-setup)).
+- If you stop using motion activity, remove both entries; otherwise the app keeps declaring a health-related permission. With Expo, delete the prop and run `npx expo prebuild --clean`, because an incremental prebuild keeps the permissions it added.
+
+See [Android Setup](../guides/motion-activity.md#android-setup) and [Requesting the Permission](../guides/motion-activity.md#requesting-the-permission) for details.
+
+### Prominent Disclosure and Consent
+
+For the permissions in scope of health-related sensitive data, Google Play states that an app that requires any of them "must prominently disclose how user data will be used, describe the type of data being accessed, and have the user provide affirmative consent for such use". Before you call `requestMotionPermission()`:
+
+- Show a prominent in-app disclosure, like the [background location disclosure](#step-1-in-app-disclosure-required), that says **what** is detected (stationary, walking, running, cycling or in a vehicle), **why** (for example, to reduce location updates while the vehicle is parked) and **whether** any of it leaves the device.
+- Request the permission only after the user explicitly accepts. If the user declines, start the trip without `motionActivity`: tracking continues at full accuracy.
+
+```typescript
+import { Alert } from 'react-native';
+import {
+  requestMotionPermission,
+  startTracking,
+} from '@gabriel-sisjr/react-native-background-location';
+
+/**
+ * Disclosure for the health-related ACTIVITY_RECOGNITION permission.
+ * Resolves true only when the user accepts.
+ */
+async function showMotionDisclosure(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      'Motion Activity',
+
+      'This app uses physical activity data (stationary, walking, running, cycling or in a vehicle) ' +
+        'to reduce location updates while your vehicle is parked, which saves battery.\n\n' +
+        'The activity data is processed on this device and is not sent anywhere.',
+
+      [
+        {
+          text: 'Decline',
+          onPress: () => resolve(false),
+          style: 'cancel',
+        },
+        {
+          text: 'Accept & Continue',
+          onPress: () => resolve(true),
+        },
+      ],
+      { cancelable: false }
+    );
+  });
+}
+
+// After the location disclosure and the location permissions
+async function startTripWithMotion(tripId: string) {
+  const accepted = await showMotionDisclosure();
+
+  if (!accepted) {
+    // No consent: do not request the permission, track at full accuracy
+    return startTracking(tripId);
+  }
+
+  await requestMotionPermission();
+
+  // Without the permission the session warns once and tracks at full accuracy
+  return startTracking(tripId, {
+    motionActivity: { reduceWhenStationary: true },
+  });
+}
+```
+
+Adapt the text to your app: state your own reason, and say so if your app sends activity data, or data derived from it, off the device.
+
+### Health Apps Declaration
+
+Google Play requires every developer with an app published on Google Play to complete the **Health apps** declaration, on the **App content** page (**Policy > App content**) in Play Console. The form asks apps that provide health features, or that access health data to support non-health features, to declare one or more of its listed features. Read its guidance before you select "My app doesn't provide any health features" for an app that requests `ACTIVITY_RECOGNITION`, and keep your answers consistent with how the app uses motion activity.
+
+### Data Safety for Motion Data
+
+The Data safety form covers data that your app collects, and Google defines collecting as transmitting data off the user's device. The library processes motion activity on the device and never sends it anywhere. If your app sends motion-derived data (for example detected activities or stationary periods) off the device, declare it in the Data safety form (**App content > Data safety**) under **Health and fitness > Fitness info**, which Google describes as "Information about a user's fitness, such as exercise or other physical activity."
+
+### Foreground Service Notification While Reduced
+
+While the stationary reduction is active, the foreground-service notification shows `reduceWhenStationary.notificationText` as its content text. The default is the English `'Location updates reduced while stationary'`. The title, icon, actions and channel stay the same, and your own text returns when full accuracy is restored. If your app is not in English, localize this text with `notificationText` (see [Android Notification Text](../guides/motion-activity.md#android-notification-text)).
+
 ## Common Rejection Reasons
 
 | Reason | Solution |
@@ -394,6 +499,15 @@ const tripId = await startTracking(undefined, {
 - [ ] Demonstration video uploaded
 - [ ] Core functionality explanation provided
 
+### Motion Activity (If Enabled)
+
+- [ ] `ACTIVITY_RECOGNITION` declared in the app manifest and requested at runtime on Android 10+
+- [ ] Google Play services permission declared with `android:maxSdkVersion="28"` for Android 9 and lower
+- [ ] Prominent disclosure of the motion data use shown before `requestMotionPermission()`, and the permission requested only after the user accepts
+- [ ] Health apps declaration completed (**Policy > App content**) and consistent with how the app uses motion activity
+- [ ] Motion-derived data that leaves the device declared in the Data safety form under **Health and fitness > Fitness info**
+- [ ] Reduced notification text localized with `notificationText` for non-English apps
+
 ## Testing Before Submission
 
 1. **Fresh install test**: Uninstall app, install from Play Console internal testing
@@ -406,4 +520,9 @@ const tripId = await startTracking(undefined, {
 - [Background Location Tracking](../guides/background-tracking.md) -- Implementation guide
 - [Permissions](../getting-started/permissions.md) -- Permission setup and hooks
 - [App Store Compliance](./app-store-compliance.md) -- iOS equivalent requirements
+- [Motion Activity](../guides/motion-activity.md) -- Opt-in motion activity setup and permissions
 - [Android Background Location Policy](https://support.google.com/googleplay/android-developer/answer/9799150) -- Official Google documentation
+- [Health app categories and additional information](https://support.google.com/googleplay/android-developer/answer/13996367) -- Permissions in scope of health-related sensitive data, disclosure and consent
+- [Health apps declaration form](https://support.google.com/googleplay/android-developer/answer/14738291) -- The Play Console declaration
+- [Health Content and Services](https://support.google.com/googleplay/android-developer/answer/16555673) -- The Health apps policy
+- [Data safety section](https://support.google.com/googleplay/android-developer/answer/10787469) -- Data types, including Fitness info

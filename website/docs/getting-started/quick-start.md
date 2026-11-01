@@ -534,4 +534,5 @@ yarn example ios
 - [iOS Setup](./ios-setup.md) -- iOS-specific configuration
 - [Hooks Guide](../api-reference/hooks/useBackgroundLocation.md) -- Complete hooks documentation with all options
 - [Background Tracking Guide](../guides/background-tracking.md) -- Production patterns and best practices
+- [Motion Activity](../guides/motion-activity.md) -- Optional, opt-in detection of stationary, walking or driving periods
 - [Google Play Compliance](../production/google-play-compliance.md) -- Required steps before publishing to the Play Store

@@ -128,7 +128,12 @@ export interface UseLocationUpdatesOptions {
 
   /**
    * Callback when a warning is received from the location service
-   * Warnings include: SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE
+   * Warnings include: SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE,
+   * LOCATION_UPDATES_PAUSED, LOCATION_UPDATES_RESUMED, PERMISSION_REVOKED,
+   * PERMISSION_DOWNGRADED (the last four are iOS only), and the motion
+   * activity warnings MOTION_LOCATION_REDUCED, MOTION_LOCATION_RESTORED,
+   * MOTION_ACTIVITY_UNAVAILABLE, MOTION_PERMISSION_NOT_GRANTED.
+   * See `LocationWarningEvent.type` for their meaning.
    */
   onLocationWarning?: (warning: LocationWarningEvent) => void;
 
@@ -171,7 +176,12 @@ export interface UseLocationUpdatesResult {
 
   /**
    * The most recent warning from the location service
-   * Includes warnings like SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE
+   * Includes warnings like SERVICE_TIMEOUT, TASK_REMOVED, LOCATION_UNAVAILABLE,
+   * LOCATION_UPDATES_PAUSED, LOCATION_UPDATES_RESUMED, PERMISSION_REVOKED,
+   * PERMISSION_DOWNGRADED (the last four are iOS only), and the motion
+   * activity warnings MOTION_LOCATION_REDUCED, MOTION_LOCATION_RESTORED,
+   * MOTION_ACTIVITY_UNAVAILABLE, MOTION_PERMISSION_NOT_GRANTED.
+   * See `LocationWarningEvent.type` for their meaning.
    */
   lastWarning: LocationWarningEvent | null;
 

@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { NativeModules, Platform, AppState } from 'react-native';
 import { useLocationUpdates } from '../../hooks/useLocationUpdates';
 import BackgroundLocationModule from '../../NativeBackgroundLocation';
+import type { LocationWarningEvent, LocationWarningType } from '../../types';
 
 const simulateAppStateChange = (global as any).simulateAppStateChange as (
   state: string
@@ -1215,6 +1216,51 @@ describe('useLocationUpdates', () => {
 
       expect(result.current.lastWarning).toBeNull();
       expect(onLocationWarning).not.toHaveBeenCalled();
+    });
+
+    it('new warning types reach onLocationWarning with timestamp', async () => {
+      const onLocationWarning = jest.fn();
+      const { result } = renderHook(() =>
+        useLocationUpdates({ tripId: mockTripId, onLocationWarning })
+      );
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      const newTypes: LocationWarningType[] = [
+        'LOCATION_UPDATES_PAUSED',
+        'LOCATION_UPDATES_RESUMED',
+        'PERMISSION_REVOKED',
+        'PERMISSION_DOWNGRADED',
+        'MOTION_LOCATION_REDUCED',
+        'MOTION_LOCATION_RESTORED',
+        'MOTION_ACTIVITY_UNAVAILABLE',
+        'MOTION_PERMISSION_NOT_GRANTED',
+      ];
+
+      for (const [index, type] of newTypes.entries()) {
+        const warningEvent: LocationWarningEvent = {
+          tripId: mockTripId,
+          type,
+          message: `${type} message`,
+          timestamp: 1700000000000 + index,
+        };
+
+        act(() => {
+          (global as any).simulateWarningEvent(warningEvent);
+        });
+
+        await waitFor(() => {
+          expect(result.current.lastWarning).toEqual(warningEvent);
+        });
+        expect(onLocationWarning).toHaveBeenLastCalledWith(warningEvent);
+        expect(result.current.lastWarning?.timestamp).toBe(
+          1700000000000 + index
+        );
+      }
+
+      expect(onLocationWarning).toHaveBeenCalledTimes(newTypes.length);
     });
   });
 

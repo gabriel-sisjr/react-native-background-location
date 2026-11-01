@@ -3,6 +3,7 @@
  */
 
 import type { LocationAccuracy, LocationActivityType } from './enums';
+import type { MotionActivityOptions } from './motion';
 import type { NotificationOptions } from './notifications';
 
 /**
@@ -154,12 +155,24 @@ export interface LocationUpdateEvent {
 }
 
 /**
- * Warning types emitted by the location service
+ * Warning types emitted by the location service.
+ *
+ * New members may be added in minor releases. Code that switches
+ * exhaustively over this union (for example with a `never` check) should keep
+ * a default branch.
  */
 export type LocationWarningType =
   | 'SERVICE_TIMEOUT'
   | 'TASK_REMOVED'
-  | 'LOCATION_UNAVAILABLE';
+  | 'LOCATION_UNAVAILABLE'
+  | 'LOCATION_UPDATES_PAUSED'
+  | 'LOCATION_UPDATES_RESUMED'
+  | 'PERMISSION_REVOKED'
+  | 'PERMISSION_DOWNGRADED'
+  | 'MOTION_LOCATION_REDUCED'
+  | 'MOTION_LOCATION_RESTORED'
+  | 'MOTION_ACTIVITY_UNAVAILABLE'
+  | 'MOTION_PERMISSION_NOT_GRANTED';
 
 /**
  * Warning event emitted by the location service
@@ -175,6 +188,15 @@ export interface LocationWarningEvent {
    * - SERVICE_TIMEOUT: Android 15+ foreground service timeout reached, service is restarting
    * - TASK_REMOVED: App was swiped from recents, tracking continues in background
    * - LOCATION_UNAVAILABLE: GPS signal lost or location services disabled
+   * - LOCATION_UPDATES_PAUSED (iOS): iOS paused location updates
+   * - LOCATION_UPDATES_RESUMED (iOS): iOS resumed location updates
+   * - PERMISSION_REVOKED (iOS): location permission revoked while tracking
+   * - PERMISSION_DOWNGRADED (iOS): location permission downgraded to When In Use
+   * - MOTION_LOCATION_REDUCED: device stationary, location updates reduced
+   *   (`motionActivity.reduceWhenStationary`)
+   * - MOTION_LOCATION_RESTORED: full-accuracy location updates restored after a reduction
+   * - MOTION_ACTIVITY_UNAVAILABLE: motion activity cannot run; tracking continues at full accuracy
+   * - MOTION_PERMISSION_NOT_GRANTED: motion permission missing or revoked; tracking continues at full accuracy
    */
   type: LocationWarningType;
   /**
@@ -182,7 +204,7 @@ export interface LocationWarningEvent {
    */
   message: string;
   /**
-   * Timestamp when the warning was emitted
+   * Time the native layer emitted the warning, in milliseconds since Unix epoch
    */
   timestamp: number;
 }
@@ -276,7 +298,6 @@ export interface TrackingOptions {
    * Minimum distance in meters between location updates
    * The system will not deliver location updates until the device has moved at least this distance
    * @default 0 (no distance filter - all updates delivered)
-   * @platform Android
    */
   distanceFilter?: number;
 
@@ -295,7 +316,6 @@ export interface TrackingOptions {
    * When enabled, tracking only works while the app is in foreground or visible.
    * Useful for privacy-conscious users who don't want to grant background location permission.
    * @default false
-   * @platform Android
    */
   foregroundOnly?: boolean;
 
@@ -307,4 +327,17 @@ export interface TrackingOptions {
    * @default undefined (callback called on every location update)
    */
   onUpdateInterval?: number;
+
+  /**
+   * Opt-in motion activity detection. `true` or an options object enables
+   * `onMotionActivity` events (see `addMotionActivityListener()` and the
+   * `useMotionActivity` hook); `false` or omitted keeps it off.
+   *
+   * Nothing changes when it is off: no activity recognition client, no
+   * CoreMotion call and no motion permission prompt.
+   *
+   * @default undefined (off)
+   * @see MotionActivityOptions
+   */
+  motionActivity?: boolean | MotionActivityOptions;
 }

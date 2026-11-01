@@ -32,6 +32,7 @@ Side-by-side comparison of how `@gabriel-sisjr/react-native-background-location`
 | Distance filter | Supported | Supported |
 | Foreground-only mode | Supported | Supported |
 | Real-time JS events | NativeEventEmitter via SharedFlow singletons | NativeEventEmitter via closure callbacks |
+| Motion activity (opt-in) | Activity Recognition API (Google Play services) | CoreMotion, compiled in only with a Podfile flag |
 
 ## Location Tracking
 
@@ -191,6 +192,38 @@ interface PermissionState {
 | Persistence after reboot | `BootCompletedReceiver` re-registers geofences + restarts heartbeat | `CLLocationManager` persists regions across restarts |
 | Persistence after force-quit | Survives (geofences stored in Room DB) | Survives (regions managed by OS) |
 
+## Motion Activity
+
+Motion activity detection and the stationary reduction are opt-in through `TrackingOptions.motionActivity` and off by default. The JavaScript API, the `onMotionActivity` event and the `MOTION_*` warnings are the same on both platforms; the detection source, permission model and timers differ. See the [Motion Activity guide](../guides/motion-activity.md#platform-differences) for the full behavior.
+
+| Aspect | Android | iOS |
+|---|---|---|
+| Opt-in | `motionActivity` in `TrackingOptions` | `motionActivity` in `TrackingOptions`, plus a compile-time opt-in: `$BackgroundLocationMotionActivity = true` in the Podfile (or the Expo plugin prop `motionActivity`). Without it no CoreMotion code is compiled or linked |
+| Detection source | Activity Recognition API (Google Play services); no fallback without Play services | CoreMotion (`CMMotionActivity`) |
+| Delivery | Periodic samples every `sampleInterval` (default 30 s) plus ENTER transitions | Every CoreMotion update, as changes happen (`sampleInterval` is ignored) |
+| Confidence | Most probable activity's 0-100 value: 75 or more is `HIGH`, 50-74 `MEDIUM`, below 50 `LOW`; ENTER transitions are `HIGH` | CoreMotion `.high`, `.medium` and `.low`, mapped directly |
+| Permission | `android.permission.ACTIVITY_RECOGNITION`, a runtime permission on API 29+ (Android 10+); `com.google.android.gms.permission.ACTIVITY_RECOGNITION`, granted at install time, on API 28 and lower. The app declares both; the library manifest declares neither | Motion & Fitness; requires `NSMotionUsageDescription` in `Info.plist` |
+| Permission prompt | `requestMotionPermission()` shows the system dialog on API 29+ through `PermissionsAndroid`; the native module never prompts. On Google Play, show your disclosure and get consent first | `requestMotionPermission()` prompts only while the status is undetermined, and only with the app in the foreground; it resolves `UNDETERMINED` when the user has not answered |
+| Permission revoked mid-trip | Detected through a security error or a re-check | Re-checked when the app becomes active, at each `maxReducedDuration` timer, and when a timer fires while a stationary period is being confirmed |
+| Reduced profile | `PRIORITY_LOW_POWER`, interval 60 s, fastest interval 30 s, no distance filter, through the fused provider. The foreground service keeps running | `desiredAccuracy = kCLLocationAccuracyThreeKilometers`, `distanceFilter = 500` m. Standard updates keep running, so the app is not suspended and CoreMotion keeps delivering |
+| Reduction timers | Inexact `AlarmManager.setAndAllowWhileIdle` alarms (no exact-alarm permission). Outside Doze and battery saver they can fire up to about 75% later than configured; in Doze, allow-while-idle alarms fire at most once every 9 minutes per app. A timer that cannot be scheduled ends detection for the session (`MOTION_ACTIVITY_UNAVAILABLE`, full accuracy) | `DispatchSourceTimer`s on the library's serial queue. The maximum-reduced-duration and probe timers follow wall-clock time; the dwell and cooldown timers can run longer while the device sleeps, which only postpones a reduction |
+| Notification while reduced | Content text switches to `reduceWhenStationary.notificationText`; title, icon, actions and channel are unchanged | No notification; the blue location indicator stays visible |
+| Platform-specific options | `sampleInterval` and `reduceWhenStationary.notificationText` apply | Both are ignored |
+| Geofencing while reduced | Registrations are untouched. The geofence heartbeat runs only when tracking is not active, so with only the low-power request alive, transitions can be reported later until movement restores full accuracy | Region monitoring is run by the system and is not changed |
+
+On both platforms the reduction is a degrade, never a stop: it applies only to trips that are not `foregroundOnly` and do not use `PASSIVE` or `NO_POWER` accuracy, and full accuracy returns when movement or a vehicle is detected or the device moves away. See [How the Reduction Works](../guides/motion-activity.md#how-the-reduction-works) and [Geofencing While Reduced](../guides/motion-activity.md#geofencing-while-reduced).
+
+### Motion Permission Status Mapping
+
+| MotionPermissionStatus | Android | iOS |
+|---|---|---|
+| `GRANTED` | `ACTIVITY_RECOGNITION` granted (API 29+), or the Play services permission granted at install time because it is declared (API 28 and lower) | Motion & Fitness authorized |
+| `DENIED` | Not granted, including never requested and "never ask again" | Denied or restricted |
+| `UNDETERMINED` | Never returned | Not requested yet, or not answered (for example, requested while the app was not active) |
+| `UNAVAILABLE` | Google Play services not available | CoreMotion code not compiled in, `NSMotionUsageDescription` missing or blank, or no motion hardware |
+
+`checkMotionPermission()` never prompts. Call [`requestMotionPermission()`](../api-reference/functions.md#motion-activity-functions) before `startTracking()`; `startTracking()` never prompts for it. See [`MotionPermissionStatus`](../api-reference/enums.md#motionpermissionstatus) and [Requesting the Permission](../guides/motion-activity.md#requesting-the-permission).
+
 ## Crash Recovery
 
 | Aspect | Android | iOS |
@@ -244,6 +277,13 @@ interface PermissionState {
 | `.priority` | Applied | Ignored | Notification priority (`NotificationPriority` enum) |
 | `.actions` | Applied | Ignored | Up to 3 action buttons on the notification |
 | `onUpdateInterval` | Applied | Applied | JS-level throttling, works on both platforms |
+| `motionActivity` | Applied | Applied | Opt-in motion activity detection, off by default. iOS also needs the CoreMotion code compiled in (Podfile flag or Expo plugin prop) |
+| `.sampleInterval` | Applied | Ignored | Activity Recognition sampling interval (default 30000 ms); CoreMotion reports changes as they happen |
+| `.reduceWhenStationary` | Applied | Applied | Opt-in reduction (never a stop) of location updates while stationary |
+| `.reduceWhenStationary.stationaryDelay` | Applied | Applied | Continuous high-confidence stationary time before reducing (default 5 minutes) |
+| `.reduceWhenStationary.automotiveCooldown` | Applied | Applied | Minimum time since the last vehicle evidence, and since the session started, before reducing (default 10 minutes) |
+| `.reduceWhenStationary.maxReducedDuration` | Applied | Applied | Longest reduced period before one full-accuracy fix is forced (default 30 minutes) |
+| `.reduceWhenStationary.notificationText` | Applied | Ignored | Foreground-notification text while updates are reduced |
 
 ## Events
 
@@ -274,11 +314,17 @@ Both platforms emit the same events through `NativeEventEmitter` with the same d
 |---|---|---|
 | `SERVICE_TIMEOUT` | Emitted on Android 15+ service timeout | Not emitted (no service concept) |
 | `TASK_REMOVED` | Emitted when app is swiped from recents | Not emitted |
-| `LOCATION_UNAVAILABLE` | Emitted when GPS signal lost | Emitted when CLLocationManager fails |
+| `LOCATION_UNAVAILABLE` | Emitted when GPS signal lost (not while motion reduction is active, except during its full-accuracy probe) | Emitted when CLLocationManager fails (not while motion reduction is active, except during its full-accuracy probe) |
 | `LOCATION_UPDATES_PAUSED` | Not emitted | Emitted when iOS pauses updates for battery |
 | `LOCATION_UPDATES_RESUMED` | Not emitted | Emitted when iOS resumes paused updates |
 | `PERMISSION_REVOKED` | Not emitted natively (handled by hooks) | Emitted when permission is revoked mid-session |
 | `PERMISSION_DOWNGRADED` | Not applicable | Emitted when Always is downgraded to WhenInUse |
+| `MOTION_LOCATION_REDUCED` | Emitted when a stationary period is confirmed and updates switch to the low-power profile | Emitted when a stationary period is confirmed and updates switch to the reduced profile |
+| `MOTION_LOCATION_RESTORED` | Emitted when full accuracy returns: movement or vehicle detected, device moved, detection stopped, or tracking restarted (including Android 15+ service-timeout restarts) | Emitted when full accuracy returns: movement or vehicle detected, device moved, or detection stopped (a session never restarts in place on iOS) |
+| `MOTION_ACTIVITY_UNAVAILABLE` | Google Play services not available, or the activity recognition registration failed | CoreMotion code not compiled in, `NSMotionUsageDescription` missing or blank, or no motion hardware |
+| `MOTION_PERMISSION_NOT_GRANTED` | `ACTIVITY_RECOGNITION` not granted or not declared (API 29+), the Play services permission not declared (API 28 and lower), or the permission was revoked | Motion & Fitness not requested yet, denied or restricted, or revoked mid-trip |
+
+> **Note:** From 1.2.0, every warning carries `timestamp` (milliseconds since epoch, taken when the native layer emits the warning) on both platforms, for the existing types and the new ones. Before 1.2.0 the field was declared but never sent. The `MOTION_*` warnings always carry the active trip's `tripId`, and the motion reduction never emits `LOCATION_UPDATES_PAUSED` or `LOCATION_UPDATES_RESUMED`. `LocationWarningType` now has 11 members; widening the union can break an exhaustive `switch` or `never` check at compile time, so keep a `default` branch. See [Warnings](../guides/motion-activity.md#warnings) for the exact motion warning messages.
 
 ## Store Compliance
 
@@ -292,6 +338,7 @@ Both platforms emit the same events through `NativeEventEmitter` with the same d
 | Permission justification | Permissions declaration form in Play Console | Review notes + justification text |
 | Demo video | Required for background location | Not required (but helpful for review) |
 | Privacy manifest | Not applicable | Required (PrivacyInfo.xcprivacy) |
+| Motion activity permission | The app declares and requests `ACTIVITY_RECOGNITION` (runtime on Android 10+); the library manifest adds none. Google Play treats it as health-related sensitive data: prominent disclosure and consent before the request, Health apps declaration, and Data safety (Health and fitness > Fitness info) when motion-derived data leaves the device | `NSMotionUsageDescription`, only when the CoreMotion code is compiled in |
 
 ## Testing Differences
 
@@ -303,6 +350,7 @@ Both platforms emit the same events through `NativeEventEmitter` with the same d
 | Crash recovery | Can simulate via `adb shell am force-stop` | Can simulate via Xcode stop, but not force-quit |
 | Permission reset | Settings > Apps > Permissions | Settings > Privacy > Location Services |
 | Battery simulation | `adb shell dumpsys deviceidle force-idle` | No equivalent (must test on device) |
+| Motion activity | Physical device with Google Play services (real sensors and Doze cannot be reproduced on an emulator) | Physical device with the CoreMotion code compiled in |
 
 ## Cross-Platform Code Pattern
 
@@ -364,3 +412,4 @@ function TrackingScreen() {
 - [App Store Compliance](./app-store-compliance.md) -- iOS store requirements
 - [Google Play Compliance](./google-play-compliance.md) -- Android store requirements
 - [Geofencing](../guides/geofencing.md) -- Geofencing guide with platform details
+- [Motion Activity](../guides/motion-activity.md) -- Opt-in motion activity detection and the stationary reduction

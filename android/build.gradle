@@ -63,6 +63,8 @@ android {
 
   testOptions {
     unitTests.returnDefaultValues = true
+    // Robolectric tests (Room migration) read the exported schemas as test assets
+    unitTests.includeAndroidResources = true
   }
 
   lint {
@@ -80,6 +82,10 @@ android {
         "generated/java",
         "generated/jni"
       ]
+    }
+    test {
+      // Exported Room schemas, read by MigrationTestHelper
+      assets.srcDirs += files("$projectDir/schemas")
     }
   }
 }
@@ -112,4 +118,10 @@ dependencies {
   testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0"
   testImplementation "app.cash.turbine:turbine:1.2.0"
   testImplementation "io.mockk:mockk:1.13.13"
+  // Room migration test (Robolectric, SDK pinned per test class with @Config)
+  testImplementation "org.robolectric:robolectric:4.16.1"
+  testImplementation "androidx.room:room-testing:$room"
+  testImplementation "androidx.test:core:1.6.1"
+  // Real org.json for plain JVM tests (android.jar only provides stubs)
+  testImplementation "org.json:json:20260814"
 }

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 5
 title: Enums
-description: All enum definitions for @gabriel-sisjr/react-native-background-location — LocationAccuracy, LocationActivityType, NotificationPriority, LocationPermissionStatus, NotificationPermissionStatus, GeofenceTransitionType, and GeofenceErrorCode.
+description: All enum definitions for @gabriel-sisjr/react-native-background-location — LocationAccuracy, LocationActivityType, NotificationPriority, LocationPermissionStatus, NotificationPermissionStatus, GeofenceTransitionType, GeofenceErrorCode, and the motion activity enums.
 keywords:
   - react-native
   - background-location
@@ -12,6 +12,8 @@ keywords:
   - LocationPermissionStatus
   - GeofenceTransitionType
   - GeofenceErrorCode
+  - MotionActivityType
+  - MotionPermissionStatus
 ---
 
 # Enums
@@ -27,6 +29,11 @@ import {
   NotificationPermissionStatus,
   GeofenceTransitionType,
   GeofenceErrorCode,
+  MotionActivityType,
+  MotionConfidence,
+  MotionPermissionStatus,
+  MotionDetectionStatus,
+  MotionReductionStatus,
 } from '@gabriel-sisjr/react-native-background-location';
 ```
 
@@ -96,6 +103,8 @@ enum LocationActivityType {
 **Platform:** iOS only. The value is parsed but ignored on Android.
 
 > **Note:** Unknown strings fall back to `OTHER` and a warning is logged via the iOS guard logger.
+
+> **Note:** `LocationActivityType` only describes the trip to iOS. It is unrelated to [`MotionActivityType`](#motionactivitytype), which reports the activity detected by the opt-in motion activity feature.
 
 ### Usage
 
@@ -321,5 +330,155 @@ try {
         console.error('Geofence error:', err.message);
     }
   }
+}
+```
+
+---
+
+## `MotionActivityType`
+
+Motion activity detected by the opt-in motion activity feature (`TrackingOptions.motionActivity`), normalized across platforms. Android uses the Activity Recognition API of Google Play services; iOS uses CoreMotion. See the [Motion Activity guide](../guides/motion-activity.md#normalization) for the full mapping.
+
+```ts
+enum MotionActivityType {
+  STATIONARY = 'STATIONARY',
+  WALKING = 'WALKING',
+  RUNNING = 'RUNNING',
+  CYCLING = 'CYCLING',
+  AUTOMOTIVE = 'AUTOMOTIVE',
+  UNKNOWN = 'UNKNOWN',
+}
+```
+
+| Value | String | Description | Native Mapping |
+|-------|--------|-------------|----------------|
+| `STATIONARY` | `'STATIONARY'` | The device is not moving | Android: `STILL` / iOS: `stationary` (only when no other flag is set) |
+| `WALKING` | `'WALKING'` | Walking | Android: `WALKING`, or `ON_FOOT` / iOS: `walking` |
+| `RUNNING` | `'RUNNING'` | Running | Android: `RUNNING`, or `ON_FOOT` when running is more probable / iOS: `running` |
+| `CYCLING` | `'CYCLING'` | Cycling | Android: `ON_BICYCLE` / iOS: `cycling` |
+| `AUTOMOTIVE` | `'AUTOMOTIVE'` | In a vehicle, including a vehicle stopped at a red light on iOS | Android: `IN_VEHICLE` / iOS: `automotive` |
+| `UNKNOWN` | `'UNKNOWN'` | The activity cannot be determined | Android: `UNKNOWN`, `TILTING` / iOS: `unknown`, or no flag set |
+
+**Platform:** Android and iOS.
+
+---
+
+## `MotionConfidence`
+
+Confidence of a [`MotionActivityType`](#motionactivitytype) classification.
+
+```ts
+enum MotionConfidence {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+}
+```
+
+| Value | String | Android | iOS |
+|-------|--------|---------|-----|
+| `LOW` | `'LOW'` | Confidence of the most probable activity below 50 | `CMMotionActivityConfidence.low` |
+| `MEDIUM` | `'MEDIUM'` | Confidence from 50 to 74 | `CMMotionActivityConfidence.medium` |
+| `HIGH` | `'HIGH'` | Confidence of 75 or more, and every activity transition | `CMMotionActivityConfidence.high` |
+
+Only `STATIONARY` with `HIGH` confidence can start the reduction of location updates; movement and vehicle evidence restore full accuracy at any confidence.
+
+---
+
+## `MotionPermissionStatus`
+
+Motion activity permission status (Android `ACTIVITY_RECOGNITION`, iOS Motion & Fitness), returned by `checkMotionPermission()` and `requestMotionPermission()`.
+
+```ts
+enum MotionPermissionStatus {
+  GRANTED = 'granted',
+  DENIED = 'denied',
+  UNDETERMINED = 'undetermined',
+  UNAVAILABLE = 'unavailable',
+}
+```
+
+| Value | String | Description |
+|-------|--------|-------------|
+| `GRANTED` | `'granted'` | The permission is granted |
+| `DENIED` | `'denied'` | The permission is denied (or restricted on iOS). On Android this includes "Don't ask again" |
+| `UNDETERMINED` | `'undetermined'` | iOS only: the user has not been asked yet, or has not answered (for example, `requestMotionPermission()` was called while the app was not active) |
+| `UNAVAILABLE` | `'unavailable'` | Motion activity cannot run: Google Play services is missing (Android); CoreMotion is not compiled in, `NSMotionUsageDescription` is missing or blank, or there is no motion hardware (iOS); or the native module is not available |
+
+### Usage
+
+```ts
+import {
+  checkMotionPermission,
+  MotionPermissionStatus,
+} from '@gabriel-sisjr/react-native-background-location';
+
+const status = await checkMotionPermission();
+
+if (status === MotionPermissionStatus.UNAVAILABLE) {
+  console.log('Motion activity is not available in this build or on this device');
+}
+```
+
+---
+
+## `MotionDetectionStatus`
+
+State of motion activity detection for the current tracking session, reported by `getMotionActivityState()` and `useMotionActivity`.
+
+```ts
+enum MotionDetectionStatus {
+  OFF = 'OFF',
+  RUNNING = 'RUNNING',
+  UNAVAILABLE = 'UNAVAILABLE',
+  PERMISSION_NOT_GRANTED = 'PERMISSION_NOT_GRANTED',
+}
+```
+
+| Value | String | Description |
+|-------|--------|-------------|
+| `OFF` | `'OFF'` | No session, or the session did not enable `motionActivity` |
+| `RUNNING` | `'RUNNING'` | Motion activity events are being delivered |
+| `UNAVAILABLE` | `'UNAVAILABLE'` | Detection could not start or was lost (see the `MOTION_ACTIVITY_UNAVAILABLE` warning) |
+| `PERMISSION_NOT_GRANTED` | `'PERMISSION_NOT_GRANTED'` | The motion permission is missing or was revoked (see the `MOTION_PERMISSION_NOT_GRANTED` warning) |
+
+---
+
+## `MotionReductionStatus`
+
+State of the opt-in reduction of location updates while stationary (`motionActivity.reduceWhenStationary`).
+
+```ts
+enum MotionReductionStatus {
+  DISABLED = 'DISABLED',
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+  UNAVAILABLE = 'UNAVAILABLE',
+  MONITORING = 'MONITORING',
+  REDUCED = 'REDUCED',
+}
+```
+
+| Value | String | Description |
+|-------|--------|-------------|
+| `DISABLED` | `'DISABLED'` | Reduction was not requested, or there is no session |
+| `NOT_APPLICABLE` | `'NOT_APPLICABLE'` | Reduction was requested but does not apply: the trip is `foregroundOnly` or uses `PASSIVE`/`NO_POWER` accuracy |
+| `UNAVAILABLE` | `'UNAVAILABLE'` | Reduction was requested but motion detection did not start or was lost |
+| `MONITORING` | `'MONITORING'` | Full-accuracy updates; waiting for a sustained stationary period |
+| `REDUCED` | `'REDUCED'` | Location updates are reduced while the device is stationary, including the periodic full-accuracy probe |
+
+### Usage
+
+```tsx
+import {
+  MotionReductionStatus,
+  useMotionActivity,
+} from '@gabriel-sisjr/react-native-background-location';
+
+function ParkedBadge({ tripId }: { tripId: string }) {
+  const { reduction } = useMotionActivity({ tripId });
+
+  return reduction === MotionReductionStatus.REDUCED ? (
+    <Text>Parked: saving battery</Text>
+  ) : null;
 }
 ```

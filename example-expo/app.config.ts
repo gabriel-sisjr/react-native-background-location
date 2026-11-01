@@ -20,6 +20,12 @@ import type { ExpoConfig } from 'expo/config';
  * `android.permissions` is covered by the `preexisting` variant of
  * `scripts/verify-expo-tarball.sh`.
  *
+ * `motionActivity: {}` opts in to motion activity with the library defaults:
+ * the two Android activity-recognition permissions, the default
+ * `NSMotionUsageDescription` and the `$BackgroundLocationMotionActivity = true`
+ * Podfile flag that compiles the CoreMotion code. The opt-out path (no prop)
+ * is covered by the `defaults` variant of `scripts/verify-expo-tarball.sh`.
+ *
  * There is deliberately no `expo-build-properties` entry and no
  * `ios.deploymentTarget`: the plugin raises the iOS deployment target to
  * the library minimum (16.0) by itself, and the same jobs prove that it
@@ -53,6 +59,9 @@ const config: ExpoConfig = {
           AccurateFix:
             'example-expo needs accurate location for the demo screen.',
         },
+        // Opt in to motion activity with the library defaults (see the
+        // comment above).
+        motionActivity: {},
       },
     ],
   ],

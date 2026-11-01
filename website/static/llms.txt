@@ -10,7 +10,7 @@
 
 ## Overview
 
-A React Native library that provides background location tracking using TurboModules (New Architecture). Supports Android (foreground service + Room DB) and iOS (CLLocationManager + Core Data). Features include real-time location updates, geofencing with ENTER/EXIT/DWELL transitions, crash recovery, persistent storage, and configurable notifications.
+A React Native library that provides background location tracking using TurboModules (New Architecture). Supports Android (foreground service + Room DB) and iOS (CLLocationManager + Core Data). Features include real-time location updates, geofencing with ENTER/EXIT/DWELL transitions, crash recovery, persistent storage, configurable notifications, and opt-in motion activity (activity events plus an optional reduction of location updates while the device is stationary; off by default).
 
 ## Requirements
 
@@ -20,11 +20,12 @@ A React Native library that provides background location tracking using TurboMod
 - Android: min SDK 24, target SDK 34
 - iOS: 16.0+
 - Expo (optional): SDK 54+ with a development build, see /docs/guides/expo-config-plugin
+- Motion activity (optional): Google Play services on Android (the app declares ACTIVITY_RECOGNITION, which Google Play treats as health-related sensitive data: prominent disclosure and user consent before requesting it, Health apps declaration, Data safety "Health and fitness > Fitness info" when motion-derived data leaves the device; see /docs/production/google-play-compliance); on iOS the Podfile flag `$BackgroundLocationMotionActivity = true` plus `NSMotionUsageDescription`; see /docs/guides/motion-activity
 
 ## Public API
 
 ### Tracking Functions
-- `startTracking(tripIdOrOptions?, options?)` — Start background location tracking. Returns trip ID.
+- `startTracking(tripIdOrOptions?, options?)` — Start background location tracking. Returns trip ID. The trip ID is positional (`startTracking('trip-1', { ... })`).
 - `stopTracking()` — Stop tracking and terminate the service.
 - `isTracking()` — Check if tracking is active. Returns `TrackingStatus`.
 - `getLocations(tripId)` — Retrieve stored locations for a trip.
@@ -44,6 +45,12 @@ A React Native library that provides background location tracking using TurboMod
 - `configureGeofenceNotifications(options)` — Configure geofence notification settings.
 - `getGeofenceNotificationConfig()` — Get current geofence notification config.
 
+### Motion Activity Functions
+- `addMotionActivityListener(listener)` — Subscribe to `onMotionActivity` events. Returns `{ remove() }`.
+- `checkMotionPermission()` — Motion permission status without prompting. Returns `MotionPermissionStatus`.
+- `requestMotionPermission()` — Request the motion permission (Android 10+ dialog, iOS Motion & Fitness prompt in the foreground; iOS resolves UNDETERMINED when the user has not answered). Call before `startTracking`, after the user accepted your motion disclosure (Google Play).
+- `getMotionActivityState()` — Snapshot `{ tripId, detection, reduction, lastActivity }` of the current session.
+
 ### React Hooks
 - `useBackgroundLocation(options?)` — Full tracking control with trip management.
 - `useLocationTracking(options?)` — Lightweight tracking status monitoring.
@@ -52,6 +59,7 @@ A React Native library that provides background location tracking using TurboMod
 - `useGeofencing(options?)` — Geofence CRUD operations.
 - `useGeofenceEvents(options?)` — Real-time geofence transition listener.
 - `useGeofencePermissions()` — Alias for useLocationPermissions.
+- `useMotionActivity(options?)` — Motion activity events plus detection and reduction status (read-only). Refreshes on mount, app resume, `MOTION_*` warnings and the first event of a session; call `refresh()` after `stopTracking()`.
 
 ### Enums
 - `LocationAccuracy` — HIGH_ACCURACY, BALANCED_POWER_ACCURACY, LOW_POWER, NO_POWER, PASSIVE
@@ -60,9 +68,17 @@ A React Native library that provides background location tracking using TurboMod
 - `NotificationPermissionStatus` — GRANTED, DENIED, UNDETERMINED
 - `GeofenceTransitionType` — ENTER, EXIT, DWELL
 - `GeofenceErrorCode` — INVALID_REGION, DUPLICATE_IDENTIFIER, LIMIT_EXCEEDED, MONITORING_FAILED, NOT_AVAILABLE, PERMISSION_DENIED, PLAY_SERVICES_UNAVAILABLE
+- `MotionActivityType` — STATIONARY, WALKING, RUNNING, CYCLING, AUTOMOTIVE, UNKNOWN
+- `MotionConfidence` — LOW, MEDIUM, HIGH
+- `MotionPermissionStatus` — GRANTED, DENIED, UNDETERMINED, UNAVAILABLE
+- `MotionDetectionStatus` — OFF, RUNNING, UNAVAILABLE, PERMISSION_NOT_GRANTED
+- `MotionReductionStatus` — DISABLED, NOT_APPLICABLE, UNAVAILABLE, MONITORING, REDUCED
 
 ### Key Types
-- `TrackingOptions` — Configuration for tracking (updateInterval, accuracy, distanceFilter, notificationOptions, etc.)
+- `TrackingOptions` — Configuration for tracking (updateInterval, accuracy, distanceFilter, notificationOptions, motionActivity, etc.)
+- `MotionActivityOptions` / `MotionReductionOptions` — Opt-in motion activity and the reduction of location updates while stationary (sampleInterval, reduceWhenStationary, stationaryDelay, automotiveCooldown, maxReducedDuration, notificationText)
+- `MotionActivityEvent` — Motion activity event (tripId, activity, confidence, timestamp)
+- `LocationWarningEvent` — Warning (type, message, tripId, timestamp); 11 `LocationWarningType` members including the four MOTION_* warnings
 - `Coords` — Location coordinate data (latitude, longitude, timestamp, accuracy, altitude, speed, bearing)
 - `TrackingStatus` — Active status and trip ID
 - `GeofenceRegion` — Geofence definition (identifier, lat/lng, radius, transitionTypes)
@@ -76,6 +92,7 @@ A React Native library that provides background location tracking using TurboMod
 - Quick Start: /docs/getting-started/quick-start
 - Background Tracking Guide: /docs/guides/background-tracking
 - Geofencing Guide: /docs/guides/geofencing
+- Motion Activity Guide: /docs/guides/motion-activity
 - Expo Config Plugin: /docs/guides/expo-config-plugin
 - API Reference: /docs/api-reference/functions
 - Hooks Reference: /docs/api-reference/hooks/useBackgroundLocation

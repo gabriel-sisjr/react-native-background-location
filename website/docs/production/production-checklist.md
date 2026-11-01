@@ -40,6 +40,7 @@ See the [Google Play Compliance](./google-play-compliance.md) and [App Store Com
 - [ ] Location data uploaded to server after trip ends
 - [ ] Old data cleared after successful upload (`clearTrip()`)
 - [ ] Tracking stops when no longer needed (no indefinite background tracking)
+- [ ] Exhaustive `switch` statements or `never` checks over `LocationWarningType` keep a `default` branch (1.2.0 widened the union to 11 members, whether or not motion activity is enabled)
 
 See the [Crash Recovery](../guides/crash-recovery.md) and [Background Tracking](../guides/background-tracking.md) guides for implementation patterns.
 
@@ -86,6 +87,25 @@ See the [Platform Comparison](./platform-comparison.md) guide for behavioral dif
 
 See the [Background Tracking](../guides/background-tracking.md#memory-management) guide for memory management strategies.
 
+## Motion Activity (If Enabled)
+
+Motion activity is off by default. Skip this section if your app does not set `motionActivity`.
+
+- [ ] Android: `android.permission.ACTIVITY_RECOGNITION` and `com.google.android.gms.permission.ACTIVITY_RECOGNITION` (with `android:maxSdkVersion="28"`) declared in the app's `AndroidManifest.xml` (the library manifest declares neither)
+- [ ] iOS: `$BackgroundLocationMotionActivity = true` set in the Podfile before the first `target`, `pod install` run, and `NSMotionUsageDescription` added to `Info.plist`
+- [ ] Expo: `motionActivity` config plugin prop set (it adds the Android permissions, the usage description and the Podfile flag); removing it later requires `npx expo prebuild --clean`, otherwise the permissions stay declared
+- [ ] Google Play: a prominent disclosure of the motion data use shown before `requestMotionPermission()`, and the permission requested only after the user accepts (`ACTIVITY_RECOGNITION` is health-related sensitive data for Google Play)
+- [ ] Google Play Console: Health apps declaration completed, and motion-derived data that leaves the device declared in the Data safety form under Health and fitness > Fitness info
+- [ ] `requestMotionPermission()` called before `startTracking()` (`startTracking()` never prompts; on iOS the prompt appears only with the app in the foreground, otherwise the result is `UNDETERMINED`)
+- [ ] Screens that show `useMotionActivity()` status call its `refresh()` after `stopTracking()` (a stop emits no event or warning)
+- [ ] `MOTION_ACTIVITY_UNAVAILABLE`, `MOTION_PERMISSION_NOT_GRANTED`, `MOTION_LOCATION_REDUCED` and `MOTION_LOCATION_RESTORED` warnings handled in `onLocationWarning` (tracking continues at full accuracy when detection cannot start)
+- [ ] `reduceWhenStationary.notificationText` localized for non-English apps (Android shows it in the foreground notification while updates are reduced)
+- [ ] Motion activity device tests run on physical Android and iOS devices (see [Motion Activity Device Tests](../development/testing.md#motion-activity-device-tests))
+
+> **Note:** The recommended settings for fleet apps are the default timings: `motionActivity: { reduceWhenStationary: true }`. Read [Recommended Settings](../guides/motion-activity.md#recommended-settings) and the [Risk Profile](../guides/motion-activity.md#risk-profile) before changing `stationaryDelay`, `automotiveCooldown` or `maxReducedDuration`.
+
+See the [Motion Activity](../guides/motion-activity.md#setup) guide for setup on each platform.
+
 ## See Also
 
 - [Google Play Compliance](./google-play-compliance.md) -- Android store requirements
@@ -93,3 +113,4 @@ See the [Background Tracking](../guides/background-tracking.md#memory-management
 - [Platform Comparison](./platform-comparison.md) -- Android vs iOS differences
 - [Battery Optimization](../guides/battery-optimization.md) -- Battery management guide
 - [Crash Recovery](../guides/crash-recovery.md) -- Session recovery patterns
+- [Motion Activity](../guides/motion-activity.md) -- Opt-in motion activity and the stationary reduction

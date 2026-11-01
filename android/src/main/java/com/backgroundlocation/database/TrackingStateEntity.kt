@@ -24,6 +24,13 @@ data class TrackingStateEntity(
   val foregroundOnly: Boolean? = null,
 
   // Notification options as a single JSON string
-  val notificationOptionsJson: String? = null
+  val notificationOptionsJson: String? = null,
+
+  // Schema v2 columns. Keep them last, in this order: the generated CREATE TABLE must
+  // match the ALTER TABLE ... ADD COLUMN statements of MIGRATION_1_2.
+  val distanceFilter: Float? = null,
+
+  // Motion activity options as a single JSON string (null when the feature is off)
+  val motionOptionsJson: String? = null
 )
 

@@ -10,6 +10,7 @@ export { assertNativeModuleAvailable } from './moduleCheck';
 export { isNativeModuleAvailable } from './isNativeModuleAvailable';
 export { extractDefinedProperties } from './objectUtils';
 export { toTrackingOptionsSpec } from './trackingOptionsMapper';
+export { toMotionSpecFields } from './motionOptionsMapper';
 export { validateGeofenceRegion } from './geofenceValidation';
 export {
   prepareGeofenceRegion,
